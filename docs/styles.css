@@ -2758,7 +2758,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle at 50% 50%, rgba(255,248,216,.95), transparent 11%),
     radial-gradient(circle at 50% 50%, rgba(243,197,77,.66), transparent 27%),
     conic-gradient(from 0deg at 50% 50%, transparent, rgba(255,224,118,.34), transparent, rgba(255,255,255,.24), transparent);
-  animation: revealChargeFlash var(--gacha-reveal-total, 2400ms) ease-in-out both;
+  animation: revealChargeFlash var(--gacha-reveal-total, 1320ms) ease-in-out both;
   mix-blend-mode: screen;
 }
 
@@ -2771,7 +2771,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 }
 
 .gacha-reveal-stage.rarity-n::after {
-  animation: rarityNGlow var(--gacha-reveal-total, 1800ms) ease both;
+  animation: rarityNGlow var(--gacha-reveal-total, 1200ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-r::after {
@@ -2779,7 +2779,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle, rgba(113,184,255,.88) 0 1px, transparent 2px),
     radial-gradient(circle at 50% 48%, rgba(63,155,255,.32), transparent 32%);
   background-size: 54px 54px, auto;
-  animation: rarityRGlow var(--gacha-reveal-total, 2100ms) ease both;
+  animation: rarityRGlow var(--gacha-reveal-total, 1320ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-sr::after {
@@ -2788,7 +2788,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     linear-gradient(72deg, transparent 0 58%, rgba(255,255,255,.60) 59% 60%, transparent 61%),
     radial-gradient(circle, rgba(205,159,255,.88) 0 1px, transparent 2px);
   background-size: auto, auto, 62px 62px;
-  animation: raritySRLightning var(--gacha-reveal-total, 2500ms) ease both;
+  animation: raritySRLightning var(--gacha-reveal-total, 1450ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-ssr::after {
@@ -2798,7 +2798,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(ellipse at 50% 50%, rgba(255,210,88,.46), transparent 34%),
     linear-gradient(110deg, transparent 0 45%, rgba(255,243,204,.48) 46% 47%, transparent 48%);
   background-size: 118px 118px, 86px 86px, auto, auto;
-  animation: raritySSRFeathers var(--gacha-reveal-total, 3000ms) ease both;
+  animation: raritySSRFeathers var(--gacha-reveal-total, 1800ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-ur::after {
@@ -2808,7 +2808,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle, rgba(255,218,86,.86) 0 1px, transparent 2px),
     linear-gradient(118deg, transparent 0 42%, rgba(255,255,255,.70) 43% 44%, transparent 45%);
   background-size: auto, 48px 48px, 86px 86px, auto;
-  animation: rarityURDivine var(--gacha-reveal-total, 3500ms) ease both;
+  animation: rarityURDivine var(--gacha-reveal-total, 2300ms) ease both;
 }
 
 .gacha-choice-particles {
@@ -2822,7 +2822,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle, rgba(255,241,196,.96) 0 1px, transparent 2px),
     linear-gradient(0deg, transparent 0 48%, rgba(255,218,110,.22) 49% 50%, transparent 51%);
   background-size: auto, 56px 56px, auto;
-  animation: choiceParticlesGather 2.4s ease-in-out infinite;
+  animation: choiceParticlesGather 1.35s ease-in-out infinite;
 }
 
 .gacha-reveal-choice-set {
@@ -2864,7 +2864,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   width: min(88vw, 390px);
   aspect-ratio: 2 / 3;
   perspective: 1200px;
-  animation: choiceMainDrop .58s cubic-bezier(.18,.78,.28,1) both, choiceMainFloat 1.25s ease-in-out .58s infinite;
+  animation: choiceMainDrop .28s cubic-bezier(.18,.78,.28,1) both, choiceMainFloat .82s ease-in-out .28s infinite;
   transform-style: preserve-3d;
   isolation: isolate;
 }
@@ -2884,7 +2884,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 .gacha-reveal-main-card::before {
   border: 2px solid rgba(255,221,128,.62);
   box-shadow: 0 0 28px rgba(255,214,111,.40), inset 0 0 22px rgba(255,236,177,.18);
-  animation: revealGoldRing 1.22s ease-in-out .16s infinite;
+  animation: revealGoldRing .62s ease-in-out .08s infinite;
 }
 
 .gacha-reveal-main-card::after {
@@ -2892,7 +2892,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     conic-gradient(from 0deg at 50% 50%, transparent 0 7%, rgba(255,228,142,.28) 8% 10%, transparent 11% 22%, rgba(255,255,255,.18) 23% 24%, transparent 25%),
     radial-gradient(circle at 50% 50%, rgba(255,240,184,.32), transparent 58%);
   filter: blur(.4px);
-  animation: revealRadiantRays 1.8s linear infinite;
+  animation: revealRadiantRays .9s linear infinite;
 }
 
 .gacha-reveal-main-inner {
@@ -2901,7 +2901,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   height: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform var(--gacha-flip-duration, 700ms) cubic-bezier(.2,.68,.18,1);
+  transition: transform var(--gacha-flip-duration, 450ms) cubic-bezier(.2,.68,.18,1);
 }
 
 .gacha-reveal-stage.is-revealing .gacha-reveal-main-inner,
@@ -2923,7 +2923,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 .gacha-reveal-back {
   transform: rotateY(0deg);
   box-shadow: 0 34px 90px rgba(0,0,0,.58), 0 0 64px rgba(232,197,124,.46);
-  animation: choiceLightLeak .95s ease-in-out .24s infinite, revealBackTremble .16s ease-in-out .62s infinite;
+  animation: choiceLightLeak .48s ease-in-out .10s infinite, revealBackTremble .11s ease-in-out .38s infinite;
 }
 
 .gacha-reveal-front {
@@ -2944,7 +2944,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .gacha-reveal-stage.is-revealing .gacha-reveal-main-card,
 .gacha-reveal-stage.is-reveal-complete .gacha-reveal-main-card {
-  animation: choiceMainReveal var(--gacha-reveal-total, 2400ms) ease both;
+  animation: choiceMainReveal var(--gacha-reveal-total, 1320ms) ease both;
 }
 
 .gacha-reveal-stage.is-reveal-complete .tl-simple-card__number,

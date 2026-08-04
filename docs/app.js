@@ -3120,11 +3120,11 @@ function completeGachaReveal(card) {
 function getGachaRevealTiming(rarity = "N") {
   const key = String(rarity || "N").toUpperCase();
   const timings = {
-    N: { totalMs: 1800, flipMs: 620, imageWaitMs: 650 },
-    R: { totalMs: 2100, flipMs: 660, imageWaitMs: 720 },
-    SR: { totalMs: 2500, flipMs: 700, imageWaitMs: 820 },
-    SSR: { totalMs: 3000, flipMs: 760, imageWaitMs: 900 },
-    UR: { totalMs: 3500, flipMs: 820, imageWaitMs: 1000 }
+    N: { totalMs: 1200, flipMs: 420, imageWaitMs: 220 },
+    R: { totalMs: 1320, flipMs: 430, imageWaitMs: 240 },
+    SR: { totalMs: 1450, flipMs: 450, imageWaitMs: 280 },
+    SSR: { totalMs: 1800, flipMs: 470, imageWaitMs: 340 },
+    UR: { totalMs: 2300, flipMs: 500, imageWaitMs: 420 }
   };
   return timings[key] || timings.N;
 }
