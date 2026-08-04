@@ -2100,6 +2100,11 @@ async function drawGachaRemote(issueMonth, options = {}) {
   try {
     if (!options.silent) showToast("抽選しています…");
     const profile = getProfile();
+    console.info("[TEAM LINK GACHA] drawMonthlyGacha start", {
+      userId: profile.memberId,
+      lineUserId: profile.lineUserId || "",
+      targetYearMonth: issueMonth
+    });
     const configResult = await apiRequest("getGachaConfig", {});
     console.info("[TEAM LINK API OK]", { action: "getGachaConfig", data: configResult.data || configResult });
     const statusResult = await apiRequest("checkMonthlyDrawStatus", {
@@ -2126,6 +2131,11 @@ async function drawGachaRemote(issueMonth, options = {}) {
       transactionId: createTransactionId("GACHA-DRAW")
     });
     console.info("[TEAM LINK API OK]", { action: "drawMonthlyGacha", response: result, data: result.data || result });
+    console.info("[TEAM LINK GACHA] drawMonthlyGacha complete", {
+      response: result,
+      cardId: result.data?.draw?.cardId || result.draw?.cardId || "",
+      rewardName: result.data?.draw?.rewardName || result.draw?.rewardName || ""
+    });
     return mapServerGachaDrawToLocal(result.data?.draw || result.draw || {}, result.data?.reward || result.reward || {});
   } catch (error) {
     console.error("[TEAM LINK GACHA DRAW FAILED]", {
@@ -2957,6 +2967,12 @@ function completeGachaReveal(card) {
   const message = overlay.querySelector("[data-gacha-reveal-message]");
   const actions = overlay.querySelector("[data-gacha-reveal-actions]");
   const frontHtml = gachaCompletedCardHtml(card, "reveal");
+  console.info("[TEAM LINK GACHA] completeGachaReveal start", {
+    cardId: card.cardId,
+    characterId: card.characterId,
+    rarity: card.rarity,
+    prizeName: card.prizeName
+  });
   if (front) front.innerHTML = frontHtml;
   console.info("[TEAM LINK GACHA REVEAL READY]", {
     stage: "front_dom_created",
@@ -2969,6 +2985,10 @@ function completeGachaReveal(card) {
     imageUrls: front ? Array.from(front.querySelectorAll("img")).map((img) => img.getAttribute("src")) : []
   });
   return waitForGachaRevealImages(front).then((imageResults) => {
+    console.info("[TEAM LINK GACHA] image load complete", {
+      cardId: card.cardId,
+      imageResults
+    });
     console.info("[TEAM LINK GACHA REVEAL IMAGES]", {
       stage: "front_images_loaded",
       cardId: card.cardId,
@@ -2976,6 +2996,10 @@ function completeGachaReveal(card) {
     });
     overlay.classList.remove("is-waiting", "rarity-ur", "rarity-ssr", "rarity-sr", "rarity-r", "rarity-n");
     overlay.classList.add("is-revealing", `rarity-${rarityKey}`);
+    console.info("[TEAM LINK GACHA] flip animation start", {
+      cardId: card.cardId,
+      rarity: card.rarity
+    });
     if (message) message.textContent = "";
     if ((card.rarity === "UR" || card.rarity === "SSR") && navigator.vibrate) navigator.vibrate(card.rarity === "UR" ? [28, 28, 54] : 38);
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2985,6 +3009,10 @@ function completeGachaReveal(card) {
         overlay.classList.add("is-reveal-complete");
         if (message) message.textContent = "獲得しました";
         if (actions) actions.hidden = false;
+        console.info("[TEAM LINK GACHA] flip animation end", {
+          cardId: card.cardId,
+          rarity: card.rarity
+        });
         resolve();
       }, prefersReduced ? 650 : 5200);
     });
@@ -3003,21 +3031,30 @@ function waitForGachaRevealImages(root) {
   const images = Array.from(root.querySelectorAll("img"));
   if (!images.length) return Promise.resolve([]);
   return Promise.all(images.map((img) => new Promise((resolve) => {
-    const done = (ok) => resolve({
-      src: img.currentSrc || img.src || img.getAttribute("src") || "",
-      ok,
-      naturalWidth: img.naturalWidth,
-      naturalHeight: img.naturalHeight
-    });
+    let settled = false;
+    let timer = null;
+    const done = (ok, eventType = "unknown") => {
+      if (settled) return;
+      settled = true;
+      if (timer) window.clearTimeout(timer);
+      resolve({
+        src: img.currentSrc || img.src || img.getAttribute("src") || "",
+        ok,
+        eventType,
+        complete: img.complete,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight
+      });
+    };
     if (img.complete) {
-      done(Boolean(img.naturalWidth));
+      done(Boolean(img.naturalWidth), img.naturalWidth ? "already-complete" : "already-complete-no-size");
       return;
     }
-    img.addEventListener("load", () => done(true), { once: true });
-    img.addEventListener("error", () => done(false), { once: true });
-    window.setTimeout(() => {
-      if (!img.complete) done(false);
-    }, 3200);
+    img.addEventListener("load", () => done(true, "load"), { once: true });
+    img.addEventListener("error", () => done(false, "error"), { once: true });
+    timer = window.setTimeout(() => {
+      done(Boolean(img.naturalWidth), "timeout");
+    }, 2000);
   })));
 }
 
@@ -5588,7 +5625,13 @@ function resetMonthlyGachaTest() {
   const month = currentMonthKey();
   const ok = window.confirm("テスト用に、現在の会員の今月ガチャ履歴を削除して再度引けるようにしますか？\n本番では使用しないでください。");
   if (!ok) return;
-  const removeForProfile = (list) => list.filter((item) => !(String(item.memberId) === String(profile.memberId) && String(item.issueMonth) === String(month)));
+  const removeForProfile = (list) => list.filter((item) => {
+    const itemMemberId = String(item.memberId || item.userId || "");
+    const itemLineUserId = String(item.lineUserId || "");
+    const itemMonth = normalizeServerYearMonth(item.issueMonth || item.targetYearMonth || item.month || "");
+    const sameUser = itemMemberId === String(profile.memberId) || (profile.lineUserId && itemLineUserId === String(profile.lineUserId));
+    return !(sameUser && itemMonth === String(month));
+  });
   writeJson(STORAGE_KEYS.monthlyGachaDraws, removeForProfile(readJson(STORAGE_KEYS.monthlyGachaDraws, [])));
   writeJson(STORAGE_KEYS.gachaCardHistory, removeForProfile(readJson(STORAGE_KEYS.gachaCardHistory, [])));
   addAdminLog("gacha_test_reset", `${profile.memberId} の ${month} ガチャ権を再付与`, getAdminSession()?.name, profile.memberId);
