@@ -1263,6 +1263,26 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   position: relative;
   z-index: 1;
 }
+
+.gacha-stage.is-claimed {
+  min-height: auto;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding-block: 14px;
+}
+
+.gacha-stage.is-claimed .badge,
+.gacha-stage.is-claimed #gachaGrandPrize {
+  display: none;
+}
+
+.gacha-stage.is-claimed #gachaMonthTitle {
+  margin: 0;
+  font-size: clamp(18px, 5vw, 22px);
+}
+
 .gacha-orb {
   width: 154px;
   height: 154px;
@@ -1366,21 +1386,48 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 .gacha-claimed-stage {
   display: grid;
   gap: 8px;
-  width: min(100%, 360px);
-  margin: 12px auto;
-  padding: 18px;
+  width: min(100%, 370px);
+  margin: 4px auto 0;
+  padding: 12px 12px 10px;
   border: 1px solid rgba(232,197,124,.24);
   border-radius: 22px;
-  background: rgba(255,255,255,.06);
+  background: rgba(255,255,255,.045);
+  justify-items: center;
 }
 
 .gacha-claimed-stage strong {
   color: var(--cream);
-  font-size: 20px;
+  font-size: clamp(18px, 5vw, 22px);
 }
 
 .gacha-claimed-stage small {
   color: rgba(255,250,239,.70);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gacha-claimed-card {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  margin-block: 0 2px;
+}
+
+.gacha-claimed-card .gacha-complete-card {
+  width: min(62vw, 228px);
+  min-height: auto;
+  box-shadow:
+    0 22px 52px rgba(0,0,0,.38),
+    0 0 28px rgba(211,170,86,.16);
+}
+
+.gacha-claimed-card .tl-simple-card,
+.gacha-claimed-card .gacha-complete-card {
+  margin-block: 0;
+}
+
+.gacha-stage.is-claimed .ticket-box {
+  display: none;
 }
 .ticket-box {
   width: 100%;
@@ -4335,6 +4382,12 @@ body.is-admin-view .app-shell {
 
 .gacha-coupon-card .tl-simple-card {
   width: min(72vw, 240px);
+}
+
+.gacha-claimed-card .tl-simple-card,
+.gacha-claimed-card .tl-simple-card.is-compact,
+.gacha-claimed-card .tl-simple-card.mode-result {
+  width: min(58vw, 210px);
 }
 
 .gacha-coupon-shelf .my-card-grid {

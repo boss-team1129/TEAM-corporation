@@ -1765,20 +1765,23 @@ function renderGacha() {
     button.disabled = true;
     button.textContent = "今月は利用済み";
     button.hidden = true;
+    document.getElementById("gachaStage")?.classList.add("is-claimed");
     if (choiceStage) choiceStage.innerHTML = renderGachaClaimedStage(status.draw);
   } else if (setting.status !== "公開" || getGachaOddsTotal(setting) !== 100) {
     button.disabled = true;
     button.textContent = "今月のガチャは準備中";
     button.hidden = true;
+    document.getElementById("gachaStage")?.classList.remove("is-claimed");
     if (choiceStage) choiceStage.innerHTML = `<p class="gacha-choice-message">今月のガチャは準備中です。</p>`;
   } else {
     button.disabled = false;
     button.hidden = true;
     button.textContent = "カードを選ぶ";
+    document.getElementById("gachaStage")?.classList.remove("is-claimed");
     if (choiceStage) choiceStage.innerHTML = renderGachaCardChoices();
   }
-  result.hidden = !status.used;
-  if (status.used) showGachaResult(status.draw, true);
+  result.hidden = true;
+  result.innerHTML = "";
   button.onclick = async () => {
     const latestStatus = getMonthlyGachaStatus();
     if (latestStatus.used || button.disabled) return;
@@ -1818,7 +1821,10 @@ function renderGachaClaimedStage(draw) {
     <div class="gacha-claimed-stage">
       <p class="kicker">Already collected</p>
       <strong>今月のカードは獲得済みです</strong>
-      <small>${escapeHtml(draw?.characterName || draw?.cardName || "獲得カード")} / ${escapeHtml(draw?.prizeName || "今月の景品")}</small>
+      <div class="gacha-claimed-card">
+        ${gachaCompletedCardHtml(draw || {}, "result")}
+      </div>
+      <small>獲得カード：${escapeHtml(draw?.characterName || draw?.cardName || "獲得カード")} / ${escapeHtml(draw?.prizeName || "今月の景品")}</small>
     </div>
   `;
 }
@@ -1856,7 +1862,7 @@ async function selectGachaCard(button) {
     showGachaResult(draw, false);
     renderApp();
     window.setTimeout(() => {
-      document.getElementById("couponGachaDashboard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.getElementById("gachaStage")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 120);
   } catch (error) {
     console.error("[TEAM LINK GACHA CHOICE FAILED]", error);
