@@ -2740,6 +2740,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .gacha-reveal-stage {
   overflow: hidden;
+  background: rgba(0, 0, 0, .92);
 }
 
 .gacha-reveal-stage::before,
@@ -2754,9 +2755,10 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .gacha-reveal-stage::before {
   background:
-    radial-gradient(circle at 50% 50%, rgba(255,236,177,.62), transparent 18%),
-    radial-gradient(circle at 50% 50%, rgba(232,197,124,.36), transparent 38%);
-  animation: revealChargeFlash 5.2s ease-in-out both;
+    radial-gradient(circle at 50% 50%, rgba(255,248,216,.95), transparent 11%),
+    radial-gradient(circle at 50% 50%, rgba(243,197,77,.66), transparent 27%),
+    conic-gradient(from 0deg at 50% 50%, transparent, rgba(255,224,118,.34), transparent, rgba(255,255,255,.24), transparent);
+  animation: revealChargeFlash var(--gacha-reveal-total, 2400ms) ease-in-out both;
   mix-blend-mode: screen;
 }
 
@@ -2769,7 +2771,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 }
 
 .gacha-reveal-stage.rarity-n::after {
-  animation: rarityNGlow 5.2s ease both;
+  animation: rarityNGlow var(--gacha-reveal-total, 1800ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-r::after {
@@ -2777,7 +2779,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle, rgba(113,184,255,.88) 0 1px, transparent 2px),
     radial-gradient(circle at 50% 48%, rgba(63,155,255,.32), transparent 32%);
   background-size: 54px 54px, auto;
-  animation: rarityRGlow 5.2s ease both;
+  animation: rarityRGlow var(--gacha-reveal-total, 2100ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-sr::after {
@@ -2786,7 +2788,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     linear-gradient(72deg, transparent 0 58%, rgba(255,255,255,.60) 59% 60%, transparent 61%),
     radial-gradient(circle, rgba(205,159,255,.88) 0 1px, transparent 2px);
   background-size: auto, auto, 62px 62px;
-  animation: raritySRLightning 5.2s ease both;
+  animation: raritySRLightning var(--gacha-reveal-total, 2500ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-ssr::after {
@@ -2796,7 +2798,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(ellipse at 50% 50%, rgba(255,210,88,.46), transparent 34%),
     linear-gradient(110deg, transparent 0 45%, rgba(255,243,204,.48) 46% 47%, transparent 48%);
   background-size: 118px 118px, 86px 86px, auto, auto;
-  animation: raritySSRFeathers 5.2s ease both;
+  animation: raritySSRFeathers var(--gacha-reveal-total, 3000ms) ease both;
 }
 
 .gacha-reveal-stage.rarity-ur::after {
@@ -2806,7 +2808,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle, rgba(255,218,86,.86) 0 1px, transparent 2px),
     linear-gradient(118deg, transparent 0 42%, rgba(255,255,255,.70) 43% 44%, transparent 45%);
   background-size: auto, 48px 48px, 86px 86px, auto;
-  animation: rarityURDivine 5.2s ease both;
+  animation: rarityURDivine var(--gacha-reveal-total, 3500ms) ease both;
 }
 
 .gacha-choice-particles {
@@ -2816,10 +2818,11 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   pointer-events: none;
   opacity: .82;
   background:
-    radial-gradient(circle at 50% 48%, rgba(232,197,124,.26), transparent 28%),
-    radial-gradient(circle, rgba(255,241,196,.86) 0 1px, transparent 2px);
-  background-size: auto, 64px 64px;
-  animation: choiceParticlesGather 3.8s ease-in-out infinite;
+    radial-gradient(circle at 50% 48%, rgba(255,225,135,.46), transparent 30%),
+    radial-gradient(circle, rgba(255,241,196,.96) 0 1px, transparent 2px),
+    linear-gradient(0deg, transparent 0 48%, rgba(255,218,110,.22) 49% 50%, transparent 51%);
+  background-size: auto, 56px 56px, auto;
+  animation: choiceParticlesGather 2.4s ease-in-out infinite;
 }
 
 .gacha-reveal-choice-set {
@@ -2861,8 +2864,35 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   width: min(88vw, 390px);
   aspect-ratio: 2 / 3;
   perspective: 1200px;
-  animation: choiceMainDrop 1.55s cubic-bezier(.18,.78,.28,1) both, choiceMainFloat 2.8s ease-in-out 1.55s infinite;
+  animation: choiceMainDrop .58s cubic-bezier(.18,.78,.28,1) both, choiceMainFloat 1.25s ease-in-out .58s infinite;
   transform-style: preserve-3d;
+  isolation: isolate;
+}
+
+.gacha-reveal-main-card::before,
+.gacha-reveal-main-card::after {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .78;
+  border-radius: 999px;
+  mix-blend-mode: screen;
+}
+
+.gacha-reveal-main-card::before {
+  border: 2px solid rgba(255,221,128,.62);
+  box-shadow: 0 0 28px rgba(255,214,111,.40), inset 0 0 22px rgba(255,236,177,.18);
+  animation: revealGoldRing 1.22s ease-in-out .16s infinite;
+}
+
+.gacha-reveal-main-card::after {
+  background:
+    conic-gradient(from 0deg at 50% 50%, transparent 0 7%, rgba(255,228,142,.28) 8% 10%, transparent 11% 22%, rgba(255,255,255,.18) 23% 24%, transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(255,240,184,.32), transparent 58%);
+  filter: blur(.4px);
+  animation: revealRadiantRays 1.8s linear infinite;
 }
 
 .gacha-reveal-main-inner {
@@ -2871,7 +2901,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   height: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform 1.35s cubic-bezier(.2,.68,.18,1);
+  transition: transform var(--gacha-flip-duration, 700ms) cubic-bezier(.2,.68,.18,1);
 }
 
 .gacha-reveal-stage.is-revealing .gacha-reveal-main-inner,
@@ -2892,13 +2922,19 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .gacha-reveal-back {
   transform: rotateY(0deg);
-  box-shadow: 0 34px 90px rgba(0,0,0,.48), 0 0 44px rgba(232,197,124,.24);
-  animation: choiceLightLeak 2.6s ease-in-out 1.2s infinite, revealBackTremble .22s ease-in-out 2.1s 10;
+  box-shadow: 0 34px 90px rgba(0,0,0,.58), 0 0 64px rgba(232,197,124,.46);
+  animation: choiceLightLeak .95s ease-in-out .24s infinite, revealBackTremble .16s ease-in-out .62s infinite;
 }
 
 .gacha-reveal-front {
   transform: rotateY(180deg);
   overflow: visible;
+  opacity: 0;
+}
+
+.gacha-reveal-stage.is-front-ready .gacha-reveal-front,
+.gacha-reveal-stage.is-reveal-complete .gacha-reveal-front {
+  opacity: 1;
 }
 
 .gacha-reveal-front .tl-simple-card {
@@ -2908,7 +2944,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .gacha-reveal-stage.is-revealing .gacha-reveal-main-card,
 .gacha-reveal-stage.is-reveal-complete .gacha-reveal-main-card {
-  animation: choiceMainReveal 5.2s ease both;
+  animation: choiceMainReveal var(--gacha-reveal-total, 2400ms) ease both;
 }
 
 .gacha-reveal-stage.is-reveal-complete .tl-simple-card__number,
@@ -4513,7 +4549,19 @@ body.is-admin-view .app-shell {
 
 @keyframes choiceLightLeak {
   0%, 100% { box-shadow: 0 34px 90px rgba(0,0,0,.48), 0 0 28px rgba(232,197,124,.18); }
-  50% { box-shadow: 0 34px 90px rgba(0,0,0,.48), 0 0 62px rgba(232,197,124,.52); }
+  50% { box-shadow: 0 34px 90px rgba(0,0,0,.58), 0 0 82px rgba(255,221,128,.72), 0 0 22px rgba(255,255,255,.38); }
+}
+
+@keyframes revealGoldRing {
+  0%, 100% { opacity: .24; transform: scale(.78) rotateZ(0deg); filter: blur(2px); }
+  44% { opacity: .94; transform: scale(1.08) rotateZ(8deg); filter: blur(.2px); }
+  72% { opacity: .42; transform: scale(1.24) rotateZ(16deg); filter: blur(3px); }
+}
+
+@keyframes revealRadiantRays {
+  0% { opacity: .22; transform: scale(.86) rotate(0deg); }
+  45% { opacity: .78; transform: scale(1.06) rotate(38deg); }
+  100% { opacity: .28; transform: scale(1.18) rotate(88deg); }
 }
 
 @keyframes revealBackTremble {
@@ -4523,19 +4571,20 @@ body.is-admin-view .app-shell {
 }
 
 @keyframes choiceMainReveal {
-  0% { transform: scale(1) rotateX(0) rotateZ(0); }
-  12% { transform: scale(.98) rotateX(1.5deg) rotateZ(-1deg); }
-  34% { transform: scale(1.05) rotateX(-2deg) rotateZ(1deg); }
-  52% { transform: scale(1.015) rotateX(0) rotateZ(0); }
+  0% { transform: scale(1) rotateX(0) rotateZ(0); filter: brightness(1); }
+  16% { transform: scale(.985) rotateX(1.5deg) rotateZ(-1deg); filter: brightness(1.12); }
+  42% { transform: scale(1.065) rotateX(-2deg) rotateZ(1deg); filter: brightness(1.48); }
+  58% { transform: scale(1.025) rotateX(0) rotateZ(0); filter: brightness(1.05); }
   100% { transform: scale(1); }
 }
 
 @keyframes revealChargeFlash {
-  0%, 28% { opacity: 0; transform: scale(.72); }
-  38% { opacity: .78; transform: scale(.96); }
-  48% { opacity: .16; transform: scale(1.16); }
-  58% { opacity: .68; transform: scale(1.04); }
-  78%, 100% { opacity: 0; transform: scale(1.34); }
+  0%, 20% { opacity: 0; transform: scale(.62) rotate(0deg); }
+  34% { opacity: .58; transform: scale(.92) rotate(12deg); }
+  48% { opacity: .95; transform: scale(1.04) rotate(30deg); }
+  55% { opacity: .18; transform: scale(1.25) rotate(42deg); }
+  66% { opacity: .82; transform: scale(1.08) rotate(56deg); }
+  86%, 100% { opacity: 0; transform: scale(1.44) rotate(90deg); }
 }
 
 @keyframes rarityNGlow {
@@ -4559,18 +4608,20 @@ body.is-admin-view .app-shell {
 }
 
 @keyframes raritySSRFeathers {
-  0%, 44% { opacity: 0; background-position: 0 -40px, 0 -20px, 0 0, 0 0; }
-  56% { opacity: .90; }
-  72% { opacity: .50; }
-  100% { opacity: .24; background-position: 54px 132px, -38px 118px, 0 0, 0 0; }
+  0%, 32% { opacity: 0; background-position: 0 -40px, 0 -20px, 0 0, 0 0; filter: brightness(1); }
+  46% { opacity: 1; filter: brightness(2); }
+  58% { opacity: .32; }
+  72% { opacity: .72; }
+  100% { opacity: .28; background-position: 54px 132px, -38px 118px, 0 0, 0 0; filter: brightness(1.1); }
 }
 
 @keyframes rarityURDivine {
-  0%, 38% { opacity: 0; filter: brightness(1); background-position: 0 0, 0 0, 0 0, 0 0; }
-  48% { opacity: 1; filter: brightness(2.1); }
-  56% { opacity: .28; }
-  66% { opacity: .92; filter: brightness(1.7); }
-  100% { opacity: .34; filter: brightness(1.1); background-position: 0 0, 72px -156px, -48px 132px, 0 0; }
+  0%, 24% { opacity: 0; filter: brightness(.72); background-position: 0 0, 0 0, 0 0, 0 0; }
+  36% { opacity: .38; filter: brightness(.55); }
+  48% { opacity: 1; filter: brightness(2.35); }
+  56% { opacity: .25; }
+  68% { opacity: 1; filter: brightness(1.9); }
+  100% { opacity: .38; filter: brightness(1.15); background-position: 0 0, 72px -156px, -48px 132px, 0 0; }
 }
 
 @keyframes revealInfoSequence {

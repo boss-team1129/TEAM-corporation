@@ -1,6 +1,7 @@
 const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkApiUrl") : "") || "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
 const ASSET_VERSION = "20260801-character-hires-1";
+const gachaRevealAssetCache = new Map();
 
 const STORAGE_KEYS = {
   profile: "teamLinkMemberProfile",
@@ -1753,7 +1754,11 @@ function renderGacha() {
   const button = document.getElementById("drawGachaButton");
   const choiceStage = document.getElementById("gachaChoiceStage");
   const setting = getCurrentGachaSetting();
-  const grandPrize = getGachaCards(setting).find((card) => card.rarity === "UR") || getGachaCards(setting).find((card) => card.rarity === "SSR") || getGachaCards(setting)[0];
+  const gachaCards = getGachaCards(setting);
+  preloadGachaRevealAssets(gachaCards).catch((error) => {
+    console.warn("[TEAM LINK GACHA PRELOAD FAILED]", error);
+  });
+  const grandPrize = gachaCards.find((card) => card.rarity === "UR") || gachaCards.find((card) => card.rarity === "SSR") || gachaCards[0];
   document.getElementById("gachaMonthTitle").textContent = `${status.monthLabel}ガチャ`;
   document.getElementById("gachaGrandPrize").textContent = `今月の特賞：${grandPrize?.prizeName || "準備中"}`;
   document.getElementById("gachaTicketBox").innerHTML = `
@@ -1846,9 +1851,10 @@ async function selectGachaCard(button) {
     if (item !== button) item.classList.add("is-fading");
     else item.classList.add("is-picked");
   });
+  console.info("[TEAM LINK GACHA] choice animation start", { choice, month: latestStatus.month });
   openGachaRevealAnimation({ choice });
   try {
-    const draw = isProductionApiMode() ? await drawGachaRemote(latestStatus.month, { silent: true }) : createGachaDraw(latestStatus.month);
+    const draw = isProductionApiMode() ? await drawGachaRemote(latestStatus.month, { silent: true, skipPreflight: true }) : createGachaDraw(latestStatus.month);
     if (!draw) {
       closeGachaRevealAnimation();
       renderApp();
@@ -1857,10 +1863,17 @@ async function selectGachaCard(button) {
     await completeGachaReveal(draw);
     const saved = await saveGachaDraw(draw);
     if (!saved) throw new Error("GACHA_SAVE_FAILED");
-    if (isProductionApiMode()) await refreshProductionGachaCoupons(draw.memberId || getProfile().memberId);
+    const refreshPromise = isProductionApiMode()
+      ? refreshProductionGachaCoupons(draw.memberId || getProfile().memberId).catch((error) => {
+        console.error("[TEAM LINK GACHA COUPON BACKGROUND REFRESH FAILED]", error);
+      })
+      : Promise.resolve();
     await playGachaCollectionAdded();
     showGachaResult(draw, false);
     renderApp();
+    refreshPromise.then(() => {
+      if (isProductionApiMode() && appState.currentView === viewMap.gacha) renderGacha();
+    });
     window.setTimeout(() => {
       document.getElementById("gachaStage")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 120);
@@ -2105,23 +2118,25 @@ async function drawGachaRemote(issueMonth, options = {}) {
       lineUserId: profile.lineUserId || "",
       targetYearMonth: issueMonth
     });
-    const configResult = await apiRequest("getGachaConfig", {});
-    console.info("[TEAM LINK API OK]", { action: "getGachaConfig", data: configResult.data || configResult });
-    const statusResult = await apiRequest("checkMonthlyDrawStatus", {
-      userId: profile.memberId,
-      memberId: profile.memberId,
-      lineUserId: profile.lineUserId || "",
-      targetYearMonth: issueMonth
-    });
-    console.info("[TEAM LINK API OK]", { action: "checkMonthlyDrawStatus", data: statusResult.data || statusResult });
-    if (statusResult.data?.alreadyDrawn || statusResult.data?.canDraw === false) {
-      if (statusResult.data?.draw) {
-        const existing = mapServerGachaDrawToLocal(statusResult.data.draw, statusResult.data.coupon || {});
-        upsertLocalGachaDraw(existing);
-        await refreshProductionGachaCoupons(profile.memberId);
+    if (!options.skipPreflight) {
+      const configResult = await apiRequest("getGachaConfig", {});
+      console.info("[TEAM LINK API OK]", { action: "getGachaConfig", data: configResult.data || configResult });
+      const statusResult = await apiRequest("checkMonthlyDrawStatus", {
+        userId: profile.memberId,
+        memberId: profile.memberId,
+        lineUserId: profile.lineUserId || "",
+        targetYearMonth: issueMonth
+      });
+      console.info("[TEAM LINK API OK]", { action: "checkMonthlyDrawStatus", data: statusResult.data || statusResult });
+      if (statusResult.data?.alreadyDrawn || statusResult.data?.canDraw === false) {
+        if (statusResult.data?.draw) {
+          const existing = mapServerGachaDrawToLocal(statusResult.data.draw, statusResult.data.coupon || {});
+          upsertLocalGachaDraw(existing);
+          await refreshProductionGachaCoupons(profile.memberId);
+        }
+        showToast(statusResult.data?.draw ? "今月のガチャはすでに引いています。" : "今月のガチャは利用できません。");
+        return null;
       }
-      showToast(statusResult.data?.draw ? "今月のガチャはすでに引いています。" : "今月のガチャは利用できません。");
-      return null;
     }
     const result = await apiRequest("drawMonthlyGacha", {
       userId: profile.memberId,
@@ -2654,6 +2669,55 @@ function withAssetVersion(url) {
   return `${value}${value.includes("?") ? "&" : "?"}v=${ASSET_VERSION}`;
 }
 
+function preloadGachaImage(url, timeoutMs = 2200) {
+  const src = String(url || "").trim();
+  if (!src) return Promise.resolve({ src, ok: false, skipped: true });
+  if (gachaRevealAssetCache.has(src)) return gachaRevealAssetCache.get(src);
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    let settled = false;
+    const done = (ok, eventType) => {
+      if (settled) return;
+      settled = true;
+      resolve({
+        src,
+        ok,
+        eventType,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight
+      });
+    };
+    const timer = window.setTimeout(() => done(Boolean(image.naturalWidth), "timeout"), timeoutMs);
+    image.onload = () => {
+      window.clearTimeout(timer);
+      done(true, "load");
+    };
+    image.onerror = () => {
+      window.clearTimeout(timer);
+      done(false, "error");
+    };
+    image.src = src;
+  });
+  gachaRevealAssetCache.set(src, promise);
+  return promise;
+}
+
+function preloadGachaRevealAssets(cards = []) {
+  const rarityKeys = ["n", "r", "sr", "ssr", "ur"];
+  const baseAssets = [
+    "images/gacha/bg-gacha.png",
+    "images/gacha/card-back.png",
+    ...rarityKeys.flatMap((rarity) => [
+      `images/gacha/frames/frame-${rarity}.png`,
+      `images/gacha/inside/inside-${rarity}.png`
+    ])
+  ];
+  const characterAssets = cards
+    .map((card) => getGachaCharacterSrc(card))
+    .filter(Boolean);
+  return Promise.all([...new Set([...baseAssets, ...characterAssets])].map((src) => preloadGachaImage(src, 1800)));
+}
+
 function gachaFrameImageHtml(card) {
   const rarity = String(card.rarity || "N").toLowerCase();
   const frameImage = card.frameImageUrl || card.snapshotFrameImageUrl || `images/gacha/frames/frame-${rarity}.png`;
@@ -2891,6 +2955,19 @@ function upsertLocalGachaDraw(draw) {
   });
 }
 
+function removeLocalGachaDrawForUserMonth(userId, month) {
+  [STORAGE_KEYS.monthlyGachaDraws, STORAGE_KEYS.gachaCardHistory].forEach((key) => {
+    const next = readJson(key, []).filter((card) => !(
+      String(card.issueMonth || card.targetYearMonth || "") === String(month || "") &&
+      (
+        String(card.memberId || card.userId || "") === String(userId || "") ||
+        String(card.lineUserId || "") === String(userId || "")
+      )
+    ));
+    writeJson(key, next);
+  });
+}
+
 async function refreshProductionGachaCoupons(userId = getProfile().memberId) {
   if (!isProductionApiMode()) return;
   const result = await apiRequest("getUserCoupons", { userId });
@@ -2936,6 +3013,9 @@ function revealGachaCard(card) {
 function openGachaRevealAnimation({ choice = "center", testMode = false } = {}) {
   const overlay = document.getElementById("gachaReveal");
   if (!overlay) return;
+  preloadGachaRevealAssets(getGachaCards(getCurrentGachaSetting())).catch((error) => {
+    console.warn("[TEAM LINK GACHA PRELOAD FAILED]", error);
+  });
   overlay.hidden = false;
   overlay.className = `gacha-reveal gacha-reveal-stage is-choice-reveal is-waiting selected-${choice}${testMode ? " is-test-mode" : ""}`;
   overlay.innerHTML = `
@@ -2957,12 +3037,19 @@ function openGachaRevealAnimation({ choice = "center", testMode = false } = {}) 
       <button class="primary-button compact" type="button" data-gacha-action="closeRevealToCoupons">クーポンを見る</button>
     </div>
   `;
+  window.setTimeout(() => {
+    const currentMessage = overlay.querySelector("[data-gacha-reveal-message]");
+    if (!overlay.hidden && overlay.classList.contains("is-waiting") && currentMessage) {
+      currentMessage.textContent = "光が集まっています…";
+    }
+  }, 2300);
 }
 
 function completeGachaReveal(card) {
   const overlay = document.getElementById("gachaReveal");
   if (!overlay) return Promise.resolve();
   const rarityKey = String(card.rarity || "N").toLowerCase();
+  const timing = getGachaRevealTiming(card.rarity);
   const front = overlay.querySelector("[data-gacha-reveal-front]");
   const message = overlay.querySelector("[data-gacha-reveal-message]");
   const actions = overlay.querySelector("[data-gacha-reveal-actions]");
@@ -2973,6 +3060,10 @@ function completeGachaReveal(card) {
     rarity: card.rarity,
     prizeName: card.prizeName
   });
+  overlay.style.setProperty("--gacha-reveal-total", `${timing.totalMs}ms`);
+  overlay.style.setProperty("--gacha-actions-delay", `${Math.max(timing.totalMs - 120, 900)}ms`);
+  overlay.style.setProperty("--gacha-flip-duration", `${timing.flipMs}ms`);
+  overlay.classList.add("is-front-preparing");
   if (front) front.innerHTML = frontHtml;
   console.info("[TEAM LINK GACHA REVEAL READY]", {
     stage: "front_dom_created",
@@ -2984,7 +3075,7 @@ function completeGachaReveal(card) {
     frontHtmlLength: frontHtml.length,
     imageUrls: front ? Array.from(front.querySelectorAll("img")).map((img) => img.getAttribute("src")) : []
   });
-  return waitForGachaRevealImages(front).then((imageResults) => {
+  return waitForGachaRevealImages(front, timing.imageWaitMs).then((imageResults) => {
     console.info("[TEAM LINK GACHA] image load complete", {
       cardId: card.cardId,
       imageResults
@@ -2994,8 +3085,8 @@ function completeGachaReveal(card) {
       cardId: card.cardId,
       imageResults
     });
-    overlay.classList.remove("is-waiting", "rarity-ur", "rarity-ssr", "rarity-sr", "rarity-r", "rarity-n");
-    overlay.classList.add("is-revealing", `rarity-${rarityKey}`);
+    overlay.classList.remove("is-waiting", "is-front-preparing", "rarity-ur", "rarity-ssr", "rarity-sr", "rarity-r", "rarity-n");
+    overlay.classList.add("is-front-ready", "is-revealing", `rarity-${rarityKey}`);
     console.info("[TEAM LINK GACHA] flip animation start", {
       cardId: card.cardId,
       rarity: card.rarity
@@ -3014,7 +3105,7 @@ function completeGachaReveal(card) {
           rarity: card.rarity
         });
         resolve();
-      }, prefersReduced ? 650 : 5200);
+      }, prefersReduced ? 650 : timing.totalMs);
     });
   }).catch((error) => {
     console.error("[TEAM LINK GACHA REVEAL FAILED]", {
@@ -3026,7 +3117,19 @@ function completeGachaReveal(card) {
   });
 }
 
-function waitForGachaRevealImages(root) {
+function getGachaRevealTiming(rarity = "N") {
+  const key = String(rarity || "N").toUpperCase();
+  const timings = {
+    N: { totalMs: 1800, flipMs: 620, imageWaitMs: 650 },
+    R: { totalMs: 2100, flipMs: 660, imageWaitMs: 720 },
+    SR: { totalMs: 2500, flipMs: 700, imageWaitMs: 820 },
+    SSR: { totalMs: 3000, flipMs: 760, imageWaitMs: 900 },
+    UR: { totalMs: 3500, flipMs: 820, imageWaitMs: 1000 }
+  };
+  return timings[key] || timings.N;
+}
+
+function waitForGachaRevealImages(root, timeoutMs = 900) {
   if (!root) return Promise.resolve([]);
   const images = Array.from(root.querySelectorAll("img"));
   if (!images.length) return Promise.resolve([]);
@@ -3054,7 +3157,7 @@ function waitForGachaRevealImages(root) {
     img.addEventListener("error", () => done(false, "error"), { once: true });
     timer = window.setTimeout(() => {
       done(Boolean(img.naturalWidth), "timeout");
-    }, 2000);
+    }, timeoutMs);
   })));
 }
 
@@ -7881,10 +7984,11 @@ async function syncProductionState() {
       apiRequest("getGachaConfig", {}),
       apiRequest("getPublishedRewards", {}),
       apiRequest("getUserCoupons", { userId: profile.memberId }),
+      apiRequest("checkMonthlyDrawStatus", { userId: profile.memberId, memberId: profile.memberId, lineUserId: profile.lineUserId || "", targetYearMonth: currentMonthKey() }),
       apiRequest("getUserBinder", { userId: profile.memberId }),
       apiRequest("getCollectionRewards", { userId: profile.memberId })
     ]);
-    const [masters, memberCoupons, gachaConfig, gachaRewards, gachaCoupons, binder, collectionRewards] = results.map((result, index) => {
+    const [masters, memberCoupons, gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, collectionRewards] = results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
       console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", { index, reason: result.reason });
       return {};
@@ -7893,6 +7997,11 @@ async function syncProductionState() {
     if (memberCoupons.coupons) writeJson(STORAGE_KEYS.myCoupons, memberCoupons.coupons.map(mapServerMemberCouponToLocal));
     if (gachaRewards.data?.rewards) mergeServerGachaRewards(gachaRewards.data.rewards);
     if (gachaCoupons.data?.coupons) replaceServerGachaCoupons(gachaCoupons.data.coupons, profile.memberId);
+    if (drawStatus.data?.canDraw === true && drawStatus.data?.alreadyDrawn === false) {
+      removeLocalGachaDrawForUserMonth(profile.memberId, drawStatus.data.targetYearMonth || currentMonthKey());
+    } else if (drawStatus.data?.draw) {
+      upsertLocalGachaDraw(mapServerGachaDrawToLocal(drawStatus.data.draw, drawStatus.data.coupon || {}));
+    }
     if (binder.data?.cards) mergeServerBinderCards(binder.data.cards);
     if (collectionRewards.data?.rewards) mergeServerCollectionRewards(collectionRewards.data.rewards);
     if (gachaConfig.data?.config?.currentYearMonth) {
