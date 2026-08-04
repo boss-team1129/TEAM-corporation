@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17120d">
+  <meta name="description" content="TEAM hairのお客様専用アプリ TEAM LINK。予約、今日の占い、クーポン、今月のガチャ、ご縁ラウンジをLINEから開けるスマホ会員アプリです。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23070707'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' font-family='serif' fill='%23d9b46c'%3ETL%3C/text%3E%3C/svg%3E">
+  <title>TEAM LINK | TEAM hair お客様専用アプリ</title>
+  <link rel="stylesheet" href="styles.css?v=20260804-gacha-fix-2">
+</head>
+<body>
+  <div class="splash-screen" id="splashScreen" aria-hidden="true">
+    <img src="assets/team-link-logo.svg" alt="" class="splash-logo" width="180" height="180">
+    <span>Private Lounge</span>
+  </div>
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="icon-button" type="button" data-back aria-label="戻る">‹</button>
+      <div class="brand" aria-label="TEAM LINK">
+        <img src="assets/team-link-logo.svg" alt="TEAM LINK" class="brand-logo" width="82" height="82">
+      </div>
+      <button class="pill-button" type="button" data-view="mypage">マイページ</button>
+    </header>
+
+    <main>
+      <section class="view is-active" id="homeView" data-title="ホーム">
+        <div class="home-lounge">
+          <div class="lounge-light" aria-hidden="true"></div>
+          <div class="lounge-orb" aria-hidden="true">
+            <img src="assets/team-link-logo.svg" alt="" class="orb-logo" width="132" height="132">
+          </div>
+
+          <section class="home-welcome" aria-label="会員メッセージ">
+            <p class="kicker" id="homeGreetingLabel">Welcome back.</p>
+            <h1>こんにちは、<br><span id="homeMemberName">お客様</span></h1>
+            <div class="home-visit-panel" id="homeStatusPanel"></div>
+            <p id="homeCareMessage">TEAM hairとつながる、あなた専用アプリ。</p>
+          </section>
+
+          <section class="home-carousel-zone" aria-label="TEAM LINKメニュー">
+            <div class="home-carousel" id="homeCarousel">
+              <button class="feature-card fortune" type="button" data-view="fortune" data-feature="fortune">
+                <span class="card-no">02</span>
+                <i class="card-icon icon-orbit" aria-hidden="true"></i>
+                <strong>今日の占い</strong>
+                <small id="homeFortuneText">美容運とラッキーカラー</small>
+                <em>Beauty fortune</em>
+              </button>
+              <button class="feature-card reservation is-active" type="button" data-view="reservation" data-feature="reservation">
+                <span class="card-no">01</span>
+                <i class="card-icon icon-calendar" aria-hidden="true"></i>
+                <strong>予約</strong>
+                <small id="homeReservationText">予約はこちら</small>
+                <em>Tap to reserve</em>
+              </button>
+              <button class="feature-card coupon" type="button" data-view="coupons" data-feature="coupon">
+                <span class="card-no">03</span>
+                <i class="card-icon icon-ticket" aria-hidden="true"></i>
+                <strong>クーポン</strong>
+                <small id="homeCouponText">利用可能 0枚</small>
+                <em>Private offer</em>
+              </button>
+              <button class="feature-card gacha" type="button" data-view="gacha" data-feature="gacha">
+                <span class="card-no">04</span>
+                <i class="card-icon icon-gift" aria-hidden="true"></i>
+                <strong>今月のガチャ</strong>
+                <small id="homeGachaText">残り1回</small>
+                <em id="homeGachaPrize">今月の特賞</em>
+              </button>
+              <button class="feature-card lounge" type="button" data-view="lounge" data-feature="lounge">
+                <span class="card-no">05</span>
+                <i class="card-icon icon-heartline" aria-hidden="true"></i>
+                <strong>ご縁ラウンジ</strong>
+                <small id="homeLoungeText">事前登録受付中</small>
+                <em>Pre entry</em>
+              </button>
+            </div>
+            <div class="carousel-dots" id="homeCarouselDots" aria-hidden="true"></div>
+          </section>
+
+          <section class="home-highlight-grid" aria-label="おすすめ情報">
+            <button class="lounge-strip gacha-strip" type="button" data-view="gacha">
+              <span class="strip-number">04</span>
+              <span class="prize-visual" aria-hidden="true"></span>
+              <span>
+                <small>今月のガチャ</small>
+                <strong id="homeGachaStripTitle">残り1回</strong>
+                <em id="homeGachaStripPrize">今月の特賞</em>
+              </span>
+            </button>
+            <button class="lounge-strip goen-strip" type="button" data-view="lounge">
+              <span class="strip-number">05</span>
+              <span class="goen-visual" aria-hidden="true"></span>
+              <span>
+                <small>ご縁ラウンジ</small>
+                <strong>事前登録</strong>
+                <em id="homeLoungeStripText">18 / 50名</em>
+              </span>
+            </button>
+          </section>
+        </div>
+
+        <article class="line-guide">
+          <p class="kicker">LINE entrance</p>
+          <h2>LINEで「予約」「占い」「クーポン」「ガチャ」「ご縁」と送るだけ。</h2>
+          <p>LINEは入口。TEAM LINKは、TEAM hairのお客様体験を毎日少し嬉しくする本体アプリです。</p>
+        </article>
+      </section>
+
+      <section class="view" id="reservationView" data-title="予約">
+        <div class="section-head">
+          <p class="kicker">Reservation</p>
+          <h2>ご予約方法をお選びください</h2>
+        </div>
+        <div class="choice-list reservation-choice-list">
+          <a class="choice-card reservation-choice-card" id="hotpepperLink" href="#" target="_blank" rel="noopener">
+            <span>空き時間を見る</span>
+            <small>空いている時間を確認して、そのまま予約できます</small>
+          </a>
+          <button class="choice-card reservation-choice-card" type="button" data-view="booking">
+            <span>予約時間とメニューを相談する</span>
+            <small>希望日時やメニューをスタッフに相談できます</small>
+          </button>
+        </div>
+        <article class="status-panel" id="reservationStatusPanel"></article>
+        <article class="admin-preview">
+          <p class="kicker">Staff workflow</p>
+          <h3>管理者画面でできること</h3>
+          <div class="mini-grid">
+            <span>予約確定</span>
+            <span>別日時提案</span>
+            <span>LINE返信</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="bookingView" data-title="予約相談">
+        <div class="section-head">
+          <p class="kicker">Request booking</p>
+          <h2>希望日時を相談する</h2>
+        </div>
+        <form class="step-form" id="bookingForm">
+          <label class="field">1. 第一希望日時<input id="bookingFirstDateTime" name="firstDateTime" type="datetime-local" required></label>
+          <label class="field">2. 第二希望日時<input id="bookingSecondDateTime" name="secondDateTime" type="datetime-local" required></label>
+          <label class="field">3. 希望担当者
+            <select id="bookingStaffSelect" name="staff" required></select>
+          </label>
+          <label class="field">4. メニューの選び方
+            <select id="bookingMenuMode" name="menuMode" required>
+              <option value="coupon">クーポンから選ぶ</option>
+              <option value="regular">通常メニューから選ぶ</option>
+              <option value="consult">メニューを相談して決めたい</option>
+            </select>
+          </label>
+          <div class="field">
+            <span>5. メニューまたはクーポン</span>
+            <div class="menu-choice-grid" id="bookingMenuChoices"></div>
+          </div>
+          <label class="field" id="bookingCustomMenuField" hidden>相談したい内容
+            <textarea name="customMenu" rows="3" placeholder="例：カラーとトリートメントを相談したい"></textarea>
+          </label>
+          <label class="field">6. 備考<textarea name="memo" rows="4" placeholder="例：午前中希望、髪の状態、迷っているメニューなど"></textarea></label>
+          <div class="confirm-box" id="bookingConfirm">
+            <strong>7. 内容確認</strong>
+            <p>入力後、下のボタンでスタッフ確認用の予約相談として送信します。</p>
+          </div>
+          <button class="primary-button" type="submit">8. 送信する</button>
+        </form>
+      </section>
+
+      <section class="view" id="bookingDoneView" data-title="送信完了">
+        <article class="result-card">
+          <p class="kicker">Sent</p>
+          <h2>予約相談を受け付けました</h2>
+          <p>この時点では予約は確定していません。スタッフからの返信をお待ちください。</p>
+          <div id="bookingSummary" class="summary-list"></div>
+          <button class="primary-button" type="button" data-view="home">ホームへ戻る</button>
+        </article>
+      </section>
+
+      <section class="view" id="fortuneView" data-title="今日の占い">
+        <div class="section-head">
+          <p class="kicker">Daily fortune</p>
+          <h2>今日の占い</h2>
+        </div>
+        <div id="fortuneContent"></div>
+      </section>
+
+      <section class="view" id="couponsView" data-title="クーポン">
+        <div class="section-head">
+          <p class="kicker">Coupons</p>
+          <h2>クーポン</h2>
+        </div>
+        <div class="segmented" id="couponTabs" role="tablist" aria-label="クーポンカテゴリ"></div>
+        <div class="coupon-list" id="couponList"></div>
+        <article class="note-card">
+          <h3>マイクーポンへ保存</h3>
+          <p>今月のガチャで当選した景品や、LINE配信クーポンをここへまとめていける設計です。</p>
+        </article>
+      </section>
+
+      <section class="view" id="gachaView" data-title="今月のガチャ">
+        <div class="section-head">
+          <p class="kicker">Monthly gacha</p>
+          <h2>今月のガチャ</h2>
+        </div>
+        <article class="gacha-stage" id="gachaStage">
+          <span class="badge">全会員 毎月1回</span>
+          <h3 id="gachaMonthTitle">今月のガチャ</h3>
+          <p id="gachaGrandPrize">髪質改善トリートメント無料</p>
+          <div id="gachaChoiceStage"></div>
+          <div class="ticket-box" id="gachaTicketBox"></div>
+          <button class="primary-button" type="button" id="drawGachaButton">ガチャを引く</button>
+          <button class="secondary-button" type="button" data-view="mycards">マイカードを見る</button>
+        </article>
+        <div class="result-card" id="gachaResult" hidden></div>
+        <div id="couponGachaDashboard"></div>
+      </section>
+
+      <section class="view" id="myCardsView" data-title="マイカード">
+        <div class="section-head">
+          <p class="kicker">My cards</p>
+          <h2>マイカード</h2>
+        </div>
+        <div id="myCardsContent"></div>
+      </section>
+
+      <section class="view" id="loungeView" data-title="ご縁ラウンジ">
+        <article class="result-card lounge-hero">
+          <span class="badge">Coming Soon</span>
+          <h2>ご縁ラウンジ</h2>
+          <p>独身者向け交流サービス。現在、無料の事前登録を受け付けています。</p>
+          <div class="progress-box">
+            <div><strong id="loungeCount">0</strong><span>名／50名</span></div>
+            <progress id="loungeProgress" max="50" value="0"></progress>
+          </div>
+          <div class="lounge-points">
+            <span>サービス紹介</span>
+            <span>無料事前登録</span>
+            <span>正式開始時に通知</span>
+          </div>
+          <p>正式サービス開始後に、改めて有料登録をご案内します。事前登録で自動課金されることはありません。</p>
+          <button class="primary-button" type="button" data-view="loungeRegister">無料で事前登録する</button>
+        </article>
+      </section>
+
+      <section class="view" id="loungeRegisterView" data-title="事前登録">
+        <div class="section-head">
+          <p class="kicker">Pre entry</p>
+          <h2>ご縁ラウンジ事前登録</h2>
+        </div>
+        <form class="step-form" id="loungeForm">
+          <label class="field">ニックネーム<input name="nickname" required></label>
+          <label class="field">性別
+            <select name="gender" required><option value="">選択</option><option>女性</option><option>男性</option><option>その他</option><option>回答しない</option></select>
+          </label>
+          <label class="field">年代
+            <select name="ageGroup" required><option value="">選択</option><option>20代</option><option>30代</option><option>40代</option><option>50代以上</option></select>
+          </label>
+          <label class="field">居住エリア<input name="area" placeholder="例：袋井市、静岡県西部" required></label>
+          <label class="check-row"><input type="checkbox" name="single" required> 現在独身です</label>
+          <label class="field">興味のある内容
+            <select name="interest" required>
+              <option value="">選択</option>
+              <option>少人数交流会</option>
+              <option>ランチ会</option>
+              <option>美容イベント</option>
+              <option>まずは情報だけ知りたい</option>
+            </select>
+          </label>
+          <label class="check-row"><input type="checkbox" name="notify" checked> 開始通知を受け取る</label>
+          <button class="primary-button" type="submit">無料で事前登録する</button>
+        </form>
+      </section>
+
+      <section class="view" id="mypageView" data-title="マイページ">
+        <div class="section-head">
+          <p class="kicker">My page</p>
+          <h2>マイページ</h2>
+        </div>
+        <article class="profile-card">
+          <div class="avatar tl-avatar" aria-hidden="true">
+            <img src="assets/team-link-logo.svg" alt="" width="64" height="64">
+          </div>
+          <div>
+            <small>TEAM hair member</small>
+            <strong id="mypageMemberName">ゲスト</strong>
+            <p id="mypageStatusText">次回のおすすめやクーポンを確認できます。</p>
+          </div>
+        </article>
+        <article class="admin-preview" id="mypageReservationsPanel"></article>
+        <div class="mypage-grid">
+          <button type="button" data-message="プロフィール編集は次フェーズで接続します。">プロフィール</button>
+          <button type="button" data-view="reservation">次回予約</button>
+          <button type="button" data-message="予約履歴は管理表連携時に表示します。">予約履歴</button>
+          <button type="button" data-view="coupons">マイクーポン</button>
+          <button type="button" data-view="mycards">マイカード</button>
+          <button type="button" data-view="fortune">占い履歴</button>
+          <button type="button" data-message="LINE通知設定は次フェーズで接続します。">通知</button>
+          <button type="button" data-message="設定画面は次フェーズで追加します。">設定</button>
+        </div>
+        <article class="note-card">
+          <h3>これから追加しやすい機能</h3>
+          <p>来店スタンプ、ポイント、VIPランク、AIおすすめメニュー、商品購入、イベント参加を同じマイページへ追加できる構造です。</p>
+        </article>
+      </section>
+
+      <section class="view" id="adminView" data-title="管理">
+        <section class="admin-login" id="adminLoginPanel">
+          <div class="section-head">
+            <p class="kicker">Staff only</p>
+            <h2>TEAM LINK Console</h2>
+            <p>来店受付、予約、クーポン、ガチャ、ご縁ラウンジを1つの画面で確認します。</p>
+          </div>
+          <form class="step-form admin-login-form" id="adminLoginForm">
+            <label class="field">スタッフ名
+              <select name="adminId" required>
+                <option value="boss">村松 剛好（管理者）</option>
+                <option value="staff-kanda">神田 加奈（スタッフ）</option>
+              </select>
+            </label>
+            <label class="field">管理パスコード
+              <input name="password" type="password" autocomplete="current-password" placeholder="デモ: teamlink" required>
+            </label>
+            <button class="primary-button" type="submit">管理画面へ入る</button>
+            <p class="admin-help">本番ではApps Script側で管理者ログインと権限確認を行います。</p>
+          </form>
+        </section>
+
+        <section class="admin-cockpit" id="adminCockpit" hidden>
+          <div class="admin-hero">
+            <div>
+              <p class="kicker">Operation cockpit</p>
+              <h2>TEAM LINK Console</h2>
+              <p id="adminWelcomeText">今日確認すべき内容をまとめています。</p>
+            </div>
+            <button class="secondary-button admin-logout" type="button" id="adminLogoutButton">ログアウト</button>
+          </div>
+
+          <nav class="admin-tabs" id="adminTabs" aria-label="管理メニュー"></nav>
+          <div class="admin-panel" id="adminPanel"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="主要ナビゲーション">
+    <button type="button" data-view="home">ホーム</button>
+    <button type="button" data-view="reservation">予約</button>
+    <button type="button" data-view="coupons">クーポン</button>
+    <button type="button" data-view="gacha">ガチャ</button>
+    <button type="button" data-view="mypage">マイページ</button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="gacha-reveal" id="gachaReveal" hidden aria-live="polite"></div>
+  <script src="app.js?v=20260804-gacha-fix-2"></script>
+</body>
+</html>
