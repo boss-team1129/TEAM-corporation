@@ -1522,6 +1522,21 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
     radial-gradient(circle at center, rgba(255,255,255,.22), rgba(255,255,255,.05) 52%, rgba(0,0,0,.18));
 }
 
+.collection-dex-card.is-locked .gacha-character-placeholder.is-unknown {
+  width: min(76px, 72%);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  color: rgba(255, 247, 232, .72);
+  font-weight: 800;
+  letter-spacing: .12em;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 247, 232, .14);
+  background: #000;
+  box-shadow: inset 0 0 22px rgba(255,255,255,.04), 0 0 18px rgba(0,0,0,.45);
+}
+
 .gacha-editor-panel {
   display: grid;
   gap: 18px;

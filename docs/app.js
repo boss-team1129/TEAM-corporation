@@ -1741,7 +1741,7 @@ function couponCardHtml(coupon, isMine = false) {
       <span>${escapeHtml(coupon.couponType || coupon.category || "クーポン")}</span>
       <h3>${escapeHtml(coupon.title)}</h3>
       <p>${escapeHtml(benefit || coupon.description || coupon.message || "")}</p>
-      <small>期限：${escapeHtml(coupon.expires || coupon.validUntil || coupon.endAt || "-")} / 発行元：${escapeHtml(coupon.source || coupon.sourceType || "Console作成")}</small>
+      <small>期限：${escapeHtml(formatDateUntil(coupon.expires || coupon.validUntil || coupon.endAt))} / 発行元：${escapeHtml(coupon.source || coupon.sourceType || "Console作成")}</small>
       <small>状態：${escapeHtml(status)}${coupon.reservationId ? ` / 予約 ${escapeHtml(coupon.reservationId)}` : ""}</small>
       <button class="secondary-button" type="button" data-message="ご利用時はスタッフがTEAM LINK Consoleで使用確認します。お客様自身では使用済みにできません。">使い方を見る</button>
     </article>
@@ -1901,6 +1901,7 @@ function renderCouponGachaDashboard() {
   const used = cards.filter((card) => getGachaLifecycleState(card) === "used");
   const expired = cards.filter((card) => getGachaLifecycleState(card) === "expired");
   const currentYearCards = used.filter((card) => String(card.issueMonth || "").startsWith(String(currentYear())));
+  const currentYearCollectedCards = cards.filter((card) => getGachaLifecycleState(card) !== "expired" && String(card.issueMonth || "").startsWith(String(currentYear())));
   const archivedYears = [...new Set(used.map((card) => String(card.issueMonth || "").slice(0, 4)).filter((year) => year && Number(year) !== currentYear()))].sort().reverse();
   const rewards = getCollectionRewardStates(profile, used);
   container.innerHTML = `
@@ -1912,7 +1913,7 @@ function renderCouponGachaDashboard() {
       </div>
       ${renderGachaCouponShelf("未使用クーポン", available, "available")}
       ${renderGachaCouponShelf("スタッフ確認待ち", pending, "pending")}
-      ${renderGachaBinderSection(currentYear(), currentYearCards)}
+      ${renderGachaBinderSection(currentYear(), currentYearCards, currentYearCollectedCards)}
       ${renderArchivedBinderYears(archivedYears, used)}
       ${renderExpiredGachaHistory(expired)}
       ${renderCollectionRewardPanel(rewards)}
@@ -1934,6 +1935,7 @@ function renderGachaCouponShelf(title, cards, mode) {
 function gachaCouponCardHtml(card, mode = "available") {
   const id = card.cardHistoryId || card.drawId;
   const pending = mode === "pending";
+  const canShowCode = !["used", "expired"].includes(getGachaLifecycleState(card));
   return `
     <article class="collection-card gacha-coupon-card rarity-${escapeHtml(String(card.rarity || "R").toLowerCase())}">
       ${gachaCompletedCardHtml(card, "result")}
@@ -1942,9 +1944,9 @@ function gachaCouponCardHtml(card, mode = "available") {
         ["景品", card.prizeName || card.title],
         ["対象メニュー", card.targetMenu || "全メニュー"],
         ["利用条件", card.usageCondition || card.condition || "-"],
-        ["有効期限", card.validUntil || card.expires || "-"],
+        ["有効期限", formatDateUntil(card.validUntil || card.expires)],
         ["状態", getCardUsageState(card)],
-        pending ? ["確認コード", card.confirmationCode || "-"] : ["注意事項", card.notice || "スタッフ確認後に使用済みになります"]
+        canShowCode ? ["確認コード", card.confirmationCode || "使用手続き時に表示"] : ["注意事項", card.notice || "使用済みコードは再利用できません"]
       ])}</div>
       <div class="admin-actions mini">
         ${pending
@@ -1955,13 +1957,13 @@ function gachaCouponCardHtml(card, mode = "available") {
   `;
 }
 
-function renderGachaBinderSection(year, cards) {
+function renderGachaBinderSection(year, cards, collectionCards = cards) {
   const summary = buildCollectionSummary(cards, year);
   return `
     <section class="card-shelf">
       <header><h3>${escapeHtml(year)}年カードバインダー</h3><span>${cards.length}枚</span></header>
       <div class="collection-progress"><strong>${cards.length}枚</strong><span>UR ${summary.rarity.UR} / SSR ${summary.rarity.SSR} / SR ${summary.rarity.SR} / R ${summary.rarity.R} / N ${summary.rarity.N}</span></div>
-      ${renderCollectionDex(buildCharacterCollection(cards).items)}
+      ${renderCollectionDex(buildCharacterCollection(collectionCards).items)}
     </section>
   `;
 }
@@ -2037,7 +2039,7 @@ function findGachaCardRecord(cardId) {
     .find((card) => String(card.cardHistoryId || card.drawId) === String(cardId));
 }
 
-function requestGachaCardUse(cardId) {
+async function requestGachaCardUse(cardId) {
   const card = findGachaCardRecord(cardId);
   if (!card) return;
   const state = getGachaLifecycleState(card);
@@ -2053,6 +2055,33 @@ function requestGachaCardUse(cardId) {
     showToast(`スタッフ確認待ちです。確認コード：${card.confirmationCode || "-"}`);
     return;
   }
+  if (isProductionApiMode() && card.drawId) {
+    try {
+      const profile = getProfile();
+      const result = await apiRequest("requestCouponUse", {
+        userId: profile.memberId,
+        memberId: profile.memberId,
+        lineUserId: profile.lineUserId || "",
+        drawId: card.drawId
+      });
+      const coupon = result.data?.coupon || result.coupon || {};
+      updateGachaCardEverywhere(cardId, (item) => {
+        item.lifecycleState = coupon.status || "pending";
+        item.useState = coupon.status || "pending";
+        item.status = coupon.status || "pending";
+        item.useRequestedAt = coupon.requestedAt || new Date().toISOString();
+        item.confirmationCode = coupon.confirmationCode || item.confirmationCode || "";
+      });
+      showToast(`スタッフへこの画面を見せてください。確認コード：${coupon.confirmationCode || "-"}`);
+      await refreshProductionGachaCoupons(profile.memberId);
+      renderApp();
+      return;
+    } catch (error) {
+      console.error("[TEAM LINK GACHA USE REQUEST FAILED]", error);
+      showToast(error?.message || "使用申請に失敗しました。");
+      return;
+    }
+  }
   const code = createGachaConfirmCode(card);
   updateGachaCardEverywhere(cardId, (item) => {
     item.lifecycleState = "pending";
@@ -2067,9 +2096,28 @@ function requestGachaCardUse(cardId) {
   renderApp();
 }
 
-function cancelGachaUseRequest(cardId) {
+async function cancelGachaUseRequest(cardId) {
   const card = findGachaCardRecord(cardId);
   if (!card || getGachaLifecycleState(card) !== "pending") return;
+  if (isProductionApiMode() && card.drawId) {
+    try {
+      const profile = getProfile();
+      await apiRequest("cancelCouponUseRequest", {
+        userId: profile.memberId,
+        memberId: profile.memberId,
+        lineUserId: profile.lineUserId || "",
+        drawId: card.drawId
+      });
+      await refreshProductionGachaCoupons(profile.memberId);
+      showToast("使用申請をキャンセルしました。");
+      renderApp();
+      return;
+    } catch (error) {
+      console.error("[TEAM LINK GACHA USE CANCEL FAILED]", error);
+      showToast(error?.message || "キャンセルに失敗しました。");
+      return;
+    }
+  }
   const requestedAt = new Date(card.useRequestedAt || 0).getTime();
   if (requestedAt && Date.now() - requestedAt > 15 * 60 * 1000) {
     showToast("申請から時間が経過したため、スタッフへお声がけください。");
@@ -2151,7 +2199,11 @@ async function drawGachaRemote(issueMonth, options = {}) {
       cardId: result.data?.draw?.cardId || result.draw?.cardId || "",
       rewardName: result.data?.draw?.rewardName || result.draw?.rewardName || ""
     });
-    return mapServerGachaDrawToLocal(result.data?.draw || result.draw || {}, result.data?.reward || result.reward || {});
+    const localDraw = mapServerGachaDrawToLocal(result.data?.draw || result.draw || {}, result.data?.reward || result.reward || {});
+    const coupon = result.data?.coupon || result.coupon || {};
+    if (coupon.confirmationCode) localDraw.confirmationCode = coupon.confirmationCode;
+    if (coupon.usageId) localDraw.usageId = coupon.usageId;
+    return localDraw;
   } catch (error) {
     console.error("[TEAM LINK GACHA DRAW FAILED]", {
       action: "drawMonthlyGacha",
@@ -2173,6 +2225,7 @@ function mapServerGachaDrawToLocal(draw, reward) {
   if (!officialCard) {
     console.error(`CARD_MASTER_NOT_FOUND: ${serverCardId}`, { draw, reward });
   }
+  const sheetPrize = getGachaPrizes().find((item) => String(item.cardId || item.prizeId) === String(serverCardId));
   const characterId = officialCard?.characterId || normalizeGachaCharacterId(serverCardId);
   const cardNo = officialCard?.cardNo || reward.cardNumber || reward.cardNo || draw.cardNumber || "";
   return {
@@ -2193,17 +2246,17 @@ function mapServerGachaDrawToLocal(draw, reward) {
     effectName: officialCard?.effectName || reward.effectName || "",
     effectDescription: officialCard?.effectDescription || reward.description || "",
     prizeId: serverCardId,
-    prizeName: draw.rewardName || reward.rewardName || "",
+    prizeName: draw.rewardName || reward.rewardName || sheetPrize?.prizeName || "",
     title: draw.rewardName || reward.rewardName || "",
     prizeTitle: draw.rewardName || reward.rewardName || "",
-    prizeDescription: reward.rewardDetail || "",
-    message: reward.rewardDetail || "",
+    prizeDescription: reward.rewardDetail || sheetPrize?.prizeDescription || "",
+    message: reward.rewardDetail || sheetPrize?.prizeDescription || "",
     validUntil: draw.expiryDate || reward.expiryDate || endOfMonthDateKeyFor(issueMonth),
     expires: draw.expiryDate || reward.expiryDate || endOfMonthDateKeyFor(issueMonth),
-    usageCondition: reward.notes || "",
-    condition: reward.notes || "",
-    targetMenu: reward.targetMenu || "",
-    benefitDetail: reward.rewardDetail || "",
+    usageCondition: reward.notes || sheetPrize?.usageCondition || "",
+    condition: reward.notes || sheetPrize?.usageCondition || "",
+    targetMenu: reward.targetMenu || sheetPrize?.targetMenu || "",
+    benefitDetail: reward.rewardDetail || sheetPrize?.prizeDescription || "",
     canCombine: reward.canCombine === true || String(reward.canCombine).toUpperCase() === "TRUE",
     notice: reward.notes || "",
     obtainedAt: draw.drawnAt || new Date().toISOString(),
@@ -2211,6 +2264,8 @@ function mapServerGachaDrawToLocal(draw, reward) {
     lifecycleState: draw.status || "available",
     useState: draw.status || "available",
     status: draw.status || "available",
+    confirmationCode: reward.confirmationCode || "",
+    usageId: reward.usageId || "",
     serverSaved: true,
     snapshotPrize: JSON.stringify(reward),
     snapshotRarity: draw.rarity || reward.rarity || "N",
@@ -2269,7 +2324,7 @@ function showGachaResult(card, isSaved) {
       ["今回の景品", card.prizeName],
       ["景品説明", card.prizeDescription],
       ["当選年月", card.issueMonth || currentMonthKey()],
-      ["利用期限", card.validUntil || card.expires],
+      ["利用期限", formatDateUntil(card.validUntil || card.expires)],
       ["利用条件", card.usageCondition || card.condition || ""],
       ["レア度", `${card.rarity} ${rarity.label}`],
       ["状態", card.status || "未使用"]
@@ -2283,6 +2338,9 @@ function showGachaResult(card, isSaved) {
 }
 
 function gachaCharacterImageHtml(card) {
+  if (Object.prototype.hasOwnProperty.call(card || {}, "obtained") && !card.obtained) {
+    return `<span class="gacha-character-placeholder is-unknown" aria-label="未取得キャラクター">???</span>`;
+  }
   const image = getGachaCharacterSrc(card);
   const fallback = `<span class="gacha-character-placeholder">${escapeHtml(card.cardNo || "?")}</span>`;
   return image
@@ -2775,7 +2833,7 @@ function createSimpleGachaCard(cardData = {}, options = {}) {
         <div class="tl-simple-card__reward">
           <span class="tl-simple-card__label">今回の景品</span>
           <strong>${escapeHtml(cardData.prizeName || "今月の景品")}</strong>
-          <small>${escapeHtml(validUntil)}まで</small>
+          <small>${escapeHtml(formatDateUntil(validUntil))}</small>
         </div>
       </div>
       <div class="tl-simple-card__fx" aria-hidden="true"></div>
@@ -3267,8 +3325,9 @@ function renderMyCards() {
   const pending = cards.filter((card) => getGachaLifecycleState(card) === "pending");
   const used = cards.filter((card) => getGachaLifecycleState(card) === "used");
   const expired = cards.filter((card) => getGachaLifecycleState(card) === "expired");
-  const collection = buildCollectionSummary(used, currentYear());
-  const characterCollection = buildCharacterCollection(used);
+  const collected = cards.filter((card) => getGachaLifecycleState(card) !== "expired");
+  const collection = buildCollectionSummary(collected, currentYear());
+  const characterCollection = buildCharacterCollection(collected);
   container.innerHTML = `
     <article class="admin-preview">
       <p class="kicker">${currentYear()} collection</p>
@@ -3320,7 +3379,7 @@ function renderCollectionDex(items) {
             ${gachaCharacterImageHtml(item)}
             <span>No.${escapeHtml(item.cardNo)} ${escapeHtml(item.rarity)}</span>
             <strong>${escapeHtml(item.obtained ? item.name : "未取得")}</strong>
-            <small>${item.obtained ? `初回 ${formatDateTime(item.firstObtainedAt) || "-"} / ${item.obtainedCount}回` : "シルエット表示"}</small>
+            <small>${item.obtained ? `初回 ${formatDateTime(item.firstObtainedAt) || "-"} / ${item.obtainedCount}回` : "未取得"}</small>
           </article>
         `).join("")}
       </div>
@@ -3350,7 +3409,7 @@ function gachaCardHtml(card, withActions = false) {
       <small>効果：${escapeHtml(card.effectName || "")} ${escapeHtml(card.effectDescription || "")}</small>
       <strong>${escapeHtml(card.prizeName)}</strong>
       <p>${escapeHtml(card.prizeDescription || card.message || "")}</p>
-      <small>${escapeHtml(card.issueMonth || "")} / ${escapeHtml(getCardUsageState(card))} / 期限 ${escapeHtml(card.validUntil || card.expires || "-")}</small>
+      <small>${escapeHtml(card.issueMonth || "")} / ${escapeHtml(getCardUsageState(card))} / 期限 ${escapeHtml(formatDateUntil(card.validUntil || card.expires))}</small>
       ${withActions ? `<div class="admin-actions mini"><button type="button" data-admin-action="chartUseGacha" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">カードを使用する</button><button type="button" data-admin-action="chartUndoGacha" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">使用取り消し</button><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">カード詳細</button></div>` : ""}
     </article>
   `;
@@ -3772,7 +3831,7 @@ function renderMemberCouponsTab(member, coupons) {
               <article class="chart-row">
                 <strong>${escapeHtml(coupon.title)}</strong>
                 <span>${escapeHtml(coupon.couponType || coupon.source || "クーポン")} / 発行元 ${escapeHtml(coupon.source || coupon.sourceType || "Console作成")}</span>
-                <span>付与 ${escapeHtml(formatDateTime(coupon.createdAt || coupon.grantedAt || coupon.drawnAt))} / 期限 ${escapeHtml(coupon.expires || coupon.validUntil || "-")}</span>
+                <span>付与 ${escapeHtml(formatDateTime(coupon.createdAt || coupon.grantedAt || coupon.drawnAt))} / 期限 ${escapeHtml(formatDateUntil(coupon.expires || coupon.validUntil))}</span>
                 <span>条件 ${escapeHtml(coupon.condition || coupon.message || "-")}</span>
                 <p>使用日時 ${escapeHtml(formatDateTime(coupon.usedAt)) || "-"} / 使用メニュー ${escapeHtml(coupon.usedMenu || "-")} / 担当 ${escapeHtml(coupon.usedStaff || "-")}</p>
                 <div class="admin-actions mini">
@@ -4251,7 +4310,7 @@ function renderAdminGacha() {
               <span>ウェイト ${escapeHtml(card.weight || 1)}</span>
               <span>月間上限 ${escapeHtml(card.monthlyWinLimit)}</span>
               <span>在庫 ${escapeHtml(card.stockCount ?? card.inventoryCount ?? "制限なし")}</span>
-              <span>利用期限 ${escapeHtml(card.validUntil)}</span>
+              <span>利用期限 ${escapeHtml(formatDateUntil(card.validUntil))}</span>
               <span>対象メニュー ${escapeHtml(card.targetMenu || "-")}</span>
               <span>${card.canCombine ? "併用可能" : "併用不可"}</span>
               <span>${card.issueAsCoupon ? "クーポン発行" : "カードのみ"}</span>
@@ -4264,7 +4323,7 @@ function renderAdminGacha() {
     </section>
     <article class="admin-preview">
       <h3>スタッフ確認待ちカード</h3>
-      <div class="chart-list">${pendingUses.map((card) => `<article class="chart-row"><strong>${escapeHtml(card.characterName || card.cardName)} / ${escapeHtml(card.prizeName || "")}</strong><span>${escapeHtml(card.memberId)} / 確認コード ${escapeHtml(card.confirmationCode || "-")} / 期限 ${escapeHtml(card.validUntil || card.expires || "-")}</span><div class="admin-actions mini"><button type="button" data-admin-action="chartUseGacha" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">クーポン使用を確定する</button><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">詳細</button></div></article>`).join("") || "<p>確認待ちカードはありません。</p>"}</div>
+      <div class="chart-list">${pendingUses.map((card) => `<article class="chart-row"><strong>${escapeHtml(card.characterName || card.cardName)} / ${escapeHtml(card.prizeName || "")}</strong><span>${escapeHtml(card.memberId)} / 確認コード ${escapeHtml(card.confirmationCode || "-")} / 期限 ${escapeHtml(formatDateUntil(card.validUntil || card.expires))}</span><div class="admin-actions mini"><button type="button" data-admin-action="chartUseGacha" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">クーポン使用を確定する</button><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">詳細</button></div></article>`).join("") || "<p>確認待ちカードはありません。</p>"}</div>
     </article>
     <article class="admin-preview">
       <h3>ガチャ履歴・集計</h3>
@@ -4554,7 +4613,7 @@ function gachaResultPreviewHtml(card) {
         ["効果", `${card.effectName || ""}${card.effectDescription ? ` / ${card.effectDescription}` : ""}`],
         ["今回の景品", card.prizeName || "プレビュー用景品"],
         ["景品説明", card.prizeDescription || ""],
-        ["有効期限", card.validUntil || endOfMonthLabel()]
+        ["有効期限", formatDateUntil(card.validUntil || endOfMonthDateKey())]
       ])}</div>
     </article>
   `;
@@ -5563,14 +5622,14 @@ function showMemberCouponDetail(couponId) {
     `状態：${getCouponStatus(coupon)}`,
     `発行元：${coupon.source || coupon.sourceType || "-"}`,
     `付与日時：${formatDateTime(coupon.createdAt || coupon.grantedAt)}`,
-    `利用期限：${coupon.expires || coupon.validUntil || "-"}`,
+    `利用期限：${formatDateUntil(coupon.expires || coupon.validUntil)}`,
     `使用日時：${formatDateTime(coupon.usedAt) || "-"}`,
     `予約ID：${coupon.reservationId || "-"}`,
     `カードID：${coupon.sourceId || coupon.cardHistoryId || "-"}`
   ].join("\n"));
 }
 
-function updateMemberGachaStatus(drawId, status) {
+async function updateMemberGachaStatus(drawId, status) {
   const draws = readJson(STORAGE_KEYS.monthlyGachaDraws, []);
   const history = readJson(STORAGE_KEYS.gachaCardHistory, []);
   const draw = draws.find((item) => item.drawId === drawId || item.cardHistoryId === drawId) || history.find((item) => item.drawId === drawId || item.cardHistoryId === drawId);
@@ -5583,6 +5642,43 @@ function updateMemberGachaStatus(drawId, status) {
   if (nextState === "used" && getGachaLifecycleState(draw) === "expired") {
     showToast("期限切れカードは使用確定できません。");
     return;
+  }
+  if (nextState === "used") {
+    const confirmationCode = window.prompt("お客様の確認コードを入力してください", "");
+    if (!confirmationCode) return;
+    if (isProductionApiMode() && draw.drawId) {
+      try {
+        const result = await apiRequest("confirmCouponUse", {
+          drawId: draw.drawId,
+          confirmationCode: confirmationCode.trim(),
+          confirmedBy: getAdminSession()?.name || "TEAM LINK Console",
+          storeName: getStoreSettings().shopName
+        });
+        const coupon = result.data?.coupon || result.coupon || {};
+        updateGachaCardEverywhere(drawId, (item) => {
+          item.lifecycleState = "used";
+          item.useState = "used";
+          item.status = "used";
+          item.usedAt = coupon.confirmedAt || new Date().toISOString();
+          item.usedByStaff = coupon.confirmedBy || getAdminSession()?.name || "";
+          item.useConfirmedAt = item.usedAt;
+          item.usedStore = coupon.storeName || getStoreSettings().shopName;
+        });
+        await refreshProductionGachaCoupons(draw.memberId || getProfile().memberId);
+        addAdminLog("gacha_use", `${draw.prizeName || draw.title} を使用済みに変更`, getAdminSession()?.name, draw.memberId || "");
+        showToast("確認コードが一致しました。クーポンを使用済みにしました。");
+        renderApp();
+        return;
+      } catch (error) {
+        console.error("[TEAM LINK GACHA USE CONFIRM FAILED]", error);
+        showToast(error?.message || "確認コードが一致しません。");
+        return;
+      }
+    }
+    if (draw.confirmationCode && confirmationCode.trim() !== String(draw.confirmationCode)) {
+      showToast("確認コードが一致しません。");
+      return;
+    }
   }
   const ok = window.confirm(nextState === "used" ? `${draw.prizeName || draw.title}を使用済みにしますか？` : "使用済みを取り消しますか？");
   if (!ok) return;
@@ -5907,7 +6003,7 @@ function showCardDetail(cardId) {
     `景品: ${card.prizeName}`,
     `説明: ${card.prizeDescription || ""}`,
     `利用条件: ${card.usageCondition || ""}`,
-    `利用期限: ${card.validUntil || card.expires || ""}`,
+    `利用期限: ${formatDateUntil(card.validUntil || card.expires)}`,
     `取得日: ${formatDateTime(card.obtainedAt || card.drawnAt)}`,
     `状態: ${getCardUsageState(card)}`,
     `使用日: ${formatDateTime(card.usedAt) || "-"}`
@@ -7630,7 +7726,9 @@ function buildDefaultMonthlyGachaCards(issueMonth = currentMonthKey()) {
     return acc;
   }, {});
   return characters.map((character) => {
-    const prize = prizes.find((item) => item.prizeId === character.currentPrizeId) || prizes[0];
+    const prize = prizes.find((item) => String(item.cardId || item.prizeId) === String(character.characterId)) ||
+      prizes.find((item) => item.prizeId === character.currentPrizeId) ||
+      prizes[0];
     const rarityRate = Number(defaultGachaRarityRates[character.rarity] || 0);
     const winRate = Number((rarityRate / Math.max(1, countByRarity[character.rarity])).toFixed(4));
     return monthlyCardFromCharacter(character, prize, issueMonth, winRate);
@@ -7652,17 +7750,18 @@ function monthlyCardFromCharacter(character, prize, issueMonth = currentMonthKey
     imageUrl: character.imageUrl || "",
     imagePath: character.imagePath || `images/gacha/characters/${character.characterId}.png`,
     cardBackground: character.rarity.toLowerCase(),
-    prizeId: prize.prizeId,
-    prizeName: prize.title,
-    prizeDescription: prize.description,
+    prizeId: prize.prizeId || prize.cardId,
+    prizeName: prize.prizeName || prize.title,
+    prizeDescription: prize.prizeDescription || prize.description,
     discountAmount: prize.discountAmount || 0,
     discountRate: prize.discountRate || 0,
     winRate,
     weight: character.weight || 1,
     monthlyWinLimit: prize.monthlyWinLimit || 999,
     validUntil,
-    usageCondition: prize.condition || "",
+    usageCondition: prize.usageCondition || prize.condition || "",
     targetMenu: prize.targetMenu || "",
+    animationPreset: prize.animationPreset || "",
     issueAsCoupon: Boolean(prize.discountAmount || prize.discountRate || prize.requiresUseConfirmation),
     isDrawable: character.isDrawable !== false,
     isPublic: character.isPublic !== false,
@@ -8030,7 +8129,10 @@ function mergeServerGachaRewards(rewards) {
       targetMenu: reward.targetMenu,
       discountAmount: Number(reward.discountAmount || 0),
       validUntil: reward.expiryDate,
-      usageCondition: reward.notes || "",
+      usageCondition: reward.notes || reward.usageCondition || reward.rewardDetail || "",
+      animationPreset: reward.animation || reward.animationPreset || "",
+      effectName: reward.effectName || byId.get(String(reward.cardId))?.effectName || "",
+      description: reward.description || byId.get(String(reward.cardId))?.description || "",
       canCombine: reward.canCombine === true || String(reward.canCombine).toUpperCase() === "TRUE",
       isPublic: reward.isPublished === true || String(reward.isPublished).toUpperCase() === "TRUE",
       sortOrder: Number(reward.cardNumber || reward.sortOrder || 999),
@@ -8067,6 +8169,10 @@ function mergeServerGachaCoupons(coupons) {
       prizeDescription: coupon.rewardDetail || "",
       validUntil: coupon.expiryDate,
       expires: coupon.expiryDate,
+      usageCondition: coupon.notes || coupon.rewardDetail || "",
+      condition: coupon.notes || coupon.rewardDetail || "",
+      targetMenu: coupon.targetMenu || "",
+      animationPreset: coupon.animation || "",
       lifecycleState: coupon.status,
       useState: coupon.status,
       status: coupon.status,
@@ -8103,6 +8209,7 @@ function mapServerGachaCouponToLocal(coupon) {
     usageCondition: coupon.notes || "",
     condition: coupon.notes || "",
     targetMenu: coupon.targetMenu || "",
+    animationPreset: coupon.animation || "",
     lifecycleState: coupon.status,
     useState: coupon.status,
     status: coupon.status,
@@ -8288,6 +8395,26 @@ function jstDateLabel() {
 function formatDateTime(value) {
   if (!value) return "";
   return value.replace("T", " ");
+}
+
+function formatDateUntil(value) {
+  if (!value) return "-";
+  const raw = String(value).trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00+09:00`) : new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    if (raw === "-" || raw.endsWith("まで")) return raw;
+    return `${raw}まで`;
+  }
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+  return `${year}年${Number(month)}月${Number(day)}日まで`;
 }
 
 function hashString(value) {
