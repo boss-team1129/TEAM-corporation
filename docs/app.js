@@ -8407,7 +8407,20 @@ function jstDateLabel() {
 
 function formatDateTime(value) {
   if (!value) return "";
-  return value.replace("T", " ");
+  const raw = String(value).trim();
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw.replace("T", " ");
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || "";
+  return `${pick("year")}年${Number(pick("month"))}月${Number(pick("day"))}日 ${pick("hour")}:${pick("minute")}`;
 }
 
 function formatDateUntil(value) {
