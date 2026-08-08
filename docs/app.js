@@ -1,5 +1,6 @@
 const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkApiUrl") : "") || "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
+const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
 
@@ -1471,7 +1472,7 @@ function nextCouponSortOrder(coupons) {
 
 function renderApp() {
   refreshGachaCardStates();
-  appState.todayFortune = buildFortune();
+  appState.todayFortune = buildFortunePreview();
   renderHome();
   renderReservationStatus();
   renderCoupons();
@@ -1516,7 +1517,7 @@ function renderHome() {
   document.getElementById("homeReservationText").textContent = nextReservation
     ? `${formatDateTime(nextReservation.firstDateTime || nextReservation.confirmedDateTime)} / ${nextReservation.staff || "担当者確認中"}`
     : "予約はこちら";
-  document.getElementById("homeFortuneText").textContent = `美容運 ${appState.todayFortune.beauty} / ${appState.todayFortune.color}`;
+  document.getElementById("homeFortuneText").textContent = appState.todayFortune.summary;
   document.getElementById("homeCouponText").textContent = coupons.length
     ? `利用可能 ${coupons.length}枚`
     : "おすすめクーポンを見る";
@@ -1639,17 +1640,13 @@ function updateHomeCarouselActive() {
   });
 }
 
-function buildFortune() {
-  const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate) || "1990-01-01";
-  const seed = hashString(`${birthDate}-${jstDateKey()}`);
+function buildFortunePreview() {
+  const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
   return {
-    type: fortuneTypes[hashString(birthDate) % fortuneTypes.length],
-    total: 72 + (seed % 26),
-    work: 60 + (Math.floor(seed / 4) % 36),
-    love: 58 + (Math.floor(seed / 16) % 38),
-    beauty: 70 + (Math.floor(seed / 64) % 28),
-    color: luckyColors[seed % luckyColors.length],
-    advice: fortuneMessages[seed % fortuneMessages.length]
+    type: birthDate ? "TEAM占い" : "守護どうぶつ未登録",
+    beauty: "準備中",
+    color: "正確な資料待ち",
+    summary: birthDate ? "TEAM占い 準備中" : "守護どうぶつを見つける"
   };
 }
 
@@ -1658,10 +1655,13 @@ function renderFortune() {
   const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
   if (!birthDate) {
     container.innerHTML = `
-      <form class="step-form" id="birthDateForm">
-        <p>初回のみ生年月日を登録してください。次回から毎日の占いをすぐ表示します。</p>
+      <form class="step-form team-fortune-onboarding" id="birthDateForm">
+        <p class="kicker">TEAM FORTUNE</p>
+        <h3>あなたの守護どうぶつを見つけよう</h3>
+        <p>生年月日から運命数・星数・星人・＋−・霊合を順番に確認し、24タイプの守護どうぶつを判定します。</p>
         <label class="field">生年月日<input type="date" name="birthDate" required></label>
-        <button class="primary-button" type="submit">占いを表示する</button>
+        <button class="primary-button" type="submit">守護どうぶつを見つける</button>
+        <small>正式な運命数表と霊合条件が未投入の場合、推測の占い結果は表示しません。</small>
       </form>
     `;
     document.getElementById("birthDateForm").addEventListener("submit", (event) => {
@@ -1672,35 +1672,181 @@ function renderFortune() {
     return;
   }
 
-  const fortune = buildFortune();
-  appState.todayFortune = fortune;
-  saveFortuneHistory(fortune);
   container.innerHTML = `
-    <article class="fortune-card">
-      <span class="badge">${fortune.type}</span>
-      <h3>${jstDateLabel()}の運勢</h3>
-      <div class="fortune-grid">
-        ${fortuneMeter("総合運", fortune.total)}
-        ${fortuneMeter("仕事運", fortune.work)}
-        ${fortuneMeter("恋愛運", fortune.love)}
-        ${fortuneMeter("美容運", fortune.beauty)}
+    <article class="fortune-card team-fortune-loading">
+      <span class="badge">TEAM占い</span>
+      <h3>守護どうぶつを確認しています</h3>
+      <p>正確なデータだけを使って判定します。未確認の運気や相性は、推測せず「資料待ち」と表示します。</p>
+    </article>
+  `;
+  loadTeamFortune(birthDate)
+    .then((result) => {
+      container.innerHTML = renderTeamFortuneResult(result);
+      bindTeamFortuneActions(container);
+    })
+    .catch((error) => {
+      console.warn("[TEAM Fortune] result unavailable", error);
+      container.innerHTML = renderTeamFortuneDataWaiting(error, birthDate);
+      bindTeamFortuneActions(container);
+    });
+}
+
+async function loadTeamFortune(birthDate) {
+  if (!TEAM_LINK_API_URL || !TEAM_LINK_FORTUNE_DB_ID) {
+    throw createFortuneError("FORTUNE_API_NOT_CONFIGURED", "TEAM LINK Fortune DB APIが未設定です。");
+  }
+  const result = await apiRequest("resolveTeamFortune", {
+    birthDate,
+    targetDate: jstDateKey(),
+    fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
+  });
+  if (!result?.success) {
+    throw createFortuneError(result?.errorCode || "FORTUNE_API_ERROR", result?.message || "TEAM占いデータを取得できませんでした。", result?.data || result);
+  }
+  return result.data || result;
+}
+
+function createFortuneError(code, message, data = {}) {
+  const error = new Error(message);
+  error.code = code;
+  error.data = data;
+  return error;
+}
+
+function renderTeamFortuneResult(result) {
+  const character = result.character || {};
+  const today = result.today || {};
+  const month = result.month || {};
+  const year = result.year || {};
+  saveFortuneHistory({ date: jstDateKey(), type: character.displayName, todayLuck: today.internalLuckName || "" });
+  return `
+    <article class="fortune-card team-fortune-card">
+      ${fortuneCharacterVisual(character)}
+      <span class="badge">あなたの守護どうぶつ</span>
+      <h3>${escapeHtml(character.displayName || "判定中")}</h3>
+      <p>${escapeHtml(character.catchCopy || "")}</p>
+      ${renderFortuneSummaryPanel("今日のあなた", today)}
+      ${renderFortuneSummaryPanel("今月の運勢", month)}
+      ${renderFortuneSummaryPanel("今年の運勢", year)}
+      <div class="team-fortune-section">
+        <h4>基本性格</h4>
+        <p>${escapeHtml(character.basicPersonality || "")}</p>
       </div>
-      <div class="lucky-card">
-        <small>ラッキーカラー</small>
-        <strong>${escapeHtml(fortune.color)}</strong>
-        <p>${escapeHtml(fortune.advice)} 美容運を上げるなら、髪のツヤが出るケアをひとつ足してみて。</p>
+      ${renderFortuneList("あなたの長所", character.strengths)}
+      ${renderFortuneList("気をつけたいところ", character.cautions)}
+      ${renderFortuneTextGrid(character)}
+      <div class="team-fortune-compatibility">
+        <h4>気になるあの人との相性</h4>
+        <form id="fortuneCompatibilityForm" class="mini-form">
+          <label class="field">ニックネーム<input name="nickname" placeholder="任意"></label>
+          <label class="field">相手の生年月日<input type="date" name="partnerBirthDate" required></label>
+          <button class="secondary-button" type="submit">二人の相性を見る</button>
+        </form>
+        <p class="muted">人運・地運の正式相性表が未投入の場合、相性％は表示しません。</p>
       </div>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
     </article>
   `;
-  document.getElementById("resetBirthDate").addEventListener("click", () => {
-    localStorage.removeItem(STORAGE_KEYS.birthDate);
-    renderApp();
-  });
 }
 
 function fortuneMeter(label, value) {
   return `<div class="fortune-meter"><span>${label}</span><strong>${value}</strong><progress max="100" value="${value}"></progress></div>`;
+}
+
+function renderTeamFortuneDataWaiting(error, birthDate) {
+  const missingItems = [
+    "正式な運命数表（生年×生月）",
+    "霊合判定条件",
+    "月運の起点データ",
+    "日運の起点データ",
+    "人運・地運の相性表"
+  ];
+  return `
+    <article class="fortune-card team-fortune-card">
+      <span class="badge">データ待ち</span>
+      <h3>TEAM占いは正確な資料を待っています</h3>
+      <p>登録済み生年月日：${escapeHtml(birthDate || "-")}</p>
+      <p>今回の占いでは、未確認の運気名をAIやランダムで補完しません。必要な資料が揃うまで、正確な占い結果は表示しない設計です。</p>
+      <div class="team-fortune-alert">
+        <strong>${escapeHtml(error?.code || "FORTUNE_DATA_WAITING")}</strong>
+        <span>${escapeHtml(error?.message || "正式データが不足しています。")}</span>
+      </div>
+      <div class="team-fortune-section">
+        <h4>登録済みデータ</h4>
+        <ul>
+          <li>24タイプ CharacterMaster 初期文章</li>
+          <li>12運気 LuckCycle</li>
+          <li>検証基準：2026年 静寂のゾウ（土星人−）＝乱気</li>
+        </ul>
+      </div>
+      <div class="team-fortune-section">
+        <h4>不足している正式資料</h4>
+        <ul>${missingItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div class="team-fortune-section">
+        <h4>TEAM LINK Fortune DB</h4>
+        <p>スプレッドシートID：${escapeHtml(TEAM_LINK_FORTUNE_DB_ID)}</p>
+        <a class="secondary-button compact" href="https://docs.google.com/spreadsheets/d/${escapeHtml(TEAM_LINK_FORTUNE_DB_ID)}/edit" target="_blank" rel="noopener">Fortune DBを開く</a>
+      </div>
+      <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
+    </article>
+  `;
+}
+
+function fortuneCharacterVisual(character) {
+  const image = character.imagePath || "";
+  const fallback = `<span class="team-fortune-placeholder">${escapeHtml(character.animal || "TL")}</span>`;
+  return `<div class="team-fortune-visual">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(character.displayName || "守護どうぶつ")}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'team-fortune-placeholder',textContent:'${escapeHtml(character.animal || "TL")}' }))">` : fallback}</div>`;
+}
+
+function renderFortuneSummaryPanel(title, luck) {
+  const state = luck?.internalLuckName ? luck : { displayLuckName: "資料待ち", starRating: "-", message: "確定した起点データが未投入のため、推測表示は行いません。" };
+  return `
+    <section class="team-fortune-summary">
+      <span>${escapeHtml(title)}</span>
+      <strong>${escapeHtml(state.displayLuckName || state.internalLuckName || "資料待ち")}</strong>
+      <small>${escapeHtml(renderStarText(state.starRating))}</small>
+      <p>${escapeHtml(state.message || state.shortMeaning || "")}</p>
+    </section>
+  `;
+}
+
+function renderStarText(value) {
+  const number = Number(value);
+  if (!number) return "未確認";
+  return "★★★★★".slice(0, number) + "☆☆☆☆☆".slice(0, Math.max(0, 5 - number));
+}
+
+function renderFortuneList(title, value) {
+  const items = String(value || "").split(/[｜,]/).map((item) => item.trim()).filter(Boolean);
+  return `<div class="team-fortune-section"><h4>${escapeHtml(title)}</h4><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>データ未設定</li>"}</ul></div>`;
+}
+
+function renderFortuneTextGrid(character) {
+  const fields = [
+    ["恋愛傾向", character.love],
+    ["仕事傾向", character.work],
+    ["お金の傾向", character.money],
+    ["人間関係", character.relationships],
+    ["健康・コンディション", character.health],
+    ["ラッキーカラー", character.luckyColors],
+    ["ラッキーアイテム", character.luckyItems],
+    ["ラッキースポット", character.luckySpots],
+    ["相性の傾向", character.compatibilityTendency],
+    ["守護どうぶつからの一言", character.message]
+  ];
+  return `<div class="team-fortune-text-grid">${fields.map(([label, text]) => `<section><span>${escapeHtml(label)}</span><p>${escapeHtml(text || "データ未設定")}</p></section>`).join("")}</div>`;
+}
+
+function bindTeamFortuneActions(container) {
+  container.querySelector("#resetBirthDate")?.addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEYS.birthDate);
+    renderApp();
+  });
+  container.querySelector("#fortuneCompatibilityForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    showToast("正式な人運・地運相性表の投入後に判定できます。");
+  });
 }
 
 function renderCoupons() {
