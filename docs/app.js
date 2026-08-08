@@ -1,5 +1,6 @@
 const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkApiUrl") : "") || "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
+const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("fortuneApiUrl") : "") || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
@@ -1692,14 +1693,14 @@ function renderFortune() {
 }
 
 async function loadTeamFortune(birthDate) {
-  if (!TEAM_LINK_API_URL || !TEAM_LINK_FORTUNE_DB_ID) {
+  if (!TEAM_LINK_FORTUNE_API_URL || !TEAM_LINK_FORTUNE_DB_ID) {
     throw createFortuneError("FORTUNE_API_NOT_CONFIGURED", "TEAM LINK Fortune DB APIが未設定です。");
   }
   const result = await apiRequest("resolveTeamFortune", {
     birthDate,
     targetDate: jstDateKey(),
     fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
-  });
+  }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
   if (!result?.success) {
     throw createFortuneError(result?.errorCode || "FORTUNE_API_ERROR", result?.message || "TEAM占いデータを取得できませんでした。", result?.data || result);
   }
@@ -8090,16 +8091,17 @@ function endOfMonthLabel() {
   return `${month}月${lastDay}日`;
 }
 
-async function apiRequest(action, payload = {}) {
-  if (!TEAM_LINK_API_URL) return { success: true, demo: true, action, payload };
+async function apiRequest(action, payload = {}, options = {}) {
+  const apiUrl = options.apiUrl || TEAM_LINK_API_URL;
+  if (!apiUrl) return { success: true, demo: true, action, payload };
   const requestPayload = { action, payload, sessionToken: getApiSessionToken() };
   try {
-    return await apiRequestJsonp(action, payload, requestPayload);
+    return await apiRequestJsonp(action, payload, requestPayload, apiUrl);
   } catch (jsonpError) {
-    logApiFailure({ action, url: TEAM_LINK_API_URL, error: jsonpError, transport: "JSONP" });
+    logApiFailure({ action, url: apiUrl, error: jsonpError, transport: "JSONP" });
     if (jsonpError.fromJsonpResponse) throw jsonpError;
     try {
-      const response = await fetch(TEAM_LINK_API_URL, {
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(requestPayload),
@@ -8110,28 +8112,28 @@ async function apiRequest(action, payload = {}) {
       try {
         data = JSON.parse(text);
       } catch (parseError) {
-        logApiFailure({ action, url: response.url || TEAM_LINK_API_URL, status: response.status, body: text, error: parseError, transport: "POST" });
+        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text, error: parseError, transport: "POST" });
         throw parseError;
       }
       if (!data.success) {
         const error = new Error(data.message || "処理に失敗しました。");
         error.errorCode = data.errorCode || "";
-        logApiFailure({ action, url: response.url || TEAM_LINK_API_URL, status: response.status, body: text, error, transport: "POST" });
+        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text, error, transport: "POST" });
         throw error;
       }
       return data;
     } catch (postError) {
-      logApiFailure({ action, url: TEAM_LINK_API_URL, error: postError, transport: "POST", cors: isFetchCorsLikeError(postError) });
+      logApiFailure({ action, url: apiUrl, error: postError, transport: "POST", cors: isFetchCorsLikeError(postError) });
       throw postError;
     }
   }
 }
 
-function apiRequestJsonp(action, payload, requestPayload) {
+function apiRequestJsonp(action, payload, requestPayload, apiUrl = TEAM_LINK_API_URL) {
   return new Promise((resolve, reject) => {
     const callbackName = `teamLinkJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
-    const url = new URL(TEAM_LINK_API_URL);
+    const url = new URL(apiUrl);
     url.searchParams.set("action", action);
     url.searchParams.set("callback", callbackName);
     url.searchParams.set("payload", JSON.stringify(payload || {}));
