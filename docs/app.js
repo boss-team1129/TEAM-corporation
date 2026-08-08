@@ -5646,6 +5646,19 @@ async function updateMemberGachaStatus(drawId, status) {
   if (nextState === "used") {
     const confirmationCode = window.prompt("お客様の確認コードを入力してください", "");
     if (!confirmationCode) return;
+    const detailMessage = [
+      "確認コードの対象クーポンを使用済みにします。",
+      "",
+      `会員：${draw.memberName || draw.memberId || "-"}`,
+      `キャラクター：${draw.characterName || draw.cardName || "-"}`,
+      `景品：${draw.prizeName || draw.title || "-"}`,
+      `利用条件：${draw.usageCondition || draw.condition || "-"}`,
+      `有効期限：${formatDateUntil(draw.validUntil || draw.expires)}`,
+      `確認コード：${confirmationCode.trim()}`,
+      "",
+      "使用日時・確認スタッフが保存され、このコードは再利用できなくなります。"
+    ].join("\n");
+    if (!window.confirm(detailMessage)) return;
     if (isProductionApiMode() && draw.drawId) {
       try {
         const result = await apiRequest("confirmCouponUse", {
