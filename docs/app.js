@@ -1672,11 +1672,12 @@ function buildFortunePreview() {
   const latest = readJson(STORAGE_KEYS.fortuneHistory, [])[0];
   if (birthDate && latest?.type) {
     const latestLuck = getTeamFortuneLuckDisplay({ luckName: latest.todayLuck });
+    const latestHint = latest.todayHint ? ` / ${latest.todayHint}` : "";
     return {
       type: latest.type,
       beauty: latestLuck || "詳しく見る",
       color: latest.imagePath || "",
-      summary: `${latest.type} / 今日：${latestLuck || "詳しく見る"}`
+      summary: `${latest.type} / 今日：${latestLuck || "詳しく見る"}${latestHint}`
     };
   }
   return {
@@ -1757,10 +1758,12 @@ function renderTeamFortuneResult(result) {
   const month = result.month || result.monthLuck || {};
   const year = result.year || result.yearLuck || {};
   const todayName = getFortuneLuckName(today);
+  const characterLuckProfile = createCharacterLuckProfile(character, calculation);
   saveFortuneHistory({
     date: jstDateKey(),
     type: character.displayName,
     todayLuck: getTeamFortuneLuckDisplay(today) || todayName,
+    todayHint: getCharacterHomeHint(characterLuckProfile, today),
     imagePath: character.imagePath || ""
   });
   return `
@@ -1771,9 +1774,9 @@ function renderTeamFortuneResult(result) {
       <p>${escapeHtml(character.catchCopy || "")}</p>
       ${renderFortuneJudgement(calculation, character)}
       <div class="team-fortune-luck-stack">
-        ${renderFortuneSummaryPanel("今日の運気", today, "今日の過ごし方")}
-        ${renderFortuneSummaryPanel("今月の運気", month, "今月の流れ")}
-        ${renderFortuneSummaryPanel("2026年の運気", year, "今年のテーマ")}
+        ${renderFortuneSummaryPanel("今日の運気", today, "今日の過ごし方", character, calculation)}
+        ${renderFortuneSummaryPanel("今月の運気", month, "今月の流れ", character, calculation)}
+        ${renderFortuneSummaryPanel("2026年の運気", year, "今年のテーマ", character, calculation)}
       </div>
       <div class="team-fortune-section">
         <h4>基本性格</h4>
@@ -1910,19 +1913,83 @@ function renderTeamFortuneLuckMeta(luck) {
   `;
 }
 
+function splitFortuneTextList(value) {
+  return String(value || "").split(/[｜,]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function createCharacterLuckProfile(character = {}, calculation = {}) {
+  const strengths = splitFortuneTextList(character.strengths);
+  const cautions = splitFortuneTextList(character.cautions);
+  return {
+    characterName: character.displayName || "",
+    starType: calculation.baseStar || calculation.starType || "",
+    polarity: calculation.polarity || "",
+    coreTrait: character.basicPersonality || "",
+    strength: strengths[0] || "",
+    weakness: cautions[0] || "",
+    loveStyle: character.love || "",
+    workStyle: character.work || "",
+    relationshipStyle: character.relationships || "",
+    adviceTone: character.message || "",
+    positiveAdvice: strengths.slice(0, 2).join("・"),
+    cautionAdvice: cautions.slice(0, 2).join("・")
+  };
+}
+
+function getCharacterPersonalAdvice(profile, luck, period = "") {
+  const luckName = getTeamFortuneLuckDisplay(luck);
+  const strength = profile.positiveAdvice || profile.strength || "あなたらしい良さ";
+  const caution = profile.cautionAdvice || profile.weakness || "無理のしすぎ";
+  if (period === "month") {
+    return `${profile.characterName || "あなた"}の${strength}が、${luckName || "この流れ"}の中でじっくり育ちます。今月は周りに合わせすぎず、自分の心地よいペースを選ぶと流れが整います。`;
+  }
+  if (period === "year") {
+    return `${profile.characterName || "あなた"}が持つ${strength}を一年の軸にすると、${luckName || "この流れ"}を自分らしく活かせます。${caution}には気をつけながら、長く続く選択を大切に。`;
+  }
+  return `${profile.characterName || "あなた"}らしい${strength}が活きる日です。${caution}に気づいたら、一人で抱え込まず、少し力を抜いて流れを整えてみて。`;
+}
+
+function getCharacterHomeHint(profile, luck) {
+  const luckName = getTeamFortuneLuckDisplay(luck);
+  const strength = profile.strength || "あなたらしさ";
+  return `${strength}を少し活かす${luckName || "日"}`;
+}
+
+function getCharacterSubFlowAdvice(luck) {
+  const info = getTeamFortuneLuckInfo(luck);
+  const luckName = getTeamFortuneLuckDisplay(luck);
+  if (!info && !luckName) return "";
+  return `${luckName || "もうひとつの流れ"}も重なっています。${info?.recommendedAction || "整えること"}を少し意識すると、メインの流れを穏やかに支えてくれます。`;
+}
+
+function renderCharacterPersonalAdvice(profile, luck, period = "") {
+  const advice = getCharacterPersonalAdvice(profile, luck, period);
+  if (!advice) return "";
+  return `
+    <div class="team-fortune-personal-advice">
+      <span>キャラクターアドバイス</span>
+      <p>${escapeHtml(advice)}</p>
+    </div>
+  `;
+}
+
 function getFortuneLuckStatus(luck) {
   if (!luck || typeof luck !== "object") return "";
   return luck.status || luck.sourceStatus || "";
 }
 
-function renderFortuneLuckLine(label, luck) {
+function renderFortuneLuckLine(label, luck, profile, period = "", options = {}) {
   const name = getTeamFortuneLuckDisplay(luck);
   const info = getTeamFortuneLuckInfo(luck);
+  const advice = options.isSubFlow
+    ? getCharacterSubFlowAdvice(luck)
+    : (profile ? getCharacterPersonalAdvice(profile, luck, period) : "");
   return `
     <div class="team-fortune-sub-luck">
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(name || "資料待ち")}</strong>
       ${info?.theme ? `<small>${escapeHtml(info.theme)}</small>` : ""}
+      ${advice ? `<p>${escapeHtml(advice)}</p>` : ""}
       ${info ? `
         <dl class="team-fortune-sub-meta">
           <dt>おすすめ</dt><dd>${escapeHtml(info.recommendedAction || "-")}</dd>
@@ -1933,7 +2000,7 @@ function renderFortuneLuckLine(label, luck) {
   `;
 }
 
-function renderFortuneSummaryPanel(title, luck, subtitle = "") {
+function renderFortuneSummaryPanel(title, luck, subtitle = "", character = {}, calculation = {}) {
   const isDual = luck && typeof luck === "object" && (luck.main || luck.sub);
   const isConfirmed = getFortuneLuckStatus(luck) === "confirmed";
   const name = getFortuneLuckName(luck);
@@ -1941,6 +2008,7 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "") {
     ? luck
     : { displayLuckName: "資料待ち", starRating: "-", message: "確定した起点データが未投入のため、推測表示は行いません。" };
   const period = state.period || "";
+  const profile = createCharacterLuckProfile(character, calculation);
   const message = isDual
     ? "メインとサブ、2つの流れをどちらも大切に見る日です。"
     : getTeamFortuneLuckMessage(state, period);
@@ -1950,14 +2018,15 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "") {
       ${subtitle ? `<em>${escapeHtml(subtitle)}</em>` : ""}
       ${isDual ? `
         <div class="team-fortune-dual-luck">
-          ${renderFortuneLuckLine("メイン", state.main)}
-          ${renderFortuneLuckLine("サブ", state.sub)}
+          ${renderFortuneLuckLine("メイン", state.main, profile, period)}
+          ${renderFortuneLuckLine("もうひとつの流れ", state.sub, profile, period, { isSubFlow: true })}
         </div>
       ` : `
         <strong>${escapeHtml(getTeamFortuneLuckDisplay(state) || "資料待ち")}</strong>
         ${getFortuneLuckName(state) ? `<small>${escapeHtml(getTeamFortuneLuckInfo(state)?.theme || "TEAM LINKの12運気")}</small>` : `<small>${escapeHtml(renderStarText(state.starRating))}</small>`}
       `}
       <p>${escapeHtml(message || "正式APIの確定値を表示しています。")}</p>
+      ${isDual ? "" : renderCharacterPersonalAdvice(profile, state, period)}
       ${isDual ? "" : renderTeamFortuneLuckMeta(state)}
     </section>
   `;
