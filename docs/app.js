@@ -575,6 +575,26 @@ const fortuneMessages = [
   "自分の気分を大切にすると、人にも優しくできる日。"
 ];
 
+const TEAM_FORTUNE_LUCK_LABELS = {
+  1: { internal: "種子", display: "芽吹き", theme: "新しい流れが静かに始まるタイミングです。", day: "小さな一歩を選ぶと、先の楽しみが育ちます。", month: "新しい習慣や予定を始めるのに向いた月です。", year: "種まきの一年。焦らず、これから伸びるものを選びましょう。", advice: "無理に広げず、最初の一歩を丁寧に。" },
+  2: { internal: "緑生", display: "若葉", theme: "芽吹いたものが少しずつ形になり始めます。", day: "育てたいことに手をかけると、心地よく進みます。", month: "人とのやり取りや学びが伸びやすい月です。", year: "成長の一年。柔らかく吸収するほど力になります。", advice: "比べず、昨日より少し育てる意識で。" },
+  3: { internal: "立花", display: "花開き", theme: "魅力や成果が表に出やすい流れです。", day: "自分らしさを少し見せると、良い反応が返ってきます。", month: "発信や挑戦が実りやすい月です。", year: "花が開く一年。大切な場面では堂々と進みましょう。", advice: "遠慮しすぎず、あなたの色を出して。" },
+  4: { internal: "健弱", display: "月隠れ", theme: "少しペースを落として、心身を整える時期です。", day: "予定を詰め込みすぎず、余白を残すと安定します。", month: "コンディション管理を優先したい月です。", year: "整える一年。休む力が次の前進を支えます。", advice: "早めの休息と、抱えすぎない選択を。" },
+  5: { internal: "達成", display: "満月", theme: "積み重ねたものが満ち、手応えを感じやすい流れです。", day: "仕上げたいことに集中すると満足感が得られます。", month: "成果を受け取り、周囲と分かち合える月です。", year: "達成の一年。自信を持って形にしていきましょう。", advice: "受け取ることも、次へ進む力になります。" },
+  6: { internal: "乱気", display: "揺らぎ", theme: "心や予定が揺れやすいぶん、見直しのヒントも多い時期です。", day: "急がず、気持ちが落ち着く選択を優先しましょう。", month: "予定変更にも柔らかく対応すると流れが整います。", year: "揺らぎの一年。決めつけず、整えながら進みましょう。", advice: "大きな判断は一呼吸おいてから。" },
+  7: { internal: "再会", display: "巡り逢い", theme: "人や機会との再接続が起こりやすい流れです。", day: "懐かしい人や場所に、次のヒントがありそうです。", month: "再挑戦や再会から良い展開が生まれやすい月です。", year: "縁が巡る一年。過去の経験が新しい力になります。", advice: "戻ってきた流れを、丁寧に受け止めて。" },
+  8: { internal: "財成", display: "豊穣", theme: "努力が実り、豊かさを受け取りやすい時期です。", day: "必要なものに手をかけると、満たされる感覚が残ります。", month: "成果やご褒美を形にしやすい月です。", year: "豊かさを育てる一年。感謝と循環を意識しましょう。", advice: "得たものを次の喜びにつなげて。" },
+  9: { internal: "安定", display: "凪", theme: "穏やかに整い、安心して進める流れです。", day: "いつものリズムを大切にすると、心が落ち着きます。", month: "生活や関係を安定させるのに向いた月です。", year: "凪の一年。今ある土台を磨くほど強くなります。", advice: "派手さより、続けられる心地よさを。" },
+  10: { internal: "陰影", display: "宵闇", theme: "内側に目を向け、静かに整理したいタイミングです。", day: "無理に明るく振る舞わず、自分の声を聞いてください。", month: "余分なものを手放し、次の準備を整える月です。", year: "宵闇の一年。静かな見直しが、次の芽吹きにつながります。", advice: "焦らず、整える時間を味方に。" },
+  11: { internal: "停止", display: "冬籠り", theme: "外へ急ぐより、守りと休息を大切にしたい時期です。", day: "今日は立ち止まることも前進です。心身を温めましょう。", month: "無理な拡大より、点検と休息を優先したい月です。", year: "冬籠りの一年。力を蓄えるほど、次の季節が豊かになります。", advice: "守るものを決め、静かに力を蓄えて。" },
+  12: { internal: "減退", display: "夜明け前", theme: "次の始まりへ向けて、不要なものをほどく時期です。", day: "手放すことが、明日の軽さにつながります。", month: "整理と準備を進めるほど、新しい流れを迎えやすい月です。", year: "夜明け前の一年。終わりを整え、次の芽吹きを待ちましょう。", advice: "完璧を求めず、軽くすることを意識して。" }
+};
+
+const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_LABELS).reduce((map, item) => {
+  map[item.internal] = item;
+  return map;
+}, {});
+
 const adminUsers = {
   boss: { adminId: "boss", name: "村松 剛好", role: "admin", label: "管理者" },
   "staff-kanda": { adminId: "staff-kanda", name: "神田 加奈", role: "staff", label: "スタッフ" }
@@ -1651,11 +1671,12 @@ function buildFortunePreview() {
   const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
   const latest = readJson(STORAGE_KEYS.fortuneHistory, [])[0];
   if (birthDate && latest?.type) {
+    const latestLuck = getTeamFortuneLuckDisplay({ luckName: latest.todayLuck });
     return {
       type: latest.type,
-      beauty: latest.todayLuck || "詳しく見る",
+      beauty: latestLuck || "詳しく見る",
       color: latest.imagePath || "",
-      summary: `${latest.type} / 今日：${latest.todayLuck || "詳しく見る"}`
+      summary: `${latest.type} / 今日：${latestLuck || "詳しく見る"}`
     };
   }
   return {
@@ -1739,7 +1760,7 @@ function renderTeamFortuneResult(result) {
   saveFortuneHistory({
     date: jstDateKey(),
     type: character.displayName,
-    todayLuck: todayName,
+    todayLuck: getTeamFortuneLuckDisplay(today) || todayName,
     imagePath: character.imagePath || ""
   });
   return `
@@ -1853,18 +1874,42 @@ function getFortuneLuckName(luck) {
   return luck.displayLuckName || luck.luckName || luck.internalLuckName || "";
 }
 
+function getTeamFortuneLuckInfo(luck) {
+  if (!luck || typeof luck !== "object") return null;
+  const byCycle = TEAM_FORTUNE_LUCK_LABELS[Number(luck.cycleIndex)];
+  if (byCycle) return byCycle;
+  return TEAM_FORTUNE_LUCK_BY_INTERNAL[getFortuneLuckName(luck)] || null;
+}
+
+function getTeamFortuneLuckDisplay(luck) {
+  const info = getTeamFortuneLuckInfo(luck);
+  return info?.display || getFortuneLuckName(luck);
+}
+
+function getTeamFortuneLuckMessage(luck, period = "") {
+  const info = getTeamFortuneLuckInfo(luck);
+  if (!info) return luck?.message || luck?.shortMeaning || luck?.sourceNote || "";
+  const periodText = period === "day"
+    ? info.day
+    : period === "month"
+      ? info.month
+      : period === "year"
+        ? info.year
+        : info.theme;
+  return `${periodText} ${info.advice}`;
+}
+
 function getFortuneLuckStatus(luck) {
   if (!luck || typeof luck !== "object") return "";
   return luck.status || luck.sourceStatus || "";
 }
 
 function renderFortuneLuckLine(label, luck) {
-  const name = getFortuneLuckName(luck);
-  const cycle = luck?.cycleIndex ? ` / ${luck.cycleIndex}` : "";
+  const name = getTeamFortuneLuckDisplay(luck);
   return `
     <div class="team-fortune-sub-luck">
       <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(name ? `${name}${cycle}` : "資料待ち")}</strong>
+      <strong>${escapeHtml(name || "資料待ち")}</strong>
     </div>
   `;
 }
@@ -1876,7 +1921,10 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "") {
   const state = name || isConfirmed
     ? luck
     : { displayLuckName: "資料待ち", starRating: "-", message: "確定した起点データが未投入のため、推測表示は行いません。" };
-  const message = state.message || state.shortMeaning || state.sourceNote || "";
+  const period = state.period || "";
+  const message = isDual
+    ? "メインとサブ、2つの流れをどちらも大切に見る日です。"
+    : getTeamFortuneLuckMessage(state, period);
   return `
     <section class="team-fortune-summary${isDual ? " is-reigou" : ""}">
       <span>${escapeHtml(title)}</span>
@@ -1887,8 +1935,8 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "") {
           ${renderFortuneLuckLine("サブ", state.sub)}
         </div>
       ` : `
-        <strong>${escapeHtml(getFortuneLuckName(state) || "資料待ち")}</strong>
-        ${state.cycleIndex ? `<small>cycleIndex ${escapeHtml(state.cycleIndex)}</small>` : `<small>${escapeHtml(renderStarText(state.starRating))}</small>`}
+        <strong>${escapeHtml(getTeamFortuneLuckDisplay(state) || "資料待ち")}</strong>
+        ${getFortuneLuckName(state) ? `<small>${escapeHtml(getTeamFortuneLuckInfo(state)?.theme || "TEAM LINKの12運気")}</small>` : `<small>${escapeHtml(renderStarText(state.starRating))}</small>`}
       `}
       <p>${escapeHtml(message || "正式APIの確定値を表示しています。")}</p>
     </section>
