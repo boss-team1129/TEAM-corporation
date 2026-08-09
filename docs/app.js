@@ -1696,10 +1696,10 @@ function renderFortune() {
       <form class="step-form team-fortune-onboarding" id="birthDateForm">
         <p class="kicker">TEAM FORTUNE</p>
         <h3>あなたの守護どうぶつを見つけよう</h3>
-        <p>生年月日から運命数・星数・星人・＋−・霊合を順番に確認し、24タイプの守護どうぶつを判定します。</p>
+        <p>生年月日から、あなたに寄り添うTEAM LINKタイプを確認します。</p>
         <label class="field">生年月日<input type="date" name="birthDate" required></label>
         <button class="primary-button" type="submit">守護どうぶつを見つける</button>
-        <small>正式な運命数表と霊合条件が未投入の場合、推測の占い結果は表示しません。</small>
+        <small>正式データだけを使い、未確認の結果は推測表示しません。</small>
       </form>
     `;
     document.getElementById("birthDateForm").addEventListener("submit", (event) => {
@@ -1714,7 +1714,7 @@ function renderFortune() {
     <article class="fortune-card team-fortune-loading">
       <span class="badge">TEAM占い</span>
       <h3>守護どうぶつを確認しています</h3>
-      <p>正確なデータだけを使って判定します。未確認の運気や相性は、推測せず「資料待ち」と表示します。</p>
+      <p>正確なデータだけを使って、あなたのタイプと今日の流れを確認しています。</p>
     </article>
   `;
   loadTeamFortune(birthDate)
@@ -1769,7 +1769,7 @@ function renderTeamFortuneResult(result) {
   return `
     <article class="fortune-card team-fortune-card">
       ${fortuneCharacterVisual(character)}
-      <span class="badge">${calculation.isReigou ? "霊合星人" : "あなたの守護どうぶつ"}</span>
+      <span class="badge">あなたの守護どうぶつ</span>
       <h3>${escapeHtml(character.displayName || "判定中")}</h3>
       <p>${escapeHtml(character.catchCopy || "")}</p>
       ${renderFortuneJudgement(calculation, character)}
@@ -1792,7 +1792,7 @@ function renderTeamFortuneResult(result) {
           <label class="field">相手の生年月日<input type="date" name="partnerBirthDate" required></label>
           <button class="secondary-button" type="submit">二人の相性を見る</button>
         </form>
-        <p class="muted">人運・地運の正式相性表が未投入の場合、相性％は表示しません。</p>
+        <p class="muted">正式な相性資料が整うまで、相性％は表示しません。</p>
       </div>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
     </article>
@@ -1805,7 +1805,7 @@ function fortuneMeter(label, value) {
 
 function renderTeamFortuneDataWaiting(error, birthDate) {
   const missingItems = [
-    "人運・地運の相性表"
+    "相性判定用の正式資料"
   ];
   return `
     <article class="fortune-card team-fortune-card">
@@ -1823,7 +1823,7 @@ function renderTeamFortuneDataWaiting(error, birthDate) {
           <li>24タイプ CharacterMaster 初期文章</li>
           <li>12運気 LuckCycle</li>
           <li>2026年 YearLuck / MonthLuck / DayLuckAnchor 正式検証済み</li>
-          <li>霊合星人 main/sub 判定 正式検証済み</li>
+          <li>TEAM LINKタイプ別の複合運気表示 正式検証済み</li>
         </ul>
       </div>
       <div class="team-fortune-section">
@@ -1848,26 +1848,11 @@ function fortuneCharacterVisual(character) {
 
 function renderFortuneJudgement(calculation, character) {
   const rows = [
-    ["TEAM LINKタイプ", character.displayName || "-"],
-    ["星人", calculation.baseStar || calculation.starType || "-"],
-    ["＋／−", calculation.polarity || "-"],
-    ["霊合星人", calculation.isReigou ? "はい" : "いいえ"]
-  ];
-  const detailRows = [
-    ["運命数", calculation.destinyNumber],
-    ["星数", calculation.starNumber],
-    ["干支", calculation.zodiac],
-    ["霊合判定", calculation.reigouStatus || "-"]
+    ["TEAM LINKタイプ", character.displayName || "-"]
   ];
   return `
     <section class="team-fortune-judgement">
       ${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}
-      <details>
-        <summary>あなたの判定詳細</summary>
-        <div class="team-fortune-detail-grid">
-          ${detailRows.map(([label, value]) => `<span>${escapeHtml(label)}</span><strong>${escapeHtml(value ?? "-")}</strong>`).join("")}
-        </div>
-      </details>
     </section>
   `;
 }
@@ -2066,7 +2051,7 @@ function bindTeamFortuneActions(container) {
   });
   container.querySelector("#fortuneCompatibilityForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    showToast("正式な人運・地運相性表の投入後に判定できます。");
+    showToast("正式な相性資料の投入後に判定できます。");
   });
 }
 
@@ -5122,7 +5107,7 @@ function renderAdminFortune() {
     <section class="admin-section-head">
       <div>
         <h3>占い管理</h3>
-        <p>日付・星人タイプごとの美容運、ラッキーカラー、おすすめメニューを編集できる構造です。</p>
+        <p>日付・TEAM LINKタイプごとの美容運、ラッキーカラー、おすすめメニューを編集できる構造です。</p>
       </div>
       <button class="secondary-button compact" type="button" data-admin-action="addFortune">一括登録準備</button>
     </section>
@@ -5360,7 +5345,7 @@ function handleAdminAction(button) {
   if (action === "toggleGachaCard") return toggleGachaCard(id);
   if (action === "guideGacha") return showToast(`会員 ${id} へLINEでガチャページを案内する設計です。`);
   if (action === "addFortune") return showToast("CSV取込または一括登録に対応しやすいFortuneDailyContent構造です。");
-  if (action === "editFortune") return showToast("日付・星人タイプごとの運勢データを編集する画面へ接続予定です。");
+  if (action === "editFortune") return showToast("日付・TEAM LINKタイプごとの運勢データを編集する画面へ接続予定です。");
   if (action === "loungeDetail") return showToast("事前登録の詳細、開始通知希望、正式参加希望を確認できます。");
   if (action === "loungeNotify") return showToast("正式開始時の一斉案内対象へ追加しました。");
   if (action === "loungeCancel") return cancelLoungeEntry(id);
