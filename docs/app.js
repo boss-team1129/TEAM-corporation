@@ -1792,7 +1792,8 @@ function renderTeamFortuneResult(result) {
           <label class="field">相手の生年月日<input type="date" name="partnerBirthDate" required></label>
           <button class="secondary-button" type="submit">二人の相性を見る</button>
         </form>
-        <p class="muted">正式な相性資料が整うまで、相性％は表示しません。</p>
+        <p class="muted">正式資料にもとづく2つのご縁を確認します。総合相性％は次の工程で設計します。</p>
+        <div id="fortuneCompatibilityResult" class="team-fortune-compatibility-result" aria-live="polite"></div>
       </div>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
     </article>
@@ -2049,10 +2050,94 @@ function bindTeamFortuneActions(container) {
     localStorage.removeItem(STORAGE_KEYS.birthDate);
     renderApp();
   });
-  container.querySelector("#fortuneCompatibilityForm")?.addEventListener("submit", (event) => {
+  container.querySelector("#fortuneCompatibilityForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showToast("正式な相性資料の投入後に判定できます。");
+    const form = event.currentTarget;
+    const resultBox = container.querySelector("#fortuneCompatibilityResult");
+    const submitButton = form.querySelector("button[type='submit']");
+    const formData = new FormData(form);
+    const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
+    const partnerBirthDate = formData.get("partnerBirthDate");
+    if (!birthDate || !partnerBirthDate) {
+      showToast("生年月日を入力してください。");
+      return;
+    }
+    if (submitButton) submitButton.disabled = true;
+    if (resultBox) {
+      resultBox.innerHTML = `<div class="team-fortune-compatibility-loading">ふたりのご縁を確認しています。</div>`;
+    }
+    try {
+      const result = await apiRequest("calculateTeamFortuneCompatibility", {
+        birthDate,
+        partnerBirthDate,
+        partnerNickname: formData.get("nickname") || "",
+        targetDate: jstDateKey(),
+        fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
+      }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
+      if (!result?.success) {
+        throw createFortuneError(result?.errorCode || "FORTUNE_COMPATIBILITY_ERROR", result?.message || "相性判定を取得できませんでした。", result?.data || result);
+      }
+      console.info("[TEAM Fortune Compatibility]", result.data || result);
+      if (resultBox) resultBox.innerHTML = renderFortuneCompatibilityResult(result.data || {});
+    } catch (error) {
+      console.warn("[TEAM Fortune Compatibility] unavailable", error);
+      if (resultBox) resultBox.innerHTML = renderFortuneCompatibilityError(error);
+      showToast(error?.message || "相性判定を取得できませんでした。");
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
   });
+}
+
+function renderFortuneCompatibilityResult(data) {
+  const self = data.self || {};
+  const partner = data.partner || {};
+  const compatibility = data.compatibility || {};
+  const humanLuck = compatibility.humanLuck || {};
+  const earthLuck = compatibility.earthLuck || {};
+  if (!compatibility.status || compatibility.status !== "confirmed") {
+    return `
+      <section class="team-fortune-alert">
+        <strong>FORTUNE_COMPATIBILITY_DEPLOY_WAITING</strong>
+        <span>正式資料は登録済みです。相性判定APIの最新版反映後に結果を表示できます。</span>
+      </section>
+    `;
+  }
+  const partnerLabel = partner.nickname ? `${partner.nickname}さん` : "お相手";
+  return `
+    <section class="team-fortune-compatibility-card">
+      <div class="team-fortune-compatibility-pair">
+        <div><span>あなた</span><strong>${escapeHtml(self.teamLinkName || "判定中")}</strong></div>
+        <div><span>${escapeHtml(partnerLabel)}</span><strong>${escapeHtml(partner.teamLinkName || "判定中")}</strong></div>
+      </div>
+      <div class="team-fortune-compatibility-symbols">
+        ${renderCompatibilitySymbol("心のつながり", humanLuck)}
+        ${renderCompatibilitySymbol("ご縁の流れ", earthLuck)}
+      </div>
+      <p class="muted">総合相性％はまだ表示しません。正式な統合ルールを決めてから追加します。</p>
+    </section>
+  `;
+}
+
+function renderCompatibilitySymbol(label, judgement) {
+  const symbol = judgement?.symbol || "-";
+  const description = judgement?.description || "正式資料から判定できませんでした。";
+  return `
+    <div class="team-fortune-compatibility-symbol">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(symbol)}</strong>
+      <small>${escapeHtml(description)}</small>
+    </div>
+  `;
+}
+
+function renderFortuneCompatibilityError(error) {
+  return `
+    <section class="team-fortune-alert">
+      <strong>${escapeHtml(error?.code || "FORTUNE_COMPATIBILITY_ERROR")}</strong>
+      <span>${escapeHtml(error?.message || "相性判定を取得できませんでした。")}</span>
+    </section>
+  `;
 }
 
 function renderCoupons() {
