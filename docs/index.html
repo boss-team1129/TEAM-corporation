@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#17120d">
+  <meta name="theme-color" content="#fff6e8">
   <meta name="description" content="TEAM hairのお客様専用アプリ TEAM LINK。予約、今日の占い、クーポン、今月のガチャ、ご縁ラウンジをLINEから開けるスマホ会員アプリです。">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23070707'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' font-family='serif' fill='%23d9b46c'%3ETL%3C/text%3E%3C/svg%3E">
   <title>TEAM LINK | TEAM hair お客様専用アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260809-fortune-compatibility-score-1">
+  <link rel="stylesheet" href="styles.css?v=20260810-home-renewal-1">
 </head>
 <body>
   <div class="splash-screen" id="splashScreen" aria-hidden="true">
@@ -25,88 +25,77 @@
 
     <main>
       <section class="view is-active" id="homeView" data-title="ホーム">
-        <div class="home-lounge">
-          <div class="lounge-light" aria-hidden="true"></div>
-          <div class="lounge-orb" aria-hidden="true">
-            <img src="assets/team-link-logo.svg" alt="" class="orb-logo" width="132" height="132">
-          </div>
+        <div class="home-dashboard">
+          <header class="home-dashboard-header" aria-label="TEAM LINKホーム">
+            <button class="home-header-button" type="button" data-message="新しいお知らせはありません" aria-label="通知">🔔</button>
+            <img src="assets/team-link-logo.svg" alt="TEAM LINK" class="home-dashboard-logo" width="118" height="72">
+            <p>ご縁をつなぐ、未来へつなぐ</p>
+          </header>
 
-          <section class="home-welcome" aria-label="会員メッセージ">
-            <p class="kicker" id="homeGreetingLabel">Welcome back.</p>
-            <h1>こんにちは、<br><span id="homeMemberName">お客様</span></h1>
-            <div class="home-visit-panel" id="homeStatusPanel"></div>
-            <p id="homeCareMessage">TEAM hairとつながる、あなた専用アプリ。</p>
-          </section>
+          <button class="home-next-card" id="homeNextReservationCard" type="button" data-view="reservation">
+            <span class="home-card-shine" aria-hidden="true"></span>
+            <span class="home-next-copy">次回予約のご案内</span>
+            <strong id="homeNextReservationTitle">次回のご予約をお待ちしています</strong>
+            <small id="homeNextReservationMeta">空き時間からすぐ予約できます</small>
+            <em id="homeNextReservationCountdown">予約ページへ</em>
+            <span class="home-arrow" aria-hidden="true">›</span>
+          </button>
 
-          <section class="home-carousel-zone" aria-label="TEAM LINKメニュー">
-            <div class="home-carousel" id="homeCarousel">
-              <button class="feature-card fortune" type="button" data-view="fortune" data-feature="fortune">
-                <span class="card-no">02</span>
-                <i class="card-icon icon-orbit" aria-hidden="true"></i>
-                <img class="home-fortune-image" id="homeFortuneImage" src="" alt="" hidden>
-                <strong>今日の占い</strong>
-                <small id="homeFortuneText">美容運とラッキーカラー</small>
-                <em>Beauty fortune</em>
-              </button>
-              <button class="feature-card reservation is-active" type="button" data-view="reservation" data-feature="reservation">
-                <span class="card-no">01</span>
-                <i class="card-icon icon-calendar" aria-hidden="true"></i>
-                <strong>予約</strong>
-                <small id="homeReservationText">予約はこちら</small>
-                <em>Tap to reserve</em>
-              </button>
-              <button class="feature-card coupon" type="button" data-view="coupons" data-feature="coupon">
-                <span class="card-no">03</span>
-                <i class="card-icon icon-ticket" aria-hidden="true"></i>
-                <strong>クーポン</strong>
-                <small id="homeCouponText">利用可能 0枚</small>
-                <em>Private offer</em>
-              </button>
-              <button class="feature-card gacha" type="button" data-view="gacha" data-feature="gacha">
-                <span class="card-no">04</span>
-                <i class="card-icon icon-gift" aria-hidden="true"></i>
-                <strong>今月のガチャ</strong>
-                <small id="homeGachaText">残り1回</small>
-                <em id="homeGachaPrize">今月の特賞</em>
-              </button>
-              <button class="feature-card lounge" type="button" data-view="lounge" data-feature="lounge">
-                <span class="card-no">05</span>
-                <i class="card-icon icon-heartline" aria-hidden="true"></i>
-                <strong>ご縁ラウンジ</strong>
-                <small id="homeLoungeText">事前登録受付中</small>
-                <em>Pre entry</em>
-              </button>
-            </div>
-            <div class="carousel-dots" id="homeCarouselDots" aria-hidden="true"></div>
-          </section>
-
-          <section class="home-highlight-grid" aria-label="おすすめ情報">
-            <button class="lounge-strip gacha-strip" type="button" data-view="gacha">
-              <span class="strip-number">04</span>
-              <span class="prize-visual" aria-hidden="true"></span>
+          <section class="home-action-grid" aria-label="主要機能">
+            <button class="home-action-card tone-reservation" type="button" data-view="reservation">
+              <i class="card-icon icon-calendar" aria-hidden="true"></i>
               <span>
-                <small>今月のガチャ</small>
-                <strong id="homeGachaStripTitle">残り1回</strong>
-                <em id="homeGachaStripPrize">今月の特賞</em>
+                <strong>予約をする</strong>
+                <small>ご予約はこちら</small>
               </span>
+              <em>›</em>
             </button>
-            <button class="lounge-strip goen-strip" type="button" data-view="lounge">
-              <span class="strip-number">05</span>
-              <span class="goen-visual" aria-hidden="true"></span>
+            <button class="home-action-card tone-coupon" type="button" data-view="coupons">
+              <i class="card-icon icon-ticket" aria-hidden="true"></i>
               <span>
-                <small>ご縁ラウンジ</small>
-                <strong>事前登録</strong>
-                <em id="homeLoungeStripText">18 / 50名</em>
+                <strong>クーポン</strong>
+                <small>お得なクーポン一覧</small>
+                <b id="homeCouponBadge" hidden>0枚</b>
               </span>
+              <em>›</em>
+            </button>
+            <button class="home-action-card tone-gacha" type="button" data-view="gacha">
+              <i class="card-icon icon-gift" aria-hidden="true"></i>
+              <span>
+                <strong>今月のガチャ</strong>
+                <small>毎月のお楽しみ！</small>
+                <b id="homeGachaBadge">今月まだ引けます</b>
+              </span>
+              <em>›</em>
+            </button>
+            <button class="home-action-card tone-fortune" type="button" data-view="fortune">
+              <i class="card-icon icon-orbit" aria-hidden="true"></i>
+              <span>
+                <strong>占い</strong>
+                <small>今日の運勢をチェック</small>
+                <b id="homeFortuneBadge">守護どうぶつを見つける</b>
+              </span>
+              <em>›</em>
+            </button>
+            <button class="home-action-card tone-mypage" type="button" data-view="mypage">
+              <i class="card-icon icon-user" aria-hidden="true"></i>
+              <span>
+                <strong>マイページ</strong>
+                <small>会員情報の確認・編集</small>
+              </span>
+              <em>›</em>
+            </button>
+            <button class="home-action-card tone-lounge is-coming-soon" type="button" data-message="ご縁ラウンジは9月公開予定です">
+              <i class="card-icon icon-heartline" aria-hidden="true"></i>
+              <span>
+                <strong>ご縁ラウンジ</strong>
+                <small>素敵なご縁を見つけよう</small>
+                <b>9月 OPEN予定</b>
+              </span>
+              <em>›</em>
             </button>
           </section>
         </div>
-
-        <article class="line-guide">
-          <p class="kicker">LINE entrance</p>
-          <h2>LINEで「予約」「占い」「クーポン」「ガチャ」「ご縁」と送るだけ。</h2>
-          <p>LINEは入口。TEAM LINKは、TEAM hairのお客様体験を毎日少し嬉しくする本体アプリです。</p>
-        </article>
       </section>
 
       <section class="view" id="reservationView" data-title="予約">

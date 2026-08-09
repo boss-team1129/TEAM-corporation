@@ -1508,57 +1508,46 @@ function renderApp() {
 function renderHome() {
   const profile = getProfile();
   const nextReservation = getNextReservation();
-  const visitDays = daysSince(profile.lastVisitDate);
   const coupons = getAvailableCoupons();
-  const loungeCount = getLoungeCount();
   const gachaStatus = getMonthlyGachaStatus();
-  const grandPrize = getGachaCards(getCurrentGachaSetting()).find((card) => card.rarity === "UR") || getGachaCards(getCurrentGachaSetting()).find((card) => card.rarity === "SSR") || getGachaCards(getCurrentGachaSetting())[0];
-  const greeting = getTimeGreeting();
-
-  document.getElementById("homeGreetingLabel").textContent = greeting.label;
-  document.getElementById("homeMemberName").textContent = formatHomeMemberName(profile.nickname);
-  document.getElementById("homeCareMessage").textContent = nextReservation
-    ? "次回まで、美しく。"
-    : visitDays >= 35
-      ? "そろそろ整える頃。"
-      : greeting.message;
-
-  document.getElementById("homeStatusPanel").innerHTML = nextReservation
-    ? `
-      <span>Next reservation</span>
-      <strong>${formatDateTime(nextReservation.firstDateTime || nextReservation.confirmedDateTime)}</strong>
-      <small>担当：${escapeHtml(nextReservation.staff || profile.preferredStaff || "指名なし")}</small>
-    `
-    : `
-      <span>Last visit</span>
-      <strong>前回来店から${visitDays}日</strong>
-      <small>${visitDays >= 42 ? "カラーの頃です" : "良いペースです"}</small>
-    `;
-
-  document.getElementById("homeReservationText").textContent = nextReservation
-    ? `${formatDateTime(nextReservation.firstDateTime || nextReservation.confirmedDateTime)} / ${nextReservation.staff || "担当者確認中"}`
-    : "予約はこちら";
-  document.getElementById("homeFortuneText").textContent = appState.todayFortune.summary;
-  const homeFortuneImage = document.getElementById("homeFortuneImage");
-  if (homeFortuneImage) {
-    homeFortuneImage.hidden = !appState.todayFortune.color;
-    homeFortuneImage.src = appState.todayFortune.color || "";
-    homeFortuneImage.alt = appState.todayFortune.color ? appState.todayFortune.type : "";
+  const reservationDate = nextReservation?.confirmedDateTime || nextReservation?.firstDateTime || "";
+  const reservationTitle = document.getElementById("homeNextReservationTitle");
+  const reservationMeta = document.getElementById("homeNextReservationMeta");
+  const reservationCountdown = document.getElementById("homeNextReservationCountdown");
+  if (nextReservation) {
+    const daysUntil = daysUntilDate(reservationDate);
+    reservationTitle.textContent = formatDateTime(reservationDate);
+    reservationMeta.textContent = `担当：${nextReservation.staff || profile.preferredStaff || "指名なし"}`;
+    reservationCountdown.textContent = daysUntil === 0
+      ? "本日です"
+      : daysUntil > 0
+        ? `あと${daysUntil}日です`
+        : "予約内容を確認する";
+  } else {
+    reservationTitle.textContent = "次回のご予約をお待ちしています";
+    reservationMeta.textContent = "空き時間からすぐ予約できます";
+    reservationCountdown.textContent = "予約ページへ";
   }
-  document.getElementById("homeCouponText").textContent = coupons.length
-    ? `利用可能 ${coupons.length}枚`
-    : "おすすめクーポンを見る";
-  document.getElementById("homeGachaText").textContent = gachaStatus.used
-    ? `利用済み 獲得：${gachaStatus.draw.cardName || gachaStatus.draw.title}`
-    : `残り1回 ${gachaStatus.expiresLabel}まで`;
-  document.getElementById("homeGachaPrize").textContent = `今月の特賞 ${grandPrize?.prizeName || "準備中"}`;
-  document.getElementById("homeGachaStripTitle").textContent = gachaStatus.used ? "利用済み" : "残り1回";
-  document.getElementById("homeGachaStripPrize").textContent = gachaStatus.used
-    ? `獲得カード：${gachaStatus.draw.cardName || gachaStatus.draw.title}`
-    : `${gachaStatus.expiresLabel}まで / 特賞 ${grandPrize?.prizeName || "準備中"}`;
-  document.getElementById("homeLoungeText").textContent = `事前登録受付中 ${loungeCount}名／50名`;
-  document.getElementById("homeLoungeStripText").textContent = `${loungeCount} / 50名`;
-  updateHomeCarouselActive();
+
+  const couponBadge = document.getElementById("homeCouponBadge");
+  if (couponBadge) {
+    couponBadge.hidden = coupons.length === 0;
+    couponBadge.textContent = `${coupons.length}枚`;
+  }
+
+  const gachaBadge = document.getElementById("homeGachaBadge");
+  if (gachaBadge) {
+    gachaBadge.textContent = gachaStatus.used
+      ? "今月は使用済み"
+      : gachaStatus.state === "利用可能"
+        ? "今月まだ引けます"
+        : "準備中";
+  }
+
+  const fortuneBadge = document.getElementById("homeFortuneBadge");
+  if (fortuneBadge) {
+    fortuneBadge.textContent = appState.todayFortune?.summary || "今日の運勢をチェック";
+  }
 }
 
 function renderReservationStatus() {
@@ -1599,6 +1588,7 @@ function showView(viewKey, options = {}) {
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("is-active", view.id === viewId));
   const routeKey = Object.keys(viewMap).find((key) => viewMap[key] === viewId) || "home";
   document.body.classList.toggle("is-admin-view", routeKey === "admin");
+  document.body.classList.toggle("is-home-view", routeKey === "home");
   const url = new URL(location.href);
   url.searchParams.set("view", routeKey);
   history[options.replace ? "replaceState" : "pushState"]({ view: routeKey }, "", url);
@@ -8348,6 +8338,22 @@ function daysSince(dateValue) {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   return Math.max(0, Math.floor(diff / 86400000));
+}
+
+function daysUntilDate(dateValue) {
+  if (!dateValue) return null;
+  const target = new Date(dateValue);
+  if (Number.isNaN(target.getTime())) return null;
+  const todayKey = jstDateKey();
+  const targetKey = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(target).replaceAll("/", "-");
+  const today = new Date(`${todayKey}T00:00:00+09:00`);
+  const targetDate = new Date(`${targetKey}T00:00:00+09:00`);
+  return Math.ceil((targetDate.getTime() - today.getTime()) / 86400000);
 }
 
 function saveFortuneHistory(fortune) {
