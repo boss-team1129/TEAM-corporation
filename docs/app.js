@@ -1792,7 +1792,7 @@ function renderTeamFortuneResult(result) {
           <label class="field">相手の生年月日<input type="date" name="partnerBirthDate" required></label>
           <button class="secondary-button" type="submit">二人の相性を見る</button>
         </form>
-        <p class="muted">正式資料にもとづく2つのご縁を確認します。総合相性％は次の工程で設計します。</p>
+        <p class="muted">正式資料にもとづく2つのご縁から、TEAM LINK独自の総合相性を表示します。</p>
         <div id="fortuneCompatibilityResult" class="team-fortune-compatibility-result" aria-live="polite"></div>
       </div>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
@@ -2095,6 +2095,7 @@ function renderFortuneCompatibilityResult(data) {
   const compatibility = data.compatibility || {};
   const humanLuck = compatibility.humanLuck || {};
   const earthLuck = compatibility.earthLuck || {};
+  const totalScore = compatibility.totalScore || {};
   if (!compatibility.status || compatibility.status !== "confirmed") {
     return `
       <section class="team-fortune-alert">
@@ -2110,11 +2111,14 @@ function renderFortuneCompatibilityResult(data) {
         <div><span>あなた</span><strong>${escapeHtml(self.teamLinkName || "判定中")}</strong></div>
         <div><span>${escapeHtml(partnerLabel)}</span><strong>${escapeHtml(partner.teamLinkName || "判定中")}</strong></div>
       </div>
+      <div class="team-fortune-compatibility-total">
+        <span>二人の総合相性</span>
+        <strong>${escapeHtml(totalScore.percentage ?? "-")}%</strong>
+      </div>
       <div class="team-fortune-compatibility-symbols">
         ${renderCompatibilitySymbol("心のつながり", humanLuck)}
         ${renderCompatibilitySymbol("ご縁の流れ", earthLuck)}
       </div>
-      <p class="muted">総合相性％はまだ表示しません。正式な統合ルールを決めてから追加します。</p>
     </section>
   `;
 }
