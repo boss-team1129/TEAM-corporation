@@ -576,18 +576,18 @@ const fortuneMessages = [
 ];
 
 const TEAM_FORTUNE_LUCK_LABELS = {
-  1: { internal: "種子", display: "芽吹き", theme: "新しい流れが静かに始まるタイミングです。", day: "小さな一歩を選ぶと、先の楽しみが育ちます。", month: "新しい習慣や予定を始めるのに向いた月です。", year: "種まきの一年。焦らず、これから伸びるものを選びましょう。", advice: "無理に広げず、最初の一歩を丁寧に。" },
-  2: { internal: "緑生", display: "若葉", theme: "芽吹いたものが少しずつ形になり始めます。", day: "育てたいことに手をかけると、心地よく進みます。", month: "人とのやり取りや学びが伸びやすい月です。", year: "成長の一年。柔らかく吸収するほど力になります。", advice: "比べず、昨日より少し育てる意識で。" },
-  3: { internal: "立花", display: "花開き", theme: "魅力や成果が表に出やすい流れです。", day: "自分らしさを少し見せると、良い反応が返ってきます。", month: "発信や挑戦が実りやすい月です。", year: "花が開く一年。大切な場面では堂々と進みましょう。", advice: "遠慮しすぎず、あなたの色を出して。" },
-  4: { internal: "健弱", display: "月隠れ", theme: "少しペースを落として、心身を整える時期です。", day: "予定を詰め込みすぎず、余白を残すと安定します。", month: "コンディション管理を優先したい月です。", year: "整える一年。休む力が次の前進を支えます。", advice: "早めの休息と、抱えすぎない選択を。" },
-  5: { internal: "達成", display: "満月", theme: "積み重ねたものが満ち、手応えを感じやすい流れです。", day: "仕上げたいことに集中すると満足感が得られます。", month: "成果を受け取り、周囲と分かち合える月です。", year: "達成の一年。自信を持って形にしていきましょう。", advice: "受け取ることも、次へ進む力になります。" },
-  6: { internal: "乱気", display: "揺らぎ", theme: "心や予定が揺れやすいぶん、見直しのヒントも多い時期です。", day: "急がず、気持ちが落ち着く選択を優先しましょう。", month: "予定変更にも柔らかく対応すると流れが整います。", year: "揺らぎの一年。決めつけず、整えながら進みましょう。", advice: "大きな判断は一呼吸おいてから。" },
-  7: { internal: "再会", display: "巡り逢い", theme: "人や機会との再接続が起こりやすい流れです。", day: "懐かしい人や場所に、次のヒントがありそうです。", month: "再挑戦や再会から良い展開が生まれやすい月です。", year: "縁が巡る一年。過去の経験が新しい力になります。", advice: "戻ってきた流れを、丁寧に受け止めて。" },
-  8: { internal: "財成", display: "豊穣", theme: "努力が実り、豊かさを受け取りやすい時期です。", day: "必要なものに手をかけると、満たされる感覚が残ります。", month: "成果やご褒美を形にしやすい月です。", year: "豊かさを育てる一年。感謝と循環を意識しましょう。", advice: "得たものを次の喜びにつなげて。" },
-  9: { internal: "安定", display: "凪", theme: "穏やかに整い、安心して進める流れです。", day: "いつものリズムを大切にすると、心が落ち着きます。", month: "生活や関係を安定させるのに向いた月です。", year: "凪の一年。今ある土台を磨くほど強くなります。", advice: "派手さより、続けられる心地よさを。" },
-  10: { internal: "陰影", display: "宵闇", theme: "内側に目を向け、静かに整理したいタイミングです。", day: "無理に明るく振る舞わず、自分の声を聞いてください。", month: "余分なものを手放し、次の準備を整える月です。", year: "宵闇の一年。静かな見直しが、次の芽吹きにつながります。", advice: "焦らず、整える時間を味方に。" },
-  11: { internal: "停止", display: "冬籠り", theme: "外へ急ぐより、守りと休息を大切にしたい時期です。", day: "今日は立ち止まることも前進です。心身を温めましょう。", month: "無理な拡大より、点検と休息を優先したい月です。", year: "冬籠りの一年。力を蓄えるほど、次の季節が豊かになります。", advice: "守るものを決め、静かに力を蓄えて。" },
-  12: { internal: "減退", display: "夜明け前", theme: "次の始まりへ向けて、不要なものをほどく時期です。", day: "手放すことが、明日の軽さにつながります。", month: "整理と準備を進めるほど、新しい流れを迎えやすい月です。", year: "夜明け前の一年。終わりを整え、次の芽吹きを待ちましょう。", advice: "完璧を求めず、軽くすることを意識して。" }
+  1: { internal: "種子", title: "芽吹き", theme: "新しい流れが静かに始まる時期。", todayMessage: "今日は小さな一歩を選ぶことで、先の楽しみが育ちます。完璧な準備より、始めるきっかけを大切に。", monthMessage: "今月は新しい習慣や予定を始めるのに向いています。小さく試したことが、後から大きな流れにつながります。", yearMessage: "今年は種まきの一年。焦らず、これから伸びるものを選び、土台をやさしく整えていきましょう。", recommendedAction: "新しい予定を入れる・学び始める・小さく試す", caution: "最初から大きく広げすぎない" },
+  2: { internal: "緑生", title: "若葉", theme: "芽吹いたものが少しずつ育ち始める時期。", todayMessage: "今日は育てたいことに手をかけるほど、心地よく前へ進めます。人からの助言も柔らかく受け取って。", monthMessage: "今月は人とのやり取りや学びが伸びやすい流れです。急がず、育てる感覚で積み重ねましょう。", yearMessage: "今年は成長の一年。吸収する力が高まるので、経験を選ばず自分の栄養にしていけます。", recommendedAction: "学ぶ・相談する・続ける仕組みを作る", caution: "人と比べて焦らない" },
+  3: { internal: "立花", title: "花開き", theme: "魅力や成果が表に出やすい時期。", todayMessage: "今日は自分らしさを少し見せると、良い反応が返ってきます。遠慮しすぎず、言葉や行動にしてみて。", monthMessage: "今月は発信や挑戦が実りやすい月です。温めていたことを形にすると、周囲にも伝わりやすくなります。", yearMessage: "今年は花が開く一年。大切な場面では堂々と進み、あなたの色を外へ出していきましょう。", recommendedAction: "発信する・提案する・作品や成果を見せる", caution: "目立つことを怖がりすぎない" },
+  4: { internal: "健弱", title: "月隠れ", theme: "少しペースを落として心身を整える時期。", todayMessage: "今日は予定を詰め込みすぎず、余白を残すと安定します。体調や気分の小さな声を見逃さないで。", monthMessage: "今月はコンディション管理を優先したい月です。休む日を先に決めるほど、流れが乱れにくくなります。", yearMessage: "今年は整える一年。休む力が次の前進を支えるので、無理を重ねず自分を守りましょう。", recommendedAction: "睡眠を整える・予定を減らす・メンテナンスする", caution: "我慢や抱え込みを続けない" },
+  5: { internal: "達成", title: "満月", theme: "積み重ねたものが満ち、手応えを感じやすい時期。", todayMessage: "今日は仕上げたいことに集中すると満足感が得られます。受け取ることも、次へ進む力になります。", monthMessage: "今月は成果をご褒美として受け取り、周囲と分かち合える月です。遠慮せず喜びを味わって。", yearMessage: "今年は達成の一年。積み重ねてきたものを形にし、自信を持って結果を受け取りましょう。", recommendedAction: "仕上げる・感謝を伝える・成果を共有する", caution: "完璧を求めて喜びを後回しにしない" },
+  6: { internal: "乱気", title: "揺らぎ", theme: "心や予定が揺れやすいぶん、見直しのヒントも多い時期。", todayMessage: "今日は急がず、気持ちが落ち着く選択を優先しましょう。大きな判断は一呼吸おいてから。", monthMessage: "今月は予定変更にも柔らかく対応すると流れが整います。揺れた場所ほど、整えるポイントが見えます。", yearMessage: "今年は揺らぎの一年。決めつけず、心と環境を調整しながら進むことで、必要な道が残ります。", recommendedAction: "予定を見直す・深呼吸する・決断を急がない", caution: "感情の勢いだけで決めない" },
+  7: { internal: "再会", title: "巡り逢い", theme: "人や機会との再接続が起こりやすい時期。", todayMessage: "今日は懐かしい人や場所に、次のヒントがありそうです。戻ってきた流れを丁寧に受け止めて。", monthMessage: "今月は再挑戦や再会から良い展開が生まれやすい月です。過去の経験を今の自分で活かしましょう。", yearMessage: "今年は縁が巡る一年。離れていたものとの再接続が、新しい展開の入口になります。", recommendedAction: "連絡する・再挑戦する・昔のメモを見返す", caution: "過去に引っ張られすぎない" },
+  8: { internal: "財成", title: "豊穣", theme: "努力が実り、豊かさを受け取りやすい時期。", todayMessage: "今日は必要なものに手をかけると、満たされる感覚が残ります。得たものを次の喜びへつなげて。", monthMessage: "今月は成果やご褒美を形にしやすい月です。感謝と循環を意識すると豊かさが広がります。", yearMessage: "今年は豊かさを育てる一年。実りを受け取りながら、未来に残る使い方を選びましょう。", recommendedAction: "ご褒美を用意する・収支を整える・感謝を伝える", caution: "欲張りすぎて大切なものを見失わない" },
+  9: { internal: "安定", title: "凪", theme: "穏やかに整い、安心して進める時期。", todayMessage: "今日はいつものリズムを大切にすると、心が落ち着きます。派手さより、続けられる心地よさを。", monthMessage: "今月は生活や関係を安定させるのに向いた月です。土台を磨くほど、次の動きが楽になります。", yearMessage: "今年は凪の一年。今あるものを丁寧に守り、安心できる基盤を強くしていきましょう。", recommendedAction: "ルーティンを整える・家を整える・約束を守る", caution: "変化を避けすぎて可能性を閉じない" },
+  10: { internal: "陰影", title: "宵闇", theme: "静かに流れを見つめ、自分の内側を整える時期。", todayMessage: "今日は無理に答えを出そうとせず、少し静かに流れを見る日。大きな決断より、整理や見直しに向いています。", monthMessage: "今月は前へ進むことより、足元を整えることが大切。予定や人間関係を見直すことで、次の流れが見えやすくなります。", yearMessage: "今年は表立って動くより、内側を整える一年。焦らず準備を重ねることで、この先の転機に強くなれます。", recommendedAction: "整理・見直し・休息・準備", caution: "焦って結論を出さない" },
+  11: { internal: "停止", title: "冬籠り", theme: "外へ急ぐより、守りと休息を大切にしたい時期。", todayMessage: "今日は立ち止まることも前進です。心身を温め、無理に流れを変えようとしなくて大丈夫。", monthMessage: "今月は無理な拡大より、点検と休息を優先したい月です。静かに守ることで力が戻ります。", yearMessage: "今年は冬籠りの一年。力を蓄えるほど、次の季節にしっかり芽吹ける準備が整います。", recommendedAction: "休む・点検する・守るものを決める", caution: "無理に結果を出そうとしない" },
+  12: { internal: "減退", title: "夜明け前", theme: "次の始まりへ向けて、不要なものをほどく時期。", todayMessage: "今日は手放すことが、明日の軽さにつながります。終わらせるものを静かに選びましょう。", monthMessage: "今月は整理と準備を進めるほど、新しい流れを迎えやすくなります。軽くなることを意識して。", yearMessage: "今年は夜明け前の一年。終わりを整え、次の芽吹きを迎えるための余白を作りましょう。", recommendedAction: "手放す・片付ける・区切りをつける", caution: "過去の不安を抱えたまま進もうとしない" }
 };
 
 const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_LABELS).reduce((map, item) => {
@@ -1883,20 +1883,31 @@ function getTeamFortuneLuckInfo(luck) {
 
 function getTeamFortuneLuckDisplay(luck) {
   const info = getTeamFortuneLuckInfo(luck);
-  return info?.display || getFortuneLuckName(luck);
+  return info?.title || getFortuneLuckName(luck);
 }
 
 function getTeamFortuneLuckMessage(luck, period = "") {
   const info = getTeamFortuneLuckInfo(luck);
   if (!info) return luck?.message || luck?.shortMeaning || luck?.sourceNote || "";
   const periodText = period === "day"
-    ? info.day
+    ? info.todayMessage
     : period === "month"
-      ? info.month
+      ? info.monthMessage
       : period === "year"
-        ? info.year
+        ? info.yearMessage
         : info.theme;
-  return `${periodText} ${info.advice}`;
+  return periodText || info.theme || "";
+}
+
+function renderTeamFortuneLuckMeta(luck) {
+  const info = getTeamFortuneLuckInfo(luck);
+  if (!info) return "";
+  return `
+    <div class="team-fortune-luck-meta">
+      <div><span>おすすめ</span><strong>${escapeHtml(info.recommendedAction || "-")}</strong></div>
+      <div><span>注意ポイント</span><strong>${escapeHtml(info.caution || "-")}</strong></div>
+    </div>
+  `;
 }
 
 function getFortuneLuckStatus(luck) {
@@ -1906,10 +1917,18 @@ function getFortuneLuckStatus(luck) {
 
 function renderFortuneLuckLine(label, luck) {
   const name = getTeamFortuneLuckDisplay(luck);
+  const info = getTeamFortuneLuckInfo(luck);
   return `
     <div class="team-fortune-sub-luck">
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(name || "資料待ち")}</strong>
+      ${info?.theme ? `<small>${escapeHtml(info.theme)}</small>` : ""}
+      ${info ? `
+        <dl class="team-fortune-sub-meta">
+          <dt>おすすめ</dt><dd>${escapeHtml(info.recommendedAction || "-")}</dd>
+          <dt>注意ポイント</dt><dd>${escapeHtml(info.caution || "-")}</dd>
+        </dl>
+      ` : ""}
     </div>
   `;
 }
@@ -1939,6 +1958,7 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "") {
         ${getFortuneLuckName(state) ? `<small>${escapeHtml(getTeamFortuneLuckInfo(state)?.theme || "TEAM LINKの12運気")}</small>` : `<small>${escapeHtml(renderStarText(state.starRating))}</small>`}
       `}
       <p>${escapeHtml(message || "正式APIの確定値を表示しています。")}</p>
+      ${isDual ? "" : renderTeamFortuneLuckMeta(state)}
     </section>
   `;
 }

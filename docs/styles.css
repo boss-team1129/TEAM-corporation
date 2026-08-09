@@ -1278,9 +1278,7 @@ p {
 }
 
 .team-fortune-sub-luck {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 12px;
   padding: 10px 12px;
   border-radius: 14px;
@@ -1289,6 +1287,50 @@ p {
 
 .team-fortune-sub-luck strong {
   font-size: 18px;
+}
+
+.team-fortune-sub-luck small {
+  color: rgba(255,250,239,.74);
+  line-height: 1.55;
+}
+
+.team-fortune-sub-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 10px;
+  margin: 0;
+  color: rgba(255,250,239,.82);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.team-fortune-sub-meta dt {
+  color: var(--gold);
+  font-weight: 950;
+}
+
+.team-fortune-sub-meta dd {
+  margin: 0;
+}
+
+.team-fortune-luck-meta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.team-fortune-luck-meta div {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.065);
+}
+
+.team-fortune-luck-meta strong {
+  color: rgba(255,250,239,.9);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .team-fortune-section ul {
