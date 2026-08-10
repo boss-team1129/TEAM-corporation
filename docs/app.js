@@ -1491,6 +1491,50 @@ function nextCouponSortOrder(coupons) {
   return coupons.reduce((max, coupon) => Math.max(max, Number(coupon.sortOrder || 0)), 0) + 10;
 }
 
+function buildNextReservationCardData(reservation) {
+  if (!reservation) {
+    return {
+      hasReservation: false,
+      date: "",
+      time: "",
+      staffName: "",
+      status: ""
+    };
+  }
+  const dateTime = reservation.confirmedDateTime || reservation.firstDateTime || reservation.dateTime || "";
+  const parsedDate = parseReservationDateTimeParts(dateTime);
+  return {
+    hasReservation: true,
+    date: parsedDate.date,
+    time: parsedDate.time,
+    staffName: String(reservation.staffName || reservation.staff || "").trim(),
+    status: reservation.status || "",
+    title: [parsedDate.dateLabel, parsedDate.time].filter(Boolean).join("\n") || "予約内容を確認する",
+    countdownLabel: buildReservationCountdownLabel(dateTime)
+  };
+}
+
+function parseReservationDateTimeParts(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return { date: "", time: "", dateLabel: "" };
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return { date: raw, time: "", dateLabel: raw };
+  return {
+    date: new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date).replaceAll("/", "-"),
+    time: date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }),
+    dateLabel: date.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Tokyo" })
+  };
+}
+
+function buildReservationCountdownLabel(value) {
+  if (!value) return "";
+  const daysUntil = daysUntilDate(value);
+  if (daysUntil === 0) return "本日です";
+  if (daysUntil === 1) return "明日です";
+  if (daysUntil > 1) return `あと${daysUntil}日です`;
+  return "予約内容を確認する";
+}
+
 function renderApp() {
   refreshGachaCardStates();
   appState.todayFortune = buildFortunePreview();
@@ -1506,27 +1550,27 @@ function renderApp() {
 }
 
 function renderHome() {
-  const profile = getProfile();
-  const nextReservation = getNextReservation();
+  const nextReservation = buildNextReservationCardData(getNextReservation());
   const coupons = getAvailableCoupons();
   const gachaStatus = getMonthlyGachaStatus();
-  const reservationDate = nextReservation?.confirmedDateTime || nextReservation?.firstDateTime || "";
   const reservationTitle = document.getElementById("homeNextReservationTitle");
   const reservationMeta = document.getElementById("homeNextReservationMeta");
   const reservationCountdown = document.getElementById("homeNextReservationCountdown");
-  if (nextReservation) {
-    const daysUntil = daysUntilDate(reservationDate);
-    reservationTitle.textContent = formatDateTime(reservationDate);
-    reservationMeta.textContent = `担当：${nextReservation.staff || profile.preferredStaff || "指名なし"}`;
-    reservationCountdown.textContent = daysUntil === 0
-      ? "本日です"
-      : daysUntil > 0
-        ? `あと${daysUntil}日です`
-        : "予約内容を確認する";
+  if (nextReservation.hasReservation) {
+    reservationTitle.textContent = nextReservation.title;
+    if (nextReservation.staffName) {
+      reservationMeta.hidden = false;
+      reservationMeta.textContent = `担当：${nextReservation.staffName}`;
+    } else {
+      reservationMeta.hidden = true;
+      reservationMeta.textContent = "";
+    }
+    reservationCountdown.textContent = nextReservation.countdownLabel || "予約内容を確認する";
   } else {
-    reservationTitle.textContent = "次回のご予約をお待ちしています";
-    reservationMeta.textContent = "空き時間からすぐ予約できます";
-    reservationCountdown.textContent = "予約ページへ";
+    reservationTitle.textContent = "次回のご予約はありません";
+    reservationMeta.hidden = false;
+    reservationMeta.textContent = "ご希望の日時から予約できます";
+    reservationCountdown.textContent = "予約をする";
   }
 
   const couponBadge = document.getElementById("homeCouponBadge");
@@ -8026,37 +8070,19 @@ function ensureDemoState() {
   const demoHistory = readJson(STORAGE_KEYS.gachaCardHistory, []);
   if (!demoHistory.length && demoDraws.length) writeJson(STORAGE_KEYS.gachaCardHistory, demoDraws);
   if (!localStorage.getItem(STORAGE_KEYS.bookings)) {
-    writeJson(STORAGE_KEYS.bookings, [
-      {
-        requestId: "REQ-DEMO-1",
-        reservationId: "RSV-DEMO-1",
-        memberId: "TL-000001",
-        lineUserId: "U-demo-1",
-        customerName: "花子",
-        reservationSource: "TEAM LINK相談",
-        source: "TEAM LINK相談",
-        requestType: "予約相談",
-        firstDateTime: "2026-08-12T13:00",
-        secondDateTime: "2026-08-13T15:00",
-        staffId: "kanda-kana",
-        staff: "神田加奈",
-        menuMode: "coupon",
-        menu: "カラー＋トリートメント相談",
-        menuIds: ["coupon-color-treatment"],
-        selectedMenus: [{ menuId: "coupon-color-treatment", type: "クーポン", title: "カラー＋トリートメント相談", price: 11000, durationMinutes: 150 }],
-        selectedCoupons: [{ menuId: "coupon-color-treatment", type: "クーポン", title: "カラー＋トリートメント相談", price: 11000, durationMinutes: 150 }],
-        couponTitle: "カラー＋トリートメント相談",
-        referenceAmount: 11000,
-        totalMinutes: 150,
-        memo: "午前中も可能なら相談したい",
-        status: "予約希望",
-        currentStatus: "予約希望",
-        createdAt: new Date().toISOString(),
-        receivedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    ]);
+    writeJson(STORAGE_KEYS.bookings, []);
+  } else {
+    removeLegacyHomeDemoBooking();
   }
+}
+
+function removeLegacyHomeDemoBooking() {
+  const bookings = readJson(STORAGE_KEYS.bookings, []);
+  const filtered = bookings.filter((booking) => !(
+    booking?.requestId === "REQ-DEMO-1" ||
+    booking?.reservationId === "RSV-DEMO-1"
+  ));
+  if (filtered.length !== bookings.length) writeJson(STORAGE_KEYS.bookings, filtered);
 }
 
 function getProfile() {
@@ -8096,10 +8122,19 @@ function getTimeGreeting() {
 function getNextReservation() {
   const profile = getProfile();
   const bookings = readJson(STORAGE_KEYS.bookings, []);
+  const todayStart = new Date(`${jstDateKey()}T00:00:00+09:00`).getTime();
   return bookings
-    .filter((booking) => String(booking.memberId || "") === String(profile.memberId || ""))
+    .filter((booking) => (
+      String(booking.memberId || "") === String(profile.memberId || "") ||
+      (profile.lineUserId && String(booking.lineUserId || "") === String(profile.lineUserId))
+    ))
     .filter((booking) => !["キャンセル", "対応完了", "来店済み"].includes(normalizeBookingStatus(booking.status)))
-    .sort((a, b) => new Date(a.confirmedDateTime || a.firstDateTime || a.createdAt).getTime() - new Date(b.confirmedDateTime || b.firstDateTime || b.createdAt).getTime())[0] || null;
+    .map((booking) => ({
+      ...booking,
+      nextReservationTime: new Date(booking.confirmedDateTime || booking.firstDateTime || booking.dateTime || booking.createdAt || "").getTime()
+    }))
+    .filter((booking) => Number.isFinite(booking.nextReservationTime) && booking.nextReservationTime >= todayStart)
+    .sort((a, b) => a.nextReservationTime - b.nextReservationTime)[0] || null;
 }
 
 function getMonthlyGachaStatus() {
