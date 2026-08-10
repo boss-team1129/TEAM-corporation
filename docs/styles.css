@@ -4375,10 +4375,10 @@ body.is-home-view .app-shell {
   overflow: hidden;
   min-height: 148px;
   display: grid;
-  grid-template-columns: clamp(76px, 18vw, 104px) minmax(0, 1fr);
+  grid-template-columns: clamp(92px, 24vw, 124px) minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  padding: 20px 58px 20px 18px;
+  gap: 12px;
+  padding: 20px 56px 20px 12px;
   border: 1px solid rgba(197, 135, 54, .30);
   border-radius: 28px;
   color: #3a2919;
@@ -4399,8 +4399,8 @@ body.is-home-view .app-shell {
   position: relative;
   z-index: 1;
   justify-self: center;
-  width: clamp(76px, 18vw, 104px);
-  height: clamp(76px, 18vw, 104px);
+  width: clamp(92px, 24vw, 124px);
+  height: clamp(92px, 24vw, 124px);
   object-fit: contain;
   pointer-events: none;
   filter: none;
@@ -4486,7 +4486,7 @@ body.is-home-view .app-shell {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: 1fr;
-  gap: 13px;
+  gap: 12px;
 }
 
 .home-action-card {
@@ -4494,10 +4494,10 @@ body.is-home-view .app-shell {
   overflow: hidden;
   min-height: 132px;
   display: grid;
-  grid-template-columns: clamp(72px, 17vw, 96px) minmax(0, 1fr);
+  grid-template-columns: minmax(84px, 45%) minmax(0, 1fr);
   align-items: center;
   gap: 4px;
-  padding: 14px 8px 14px 6px;
+  padding: 14px 5px 14px 4px;
   border: 1px solid rgba(197, 135, 54, .28);
   border-radius: 24px;
   color: #382717;
@@ -4534,8 +4534,8 @@ body.is-home-view .app-shell {
 .home-action-icon {
   z-index: 1;
   justify-self: center;
-  width: clamp(72px, 17vw, 96px);
-  height: clamp(72px, 17vw, 96px);
+  width: clamp(84px, 21vw, 92px);
+  height: clamp(84px, 21vw, 92px);
   margin: 0;
   object-fit: contain;
   pointer-events: none;
@@ -4546,7 +4546,7 @@ body.is-home-view .app-shell {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 4px;
+  gap: 7px;
   width: 100%;
   min-width: 0;
   padding: 0;
@@ -4555,15 +4555,36 @@ body.is-home-view .app-shell {
 .home-action-card strong {
   color: #4b2e1f;
   font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
-  font-size: 17px;
+  font-size: clamp(13px, 3.55vw, 16px);
   font-weight: 760;
   line-height: 1.28;
   letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.tone-gacha strong,
+.tone-lounge strong {
+  font-size: clamp(12.5px, 3.35vw, 15px);
+}
+
+@media (max-width: 390px) {
+  .home-action-card {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 2px;
+  }
+  .home-action-icon {
+    width: 82px;
+    height: 82px;
+  }
+  .tone-gacha strong,
+  .tone-lounge strong {
+    font-size: clamp(12px, 3.25vw, 12.7px);
+  }
 }
 
 .home-action-card small {
   color: rgba(138, 106, 69, .86);
-  font-size: 12px;
+  font-size: clamp(11px, 3.05vw, 12px);
   font-weight: 850;
   line-height: 1.45;
 }
@@ -4654,25 +4675,25 @@ body.is-home-view .app-shell {
   }
   .home-action-card {
     min-height: 128px;
-    grid-template-columns: 68px minmax(0, 1fr);
-    gap: 4px;
-    padding: 13px 7px 13px 5px;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 2px;
+    padding: 13px 5px 13px 4px;
   }
   .home-action-card strong {
-    font-size: 16px;
+    font-size: 12.5px;
   }
   .home-action-icon {
-    width: 68px;
-    height: 68px;
+    width: 78px;
+    height: 78px;
   }
   .home-next-card {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 12px;
-    padding-left: 12px;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 10px;
+    padding-left: 8px;
   }
   .home-next-icon {
-    width: 72px;
-    height: 72px;
+    width: 82px;
+    height: 82px;
   }
 }
 
