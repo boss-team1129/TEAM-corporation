@@ -4333,15 +4333,18 @@ body.is-home-view .app-shell {
   text-align: center;
 }
 
-.home-dashboard-logo {
-  width: 118px;
-  height: 62px;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 16px rgba(115, 76, 37, .16));
+.home-text-logo {
+  color: #c89e3c;
+  font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  font-size: clamp(22px, 5vw, 32px);
+  font-weight: 650;
+  letter-spacing: .1em;
+  line-height: 1.2;
+  text-shadow: 0 8px 18px rgba(154, 101, 35, .16);
 }
 
 .home-dashboard-header p {
-  color: rgba(104, 69, 38, .78);
+  color: rgba(138, 106, 69, .82);
   font-size: 12px;
   font-weight: 850;
   letter-spacing: .08em;
@@ -4372,10 +4375,10 @@ body.is-home-view .app-shell {
   overflow: hidden;
   min-height: 148px;
   display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 7px;
-  padding: 22px 58px 22px 22px;
+  grid-template-columns: clamp(76px, 18vw, 104px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 20px 58px 20px 18px;
   border: 1px solid rgba(197, 135, 54, .30);
   border-radius: 28px;
   color: #3a2919;
@@ -4390,6 +4393,25 @@ body.is-home-view .app-shell {
     inset 0 1px 0 rgba(255,255,255,.94),
     inset 0 -1px 0 rgba(181, 109, 42, .16);
   transform: translateZ(0);
+}
+
+.home-next-icon {
+  position: relative;
+  z-index: 1;
+  justify-self: center;
+  width: clamp(76px, 18vw, 104px);
+  height: clamp(76px, 18vw, 104px);
+  object-fit: contain;
+  pointer-events: none;
+  filter: none;
+}
+
+.home-next-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 7px;
+  min-width: 0;
 }
 
 .home-next-card:active,
@@ -4414,26 +4436,22 @@ body.is-home-view .app-shell {
 }
 
 .home-next-card strong {
-  position: relative;
-  z-index: 1;
   color: #322113;
-  font-size: clamp(22px, 6.2vw, 28px);
+  font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  font-size: clamp(20px, 5vw, 27px);
+  font-weight: 760;
   line-height: 1.28;
   letter-spacing: 0;
 }
 
 .home-next-card small {
-  position: relative;
-  z-index: 1;
-  color: rgba(71, 45, 26, .72);
+  color: rgba(122, 90, 58, .78);
   font-size: 14px;
   font-weight: 850;
   line-height: 1.5;
 }
 
 .home-next-card em {
-  position: relative;
-  z-index: 1;
   display: inline-grid;
   min-height: 31px;
   align-items: center;
@@ -4476,7 +4494,7 @@ body.is-home-view .app-shell {
   overflow: hidden;
   min-height: 132px;
   display: grid;
-  grid-template-columns: clamp(72px, 16vw, 94px) minmax(0, 1fr);
+  grid-template-columns: clamp(72px, 17vw, 96px) minmax(0, 1fr);
   align-items: center;
   gap: 4px;
   padding: 14px 8px 14px 6px;
@@ -4516,8 +4534,8 @@ body.is-home-view .app-shell {
 .home-action-icon {
   z-index: 1;
   justify-self: center;
-  width: clamp(72px, 16vw, 94px);
-  height: clamp(72px, 16vw, 94px);
+  width: clamp(72px, 17vw, 96px);
+  height: clamp(72px, 17vw, 96px);
   margin: 0;
   object-fit: contain;
   pointer-events: none;
@@ -4535,15 +4553,16 @@ body.is-home-view .app-shell {
 }
 
 .home-action-card strong {
-  color: #332214;
+  color: #4b2e1f;
+  font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
   font-size: 17px;
-  font-weight: 950;
+  font-weight: 760;
   line-height: 1.28;
   letter-spacing: 0;
 }
 
 .home-action-card small {
-  color: rgba(69, 45, 28, .72);
+  color: rgba(138, 106, 69, .86);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.45;
@@ -4635,7 +4654,7 @@ body.is-home-view .app-shell {
   }
   .home-action-card {
     min-height: 128px;
-    grid-template-columns: 66px minmax(0, 1fr);
+    grid-template-columns: 68px minmax(0, 1fr);
     gap: 4px;
     padding: 13px 7px 13px 5px;
   }
@@ -4643,8 +4662,17 @@ body.is-home-view .app-shell {
     font-size: 16px;
   }
   .home-action-icon {
-    width: 66px;
-    height: 66px;
+    width: 68px;
+    height: 68px;
+  }
+  .home-next-card {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    padding-left: 12px;
+  }
+  .home-next-icon {
+    width: 72px;
+    height: 72px;
   }
 }
 

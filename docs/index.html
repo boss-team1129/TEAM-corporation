@@ -7,7 +7,7 @@
   <meta name="description" content="TEAM hairのお客様専用アプリ TEAM LINK。予約、今日の占い、クーポン、今月のガチャ、ご縁ラウンジをLINEから開けるスマホ会員アプリです。">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23070707'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='28' font-family='serif' fill='%23d9b46c'%3ETL%3C/text%3E%3C/svg%3E">
   <title>TEAM LINK | TEAM hair お客様専用アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260810-home-icons-1">
+  <link rel="stylesheet" href="styles.css?v=20260810-home-refine-1">
 </head>
 <body>
   <div class="splash-screen" id="splashScreen" aria-hidden="true">
@@ -28,16 +28,19 @@
         <div class="home-dashboard">
           <header class="home-dashboard-header" aria-label="TEAM LINKホーム">
             <button class="home-header-button" type="button" data-message="新しいお知らせはありません" aria-label="通知">🔔</button>
-            <img src="assets/team-link-logo.svg" alt="TEAM LINK" class="home-dashboard-logo" width="118" height="72">
+            <strong class="home-text-logo">TEAM LINK</strong>
             <p>ご縁をつなぐ、未来へつなぐ</p>
           </header>
 
           <button class="home-next-card" id="homeNextReservationCard" type="button" data-view="reservation">
             <span class="home-card-shine" aria-hidden="true"></span>
-            <span class="home-next-copy">次回予約のご案内</span>
-            <strong id="homeNextReservationTitle">次回のご予約をお待ちしています</strong>
-            <small id="homeNextReservationMeta">空き時間からすぐ予約できます</small>
-            <em id="homeNextReservationCountdown">予約ページへ</em>
+            <img class="home-next-icon" src="images/home/reservation.png" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">
+            <span class="home-next-body">
+              <span class="home-next-copy">次回予約のご案内</span>
+              <strong id="homeNextReservationTitle">次回のご予約をお待ちしています</strong>
+              <small id="homeNextReservationMeta">空き時間からすぐ予約できます</small>
+              <em id="homeNextReservationCountdown">予約ページへ</em>
+            </span>
             <span class="home-arrow" aria-hidden="true">›</span>
           </button>
 
@@ -345,6 +348,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="gacha-reveal" id="gachaReveal" hidden aria-live="polite"></div>
-  <script src="app.js?v=20260810-home-icons-1"></script>
+  <script src="app.js?v=20260810-home-refine-1"></script>
 </body>
 </html>
