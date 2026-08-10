@@ -917,6 +917,7 @@ function buildBookingRequestFromForm(formElement) {
   return {
     requestId: createId("REQ"),
     reservationId: createId("RSV"),
+    userId: profile.lineUserId || profile.memberId,
     memberId: profile.memberId,
     lineUserId: profile.lineUserId || "",
     customerName: profile.nickname,
@@ -930,6 +931,7 @@ function buildBookingRequestFromForm(formElement) {
     menuMode,
     menu: menuTitle,
     menuIds: selectedMenus.map((menu) => menu.menuId),
+    couponIds: selectedCoupons.map((menu) => menu.myCouponId || menu.couponId).filter(Boolean),
     selectedMenus: selectedMenus.map(toReservationMenuSnapshot),
     selectedCoupons: selectedCoupons.map(toReservationMenuSnapshot),
     couponTitle: selectedCoupons.map((menu) => menu.title).join("、"),
@@ -1595,26 +1597,58 @@ function renderHome() {
 }
 
 function renderReservationStatus() {
-  const profile = getProfile();
   const nextReservation = getNextReservation();
   const container = document.getElementById("reservationStatusPanel");
+  if (!container) return;
   if (nextReservation) {
+    const rows = [
+      ["日時", formatDateTime(nextReservation.confirmedDateTime || nextReservation.firstDateTime || nextReservation.dateTime)],
+      nextReservation.staff ? ["担当者", nextReservation.staff] : null,
+      ["状態", normalizeBookingStatus(nextReservation.status || nextReservation.currentStatus || "確認中")],
+      getReservationMenuDisplayText(nextReservation) ? ["メニュー", getReservationMenuDisplayText(nextReservation)] : null,
+      getReservationCouponDisplayText(nextReservation) ? ["使用クーポン", getReservationCouponDisplayText(nextReservation)] : null
+    ].filter(Boolean);
     container.innerHTML = `
       <p class="kicker">Current booking</p>
       <h2>現在の予約</h2>
-      <div class="summary-list">${summaryRows([
-        ["日時", formatDateTime(nextReservation.firstDateTime || nextReservation.confirmedDateTime)],
-        ["担当者", nextReservation.staff || profile.preferredStaff || "指名なし"],
-        ["状態", nextReservation.status || "確認中"]
-      ])}</div>
+      <div class="summary-list">${summaryRows(rows)}</div>
+      <p class="soft-note">予約内容の変更やキャンセルは、予約相談からスタッフへご連絡ください。</p>
     `;
   } else {
     container.innerHTML = `
       <p class="kicker">Reservation</p>
-      <h2>予約はこちら</h2>
-      <p>空き時間からすぐ予約するか、希望日時をスタッフへ相談できます。</p>
+      <h2>現在の予約はありません</h2>
+      <p>空き時間からすぐ予約するか、希望日時とメニューをスタッフへ相談できます。</p>
     `;
   }
+}
+
+function getReservationMenuDisplayText(booking) {
+  const snapshots = Array.isArray(booking?.selectedMenus) ? booking.selectedMenus : [];
+  if (snapshots.length) return snapshots.map((menu) => menu.title).filter(Boolean).join("＋");
+  if (booking?.menu) return booking.menu;
+  const ids = Array.isArray(booking?.menuIds) ? booking.menuIds : [];
+  if (!ids.length) return "";
+  const commonMenus = [
+    ...getReservationMenus(),
+    ...getBookableCouponMenus({ staffId: booking.staffId || "", dateTime: booking.confirmedDateTime || booking.firstDateTime || "" })
+  ];
+  return ids.map((id) => commonMenus.find((menu) => menu.menuId === id)?.title || "").filter(Boolean).join("＋");
+}
+
+function getReservationCouponDisplayText(booking) {
+  const coupons = Array.isArray(booking?.selectedCoupons) ? booking.selectedCoupons : [];
+  if (coupons.length) return coupons.map((coupon) => coupon.title).filter(Boolean).join("、");
+  if (booking?.couponTitle) return booking.couponTitle;
+  const couponIds = Array.isArray(booking?.couponIds) ? booking.couponIds : [];
+  if (!couponIds.length) return "";
+  const definitions = [...getAdminCoupons(), ...getProfileCoupons()];
+  return couponIds.map((id) => definitions.find((coupon) => (
+    coupon.couponId === id ||
+    coupon.memberCouponId === id ||
+    coupon.parentCouponId === id ||
+    coupon.couponDefinitionId === id
+  ))?.title || "").filter(Boolean).join("、");
 }
 
 function openInitialView() {
@@ -8126,7 +8160,9 @@ function getNextReservation() {
   return bookings
     .filter((booking) => (
       String(booking.memberId || "") === String(profile.memberId || "") ||
-      (profile.lineUserId && String(booking.lineUserId || "") === String(profile.lineUserId))
+      (profile.lineUserId && String(booking.lineUserId || "") === String(profile.lineUserId)) ||
+      (profile.lineUserId && String(booking.userId || "") === String(profile.lineUserId)) ||
+      String(booking.userId || "") === String(profile.memberId || "")
     ))
     .filter((booking) => !["キャンセル", "対応完了", "来店済み"].includes(normalizeBookingStatus(booking.status)))
     .map((booking) => ({
