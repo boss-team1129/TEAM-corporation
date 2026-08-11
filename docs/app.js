@@ -2580,7 +2580,7 @@ function renderGacha() {
     button.hidden = true;
     document.getElementById("gachaStage")?.classList.add("is-claimed");
     if (choiceStage) choiceStage.innerHTML = renderGachaClaimedStage(status.draw);
-  } else if (setting.status !== "公開" || getGachaOddsTotal(setting) !== 100) {
+  } else if (setting.status !== "公開" || (!isProductionApiMode() && getGachaOddsTotal(setting) !== 100)) {
     button.disabled = true;
     button.textContent = "今月のガチャは準備中";
     button.hidden = true;
@@ -5103,7 +5103,7 @@ function renderAdminGacha() {
     </section>
     <div class="admin-grid">
       <article class="admin-card"><span>対象年月</span><strong>${escapeHtml(formatMonthLabel(month))}</strong><small>${escapeHtml(setting.status)} / ${escapeHtml(setting.startAt)}〜${escapeHtml(setting.endAt)}</small></article>
-      <article class="admin-card"><span>キャラ別排出率</span><strong>${oddsTotal}%</strong><small>${oddsTotal === 100 ? "100％です" : "排出率の合計を100％にしてください"}</small></article>
+      <article class="admin-card"><span>カード抽選ウェイト</span><strong>${oddsTotal}</strong><small>本番APIが登録値の比率で抽選します</small></article>
       <article class="admin-card"><span>レア度排出率</span><strong>${rarityTotal}%</strong><small>${rarityTotal === 100 ? "100％です" : "排出率の合計を100％にしてください"}</small></article>
       <article class="admin-card"><span>今月利用</span><strong>${monthDraws.length}名</strong><small>未利用 ${Math.max(0, members.length - monthDraws.length)}名</small></article>
       <article class="admin-card"><span>キャラクター</span><strong>${characters.length}種類</strong><small>景品 ${prizes.length}件 / 上限到達 ${cards.filter((card) => hasReachedMonthlyLimit(card, month)).length}件</small></article>
