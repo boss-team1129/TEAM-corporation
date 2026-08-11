@@ -5,6 +5,13 @@ const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localS
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
+const LEGACY_FIXED_PROFILE = Object.freeze({
+  memberId: "TL-000001",
+  lineUserId: "U-demo-1"
+});
+const RETIRED_DEVELOPMENT_DRAW_IDS = new Set([
+  "GACHA-DRAW-20260804175458-34781B9E"
+]);
 
 const STORAGE_KEYS = {
   profile: "teamLinkMemberProfile",
@@ -71,6 +78,9 @@ const appState = {
   gachaTestRarity: "",
   gachaTestCardId: "",
   gachaChoiceInProgress: false,
+  gachaUseConfirmId: "",
+  gachaUseConfirmBusy: false,
+  gachaTestUseConfirmId: "",
   gachaBinderYear: null
 };
 
@@ -2631,8 +2641,9 @@ function renderGachaCardChoices() {
 
 function renderGachaClaimedStage(draw) {
   const state = getGachaLifecycleState(draw || {});
-  const canPresent = !["used", "expired"].includes(state);
-  const userFacingState = state === "used" ? "使用済み" : state === "expired" ? "期限切れ" : "未使用";
+  const id = String(draw?.cardHistoryId || draw?.drawId || "");
+  const isConfirming = Boolean(id) && appState.gachaUseConfirmId === id;
+  const userFacingState = state === "used" ? "使用済み" : state === "expired" ? "有効期限切れ" : "未使用";
   return `
     <div class="gacha-claimed-stage gacha-current-win">
       <p class="kicker">This month's card</p>
@@ -2647,11 +2658,47 @@ function renderGachaClaimedStage(draw) {
           ["景品", draw?.prizeName || "今月の景品"],
           ["景品内容", draw?.prizeDescription || draw?.message || "-"],
           ["獲得日", formatDateTime(draw?.obtainedAt || draw?.drawnAt) || "-"],
+          ["有効期限", formatDateUntil(draw?.validUntil || draw?.expires) || "-"],
           ["状態", userFacingState]
         ])}
       </div>
-      ${canPresent ? `<div class="gacha-staff-present"><strong>スタッフにこの画面を見せてください</strong><small>来店時にこのカードと景品内容をスタッフが確認します。</small>${draw?.confirmationCode ? `<em>確認コード ${escapeHtml(draw.confirmationCode)}</em>` : ""}</div>` : ""}
+      ${state === "used" ? `
+        <div class="gacha-use-complete" role="status">
+          <strong>✓ 使用済み</strong>
+          <span>使用日時：${escapeHtml(formatDateTime(draw?.usedAt || draw?.useConfirmedAt) || "記録済み")}</span>
+        </div>
+      ` : state === "expired" ? `
+        <div class="gacha-use-expired" role="status"><strong>有効期限切れ</strong><small>この景品は利用できません。</small></div>
+      ` : isConfirming ? renderGachaUseConfirmation(draw) : `
+        <div class="gacha-staff-present">
+          <strong>来店時にスタッフへ画面を見せてください</strong>
+          <small>ボタンを押しても、次の確認までは使用済みになりません。</small>
+          <button class="primary-button gacha-present-button" type="button" data-gacha-action="showUseConfirmation" data-id="${escapeHtml(id)}">スタッフに見せる</button>
+        </div>
+      `}
     </div>
+  `;
+}
+
+function renderGachaUseConfirmation(card) {
+  const id = card?.cardHistoryId || card?.drawId || "";
+  return `
+    <section class="gacha-use-confirmation" aria-label="景品の使用確認">
+      <strong>この景品を使用しますか？</strong>
+      <p>スタッフが内容を確認してから「使用済みにする」を押してください。</p>
+      <div class="summary-list">${summaryRows([
+        ["キャラクター", card?.characterName || card?.cardName || "-"],
+        ["レアリティ", card?.rarity || "-"],
+        ["景品名", card?.prizeName || card?.title || "-"],
+        ["景品内容", card?.prizeDescription || card?.message || "-"],
+        ["有効期限", formatDateUntil(card?.validUntil || card?.expires) || "-"]
+      ])}</div>
+      <div class="gacha-use-confirm-actions">
+        <button class="primary-button" type="button" data-gacha-action="confirmUse" data-id="${escapeHtml(id)}" ${appState.gachaUseConfirmBusy ? "disabled" : ""}>${appState.gachaUseConfirmBusy ? "処理中…" : "使用済みにする"}</button>
+        <button class="secondary-button" type="button" data-gacha-action="hideUseConfirmation" data-id="${escapeHtml(id)}" ${appState.gachaUseConfirmBusy ? "disabled" : ""}>戻る</button>
+      </div>
+      <small>一度使用済みにすると、同じ景品は再利用できません。</small>
+    </section>
   `;
 }
 
@@ -2737,8 +2784,8 @@ function renderGachaCouponShelf(title, cards, mode) {
 
 function gachaCouponCardHtml(card, mode = "available") {
   const id = card.cardHistoryId || card.drawId;
-  const pending = mode === "pending";
-  const canShowCode = !["used", "expired"].includes(getGachaLifecycleState(card));
+  const state = getGachaLifecycleState(card);
+  const isConfirming = appState.gachaUseConfirmId === String(id || "");
   return `
     <article class="collection-card gacha-coupon-card rarity-${escapeHtml(String(card.rarity || "R").toLowerCase())}">
       ${gachaCompletedCardHtml(card, "result")}
@@ -2748,14 +2795,13 @@ function gachaCouponCardHtml(card, mode = "available") {
         ["対象メニュー", card.targetMenu || "全メニュー"],
         ["利用条件", card.usageCondition || card.condition || "-"],
         ["有効期限", formatDateUntil(card.validUntil || card.expires)],
-        ["状態", getCardUsageState(card)],
-        canShowCode ? ["確認コード", card.confirmationCode || "使用手続き時に表示"] : ["注意事項", card.notice || "使用済みコードは再利用できません"]
+        ["状態", state === "expired" ? "有効期限切れ" : getCardUsageState(card)],
+        state === "used" ? ["使用日時", formatDateTime(card.usedAt || card.useConfirmedAt) || "記録済み"] : ["景品内容", card.prizeDescription || card.message || "-"]
       ])}</div>
-      <div class="admin-actions mini">
-        ${pending
-          ? `<button type="button" data-gacha-action="cancelUse" data-id="${escapeHtml(id)}">申請をキャンセル</button>`
-          : `<button type="button" data-gacha-action="requestUse" data-id="${escapeHtml(id)}">使用手続きへ進む</button>`}
-      </div>
+      ${state === "used" ? `<div class="gacha-use-complete"><strong>✓ 使用済み</strong><span>使用日時：${escapeHtml(formatDateTime(card.usedAt || card.useConfirmedAt) || "記録済み")}</span></div>`
+        : state === "expired" ? `<div class="gacha-use-expired"><strong>有効期限切れ</strong></div>`
+        : isConfirming ? renderGachaUseConfirmation(card)
+        : `<div class="admin-actions mini"><button class="primary-button" type="button" data-gacha-action="showUseConfirmation" data-id="${escapeHtml(id)}">スタッフに見せる</button></div>`}
     </article>
   `;
 }
@@ -2823,8 +2869,9 @@ function handleGachaAction(button) {
     document.getElementById("gachaStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
-  if (action === "requestUse") return requestGachaCardUse(id);
-  if (action === "cancelUse") return cancelGachaUseRequest(id);
+  if (action === "showUseConfirmation") return showGachaUseConfirmation(id);
+  if (action === "hideUseConfirmation") return hideGachaUseConfirmation();
+  if (action === "confirmUse") return confirmGachaCardUse(id);
 }
 
 function updateGachaCardEverywhere(cardId, updater) {
@@ -2846,6 +2893,133 @@ function updateGachaCardEverywhere(cardId, updater) {
 function findGachaCardRecord(cardId) {
   return [...readJson(STORAGE_KEYS.gachaCardHistory, []), ...readJson(STORAGE_KEYS.monthlyGachaDraws, [])]
     .find((card) => String(card.cardHistoryId || card.drawId) === String(cardId));
+}
+
+function showGachaUseConfirmation(cardId) {
+  const card = findGachaCardRecord(cardId);
+  if (!card) return;
+  const state = getGachaLifecycleState(card);
+  if (state === "used") {
+    showToast("この景品はすでに使用済みです。");
+    return;
+  }
+  if (state === "expired") {
+    showToast("この景品は有効期限切れです。");
+    return;
+  }
+  const userKey = getCurrentUserKey();
+  if (card.memberId && String(card.memberId) !== String(userKey)) {
+    showToast("この景品は現在のユーザーのものではありません。");
+    return;
+  }
+  appState.gachaUseConfirmId = String(cardId);
+  renderApp();
+}
+
+function hideGachaUseConfirmation() {
+  if (appState.gachaUseConfirmBusy) return;
+  appState.gachaUseConfirmId = "";
+  renderApp();
+}
+
+async function confirmGachaCardUse(cardId) {
+  if (appState.gachaUseConfirmBusy || appState.gachaUseConfirmId !== String(cardId)) return;
+  const card = findGachaCardRecord(cardId);
+  if (!card) return;
+  const state = getGachaLifecycleState(card);
+  if (state === "used") {
+    appState.gachaUseConfirmId = "";
+    showToast("この景品はすでに使用済みです。");
+    renderApp();
+    return;
+  }
+  if (state === "expired") {
+    appState.gachaUseConfirmId = "";
+    showToast("この景品は有効期限切れです。");
+    renderApp();
+    return;
+  }
+  const profile = getProfile();
+  const userKey = getCurrentUserKey();
+  if (card.memberId && String(card.memberId) !== String(userKey)) {
+    appState.gachaUseConfirmId = "";
+    showToast("この景品は現在のユーザーのものではありません。");
+    renderApp();
+    return;
+  }
+
+  appState.gachaUseConfirmBusy = true;
+  renderApp();
+  try {
+    if (isProductionApiMode() && card.drawId) {
+      let confirmationCode = String(card.confirmationCode || "").trim();
+      if (state !== "pending" || !confirmationCode) {
+        const requestResult = await apiRequest("requestCouponUse", {
+          userId: userKey,
+          memberId: userKey,
+          lineUserId: profile.lineUserId || "",
+          drawId: card.drawId
+        });
+        const requestedCoupon = requestResult.data?.coupon || requestResult.coupon || {};
+        if (requestedCoupon.userId && String(requestedCoupon.userId) !== String(userKey)) {
+          throw new Error("景品のユーザー情報が一致しません。");
+        }
+        confirmationCode = String(requestedCoupon.confirmationCode || "").trim();
+        updateGachaCardEverywhere(cardId, (item) => {
+          item.lifecycleState = requestedCoupon.status || "pending";
+          item.useState = requestedCoupon.status || "pending";
+          item.status = requestedCoupon.status || "pending";
+          item.useRequestedAt = requestedCoupon.requestedAt || new Date().toISOString();
+          item.confirmationCode = confirmationCode || item.confirmationCode || "";
+          item.usageId = requestedCoupon.usageId || item.usageId || "";
+        });
+      }
+      if (!confirmationCode) throw new Error("使用確認情報を取得できませんでした。");
+      const confirmResult = await apiRequest("confirmCouponUseByCustomer", {
+        userId: userKey,
+        memberId: userKey,
+        drawId: card.drawId,
+        confirmationCode,
+        confirmedBy: "店頭スタッフ（お客様画面）",
+        storeName: getStoreSettings().shopName
+      });
+      const confirmedCoupon = confirmResult.data?.coupon || confirmResult.coupon || {};
+      if (normalizeGachaState(confirmedCoupon.status || "used") !== "used") {
+        throw new Error("使用済み状態を確認できませんでした。");
+      }
+      updateGachaCardEverywhere(cardId, (item) => {
+        item.lifecycleState = "used";
+        item.useState = "used";
+        item.status = "used";
+        item.usedAt = confirmedCoupon.confirmedAt || new Date().toISOString();
+        item.useConfirmedAt = item.usedAt;
+        item.usedByStaff = confirmedCoupon.confirmedBy || "店頭スタッフ（お客様画面）";
+        item.usedStore = confirmedCoupon.storeName || getStoreSettings().shopName;
+        item.confirmationCode = confirmationCode;
+      });
+      await refreshProductionGachaCoupons(userKey);
+    } else {
+      const usedAt = new Date().toISOString();
+      const updated = updateGachaCardEverywhere(cardId, (item) => {
+        item.lifecycleState = "used";
+        item.useState = "used";
+        item.status = "used";
+        item.usedAt = usedAt;
+        item.useConfirmedAt = usedAt;
+        item.usedByStaff = "店頭スタッフ（お客様画面）";
+        item.usedStore = getStoreSettings().shopName;
+      });
+      if (updated) syncLinkedCouponFromGacha(updated, "used");
+    }
+    appState.gachaUseConfirmId = "";
+    showToast("景品を使用済みにしました。");
+  } catch (error) {
+    console.error("[TEAM LINK GACHA CUSTOMER USE CONFIRM FAILED]", error);
+    showToast(error?.message || "使用確定に失敗しました。もう一度お試しください。");
+  } finally {
+    appState.gachaUseConfirmBusy = false;
+    renderApp();
+  }
 }
 
 async function requestGachaCardUse(cardId) {
@@ -5081,7 +5255,9 @@ function renderAdminGacha() {
   const month = setting.issueMonth;
   const members = getMembers();
   const monthDraws = draws.filter((draw) => draw.issueMonth === month);
-  const pendingUses = readJson(STORAGE_KEYS.gachaCardHistory, []).filter((card) => getGachaLifecycleState(card) === "pending");
+  const usageHistory = readJson(STORAGE_KEYS.gachaCardHistory, [])
+    .slice()
+    .sort((a, b) => new Date(b.usedAt || b.obtainedAt || b.drawnAt || 0) - new Date(a.usedAt || a.obtainedAt || a.drawnAt || 0));
   const characters = getGachaCharacters();
   const prizes = getGachaPrizes();
   const rarityCounts = monthDraws.reduce((acc, draw) => {
@@ -5177,8 +5353,12 @@ function renderAdminGacha() {
       </div>
     </section>
     <article class="admin-preview">
-      <h3>スタッフ確認待ちカード</h3>
-      <div class="chart-list">${pendingUses.map((card) => `<article class="chart-row"><strong>${escapeHtml(card.characterName || card.cardName)} / ${escapeHtml(card.prizeName || "")}</strong><span>${escapeHtml(card.memberId)} / 確認コード ${escapeHtml(card.confirmationCode || "-")} / 期限 ${escapeHtml(formatDateUntil(card.validUntil || card.expires))}</span><div class="admin-actions mini"><button type="button" data-admin-action="chartUseGacha" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">クーポン使用を確定する</button><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">詳細</button></div></article>`).join("") || "<p>確認待ちカードはありません。</p>"}</div>
+      <h3>景品利用履歴</h3>
+      <div class="chart-list">${usageHistory.slice(0, 50).map((card) => {
+        const state = getGachaLifecycleState(card);
+        const statusLabel = state === "expired" ? "期限切れ" : state === "used" ? "使用済み" : "未使用";
+        return `<article class="chart-row"><strong>${escapeHtml(card.characterName || card.cardName || "-")} / ${escapeHtml(card.prizeName || "-")}</strong><span>ユーザー：${escapeHtml(card.memberId || card.userId || "-")} / 獲得：${escapeHtml(formatDateTime(card.obtainedAt || card.drawnAt) || "-")} / 使用：${escapeHtml(formatDateTime(card.usedAt || card.useConfirmedAt) || "-")} / ${escapeHtml(statusLabel)}</span><div class="admin-actions mini"><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.cardHistoryId || card.drawId)}">詳細</button></div></article>`;
+      }).join("") || "<p>景品利用履歴はありません。</p>"}</div>
     </article>
     <article class="admin-preview">
       <h3>ガチャ履歴・集計</h3>
@@ -5189,7 +5369,7 @@ function renderAdminGacha() {
         ["景品未利用", `${monthDraws.filter((draw) => getCardUsageState(draw) === "未使用").length}件`],
         ["景品利用済み", `${monthDraws.filter((draw) => getCardUsageState(draw) === "使用済み").length}件`]
       ])}</div>
-      <div class="chart-list">${monthDraws.slice(0, 12).map((draw) => `<article class="chart-row"><strong>${escapeHtml(draw.cardNo || "")} ${escapeHtml(draw.characterName || draw.cardName)}</strong><span>${escapeHtml(draw.memberId)} / ${escapeHtml(draw.rarity)} / ${escapeHtml(draw.prizeName)} / ${escapeHtml(getCardUsageState(draw))}</span></article>`).join("") || "<p>今月の履歴はありません。</p>"}</div>
+      <div class="chart-list">${monthDraws.slice(0, 12).map((draw) => `<article class="chart-row"><strong>${escapeHtml(draw.cardNo || "")} ${escapeHtml(draw.characterName || draw.cardName)}</strong><span>${escapeHtml(draw.memberId)} / ${escapeHtml(draw.rarity)} / ${escapeHtml(draw.prizeName)} / ${escapeHtml(getCardUsageState(draw))} / 獲得 ${escapeHtml(formatDateTime(draw.obtainedAt || draw.drawnAt) || "-")} / 使用 ${escapeHtml(formatDateTime(draw.usedAt || draw.useConfirmedAt) || "-")}</span></article>`).join("") || "<p>今月の履歴はありません。</p>"}</div>
     </article>
     <article class="admin-preview">
       <h3>会員別の今月利用状況</h3>
@@ -5222,6 +5402,7 @@ function renderAdminGachaTest() {
   }, {});
   const testBinder = testLog.filter((draw) => draw.testStatus === "used");
   const uniqueCardCount = new Set(testBinder.map((draw) => String(draw.cardId || ""))).size;
+  const isTestUseConfirming = Boolean(latest?.testId) && appState.gachaTestUseConfirmId === String(latest.testId);
   return `
     <section class="admin-section-head">
       <div>
@@ -5244,7 +5425,9 @@ function renderAdminGachaTest() {
         ["景品内容", latest.prizeDescription || "-"],
         ["テスト状態", latest.testStatus === "used" ? "使用済み" : "未使用"]
       ])}</div>
-      <div class="admin-actions"><button type="button" data-admin-action="toggleGachaTestUse" data-id="${escapeHtml(latest.testId)}">${latest.testStatus === "used" ? "未使用に戻す" : "使用済みにする"}</button></div>
+      ${latest.testStatus === "used" ? `<div class="gacha-use-complete"><strong>✓ 使用済み</strong><span>使用日時：${escapeHtml(formatDateTime(latest.usedAt) || "記録済み")}</span></div>`
+        : isTestUseConfirming ? `<section class="gacha-use-confirmation"><strong>このテスト景品を使用しますか？</strong><p>本番データには影響しません。</p><div class="gacha-use-confirm-actions"><button class="primary-button" type="button" data-admin-action="confirmGachaTestUse" data-id="${escapeHtml(latest.testId)}">使用済みにする</button><button class="secondary-button" type="button" data-admin-action="hideGachaTestUseConfirmation">戻る</button></div></section>`
+        : `<div class="admin-actions"><button class="primary-button" type="button" data-admin-action="showGachaTestUseConfirmation" data-id="${escapeHtml(latest.testId)}">スタッフに見せる</button></div>`}
     </article>` : ""}
     <section class="reservation-menu-group">
       <header><h4>テスト方法</h4><span>管理者専用</span></header>
@@ -5349,7 +5532,33 @@ async function runAdminGachaTest(button) {
     adminName: session.name,
     savedToProduction: false
   }, ...log].slice(0, 500));
+  appState.gachaTestUseConfirmId = "";
   openGachaTestChoiceStage(testDraw);
+}
+
+function showGachaTestUseConfirmation(testId) {
+  const draw = readJson(STORAGE_KEYS.gachaTestLog, []).find((item) => String(item.testId) === String(testId));
+  if (!draw || draw.dataMode !== "TEST" || draw.memberId !== "TEST_ADMIN_ONLY" || draw.testStatus === "used") return;
+  appState.gachaTestUseConfirmId = String(testId);
+  renderAdmin();
+}
+
+function hideGachaTestUseConfirmation() {
+  appState.gachaTestUseConfirmId = "";
+  renderAdmin();
+}
+
+function confirmGachaTestUse(testId) {
+  if (appState.gachaTestUseConfirmId !== String(testId)) return;
+  const testLog = readJson(STORAGE_KEYS.gachaTestLog, []);
+  const draw = testLog.find((item) => String(item.testId) === String(testId));
+  if (!draw || draw.dataMode !== "TEST" || draw.memberId !== "TEST_ADMIN_ONLY" || draw.testStatus === "used") return;
+  draw.testStatus = "used";
+  draw.usedAt = new Date().toISOString();
+  writeJson(STORAGE_KEYS.gachaTestLog, testLog);
+  appState.gachaTestUseConfirmId = "";
+  showToast("テスト景品を使用済みにしました。本番データには影響しません。");
+  renderAdmin();
 }
 
 function toggleAdminGachaTestUse(testId) {
@@ -5367,6 +5576,7 @@ function resetAdminGachaTestData() {
   if (!confirmed) return;
   localStorage.removeItem(STORAGE_KEYS.gachaTestLog);
   writeJson(STORAGE_KEYS.gachaTestLog, []);
+  appState.gachaTestUseConfirmId = "";
   showToast("テストガチャのデータだけをリセットしました。");
   renderAdmin();
 }
@@ -5889,7 +6099,9 @@ function handleAdminAction(button) {
   if (action === "editRarityRates") return editGachaRarityRates();
   if (action === "resetMonthlyGachaTest") return resetMonthlyGachaTest();
   if (action === "runGachaTest") return runAdminGachaTest(button);
-  if (action === "toggleGachaTestUse") return toggleAdminGachaTestUse(id);
+  if (action === "showGachaTestUseConfirmation") return showGachaTestUseConfirmation(id);
+  if (action === "hideGachaTestUseConfirmation") return hideGachaTestUseConfirmation();
+  if (action === "confirmGachaTestUse") return confirmGachaTestUse(id);
   if (action === "resetGachaTestData") return resetAdminGachaTestData();
   if (action === "editGachaCharacter") return editGachaCharacter(id);
   if (action === "setGachaPreviewTab") {
@@ -8360,6 +8572,49 @@ function getOrCreateGuestId() {
   return guestId;
 }
 
+function migrateLegacyFixedProfileToGuest(profile = {}) {
+  const memberId = String(profile.memberId || "").trim();
+  const lineUserId = String(profile.lineUserId || "").trim();
+  const linkedMemberId = String(profile.linkedMemberId || "").trim();
+  const isLegacyFixedProfile = memberId === LEGACY_FIXED_PROFILE.memberId
+    && lineUserId === LEGACY_FIXED_PROFILE.lineUserId
+    && !linkedMemberId;
+  if (!isLegacyFixedProfile) return profile;
+
+  const guestId = createGuestId();
+  localStorage.setItem(STORAGE_KEYS.guestId, guestId);
+  const guestProfile = {
+    ...defaultProfile,
+    memberId: guestId,
+    guestId,
+    identityType: "guest"
+  };
+  writeJson(STORAGE_KEYS.profile, guestProfile);
+  console.info("[TEAM LINK IDENTITY] legacy fixed profile migrated", { userId: guestId });
+  return guestProfile;
+}
+
+function removeRetiredDevelopmentGachaCache() {
+  const isRetiredDraw = (item) => [
+    item?.drawId,
+    item?.cardHistoryId,
+    item?.gachaHistoryId,
+    item?.linkedCardHistoryId,
+    item?.sourceId
+  ].some((value) => RETIRED_DEVELOPMENT_DRAW_IDS.has(String(value || "")));
+  [STORAGE_KEYS.monthlyGachaDraws, STORAGE_KEYS.gachaCardHistory].forEach((key) => {
+    const items = readJson(key, []);
+    const filtered = items.filter((item) => !isRetiredDraw(item));
+    if (filtered.length !== items.length) writeJson(key, filtered);
+  });
+  const coupons = readJson(STORAGE_KEYS.myCoupons, []);
+  const filteredCoupons = coupons.filter((coupon) => !isRetiredDraw(coupon));
+  if (filteredCoupons.length !== coupons.length) writeJson(STORAGE_KEYS.myCoupons, filteredCoupons);
+  const selections = readJson(STORAGE_KEYS.mySelections, []);
+  const filteredSelections = selections.filter((item) => !isRetiredDraw(item));
+  if (filteredSelections.length !== selections.length) writeJson(STORAGE_KEYS.mySelections, filteredSelections);
+}
+
 function resolveCurrentUserKey(profile = {}, guestId = getOrCreateGuestId()) {
   const linkedMemberId = String(profile.linkedMemberId || "").trim();
   if (linkedMemberId) return linkedMemberId;
@@ -8410,8 +8665,10 @@ function daysBetween(fromDate, toDate) {
 }
 
 function ensureDemoState() {
-  const guestId = getOrCreateGuestId();
-  const storedProfile = readJson(STORAGE_KEYS.profile, {});
+  removeRetiredDevelopmentGachaCache();
+  const migratedProfile = migrateLegacyFixedProfileToGuest(readJson(STORAGE_KEYS.profile, {}));
+  const guestId = String(migratedProfile.guestId || getOrCreateGuestId()).trim();
+  const storedProfile = migratedProfile;
   if (!localStorage.getItem(STORAGE_KEYS.profile) || !storedProfile.memberId || storedProfile.memberId === "demo-member") {
     writeJson(STORAGE_KEYS.profile, {
       ...defaultProfile,
@@ -8588,7 +8845,7 @@ function ensureDemoState() {
     ]);
   }
   if (!localStorage.getItem(STORAGE_KEYS.myCoupons)) {
-    writeJson(STORAGE_KEYS.myCoupons, [
+    writeJson(STORAGE_KEYS.myCoupons, isProductionApiMode() ? [] : [
       {
         couponId: "MYCOUPON-DEMO-1",
         parentCouponId: "COUPON-500-OFF",
@@ -8640,7 +8897,9 @@ function ensureDemoState() {
   } else {
     normalizeStoredMyCoupons();
   }
-  if (!localStorage.getItem(STORAGE_KEYS.monthlyGachaDraws)) {
+  if (!localStorage.getItem(STORAGE_KEYS.monthlyGachaDraws) && isProductionApiMode()) {
+    writeJson(STORAGE_KEYS.monthlyGachaDraws, []);
+  } else if (!localStorage.getItem(STORAGE_KEYS.monthlyGachaDraws)) {
     const demoCard = defaultMonthlyGachaSettings[0].cards.find((card) => card.cardId === "character-08") || defaultMonthlyGachaSettings[0].cards[0];
     writeJson(STORAGE_KEYS.monthlyGachaDraws, [
       {
@@ -9303,9 +9562,10 @@ function parseServerJsonArray(value) {
 async function syncProductionAdminState(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return;
   try {
-    const [result, gachaMasterResult] = await Promise.all([
+    const [result, gachaMasterResult, gachaHistoryResult] = await Promise.all([
       apiRequest("listBookingRequests", {}),
-      apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() })
+      apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() }),
+      apiRequest("listGachaUsageHistory", {})
     ]);
     const serverBookings = result.bookings || result.data?.bookings;
     if (Array.isArray(serverBookings)) {
@@ -9319,6 +9579,8 @@ async function syncProductionAdminState(options = {}) {
     }
     const rewardMasters = gachaMasterResult.rewards || gachaMasterResult.data?.rewards;
     if (Array.isArray(rewardMasters)) writeJson(STORAGE_KEYS.gachaAdminRewards, rewardMasters.map(mapServerGachaRewardToLocal));
+    const gachaHistory = gachaHistoryResult.history || gachaHistoryResult.data?.history;
+    if (Array.isArray(gachaHistory)) mergeServerGachaCoupons(gachaHistory);
     if (options.render !== false) renderApp();
   } catch (error) {
     console.error("[TEAM LINK ADMIN SYNC FAILED]", error);

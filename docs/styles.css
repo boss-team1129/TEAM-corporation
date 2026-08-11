@@ -5596,6 +5596,83 @@ body.is-home-view .app-shell {
 .gacha-staff-present strong { color: var(--gold-bright); }
 .gacha-staff-present em { font-style: normal; font-weight: 900; letter-spacing: .08em; }
 
+.gacha-present-button {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.gacha-use-confirmation {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid rgba(232, 197, 124, .55);
+  border-radius: 18px;
+  color: var(--cream);
+  background: linear-gradient(145deg, rgba(196,150,66,.24), rgba(12,12,12,.94));
+  box-shadow: 0 16px 36px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.08);
+}
+
+.gacha-use-confirmation > strong {
+  color: var(--gold-bright);
+  font-size: clamp(19px, 5vw, 24px);
+  text-align: center;
+}
+
+.gacha-use-confirmation > p,
+.gacha-use-confirmation > small {
+  margin: 0;
+  color: rgba(255,250,239,.76);
+  line-height: 1.65;
+  text-align: center;
+}
+
+.gacha-use-confirm-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.gacha-use-confirm-actions button {
+  width: 100%;
+  min-height: 52px;
+  font-weight: 900;
+}
+
+.gacha-use-complete,
+.gacha-use-expired {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 18px;
+  border-radius: 18px;
+  text-align: center;
+}
+
+.gacha-use-complete {
+  border: 1px solid rgba(117, 211, 154, .5);
+  color: #d9ffe7;
+  background: linear-gradient(145deg, rgba(42,132,80,.28), rgba(255,255,255,.05));
+}
+
+.gacha-use-complete strong {
+  color: #aaf0c4;
+  font-size: clamp(24px, 7vw, 32px);
+}
+
+.gacha-use-expired {
+  border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,250,239,.7);
+  background: rgba(255,255,255,.05);
+}
+
+.gacha-use-expired strong {
+  color: rgba(255,250,239,.78);
+  font-size: clamp(21px, 6vw, 27px);
+}
+
 .gacha-top-actions {
   display: grid;
   gap: 12px;
