@@ -2,11 +2,13 @@ const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("fortuneApiUrl") : "") || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
+const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
 
 const STORAGE_KEYS = {
   profile: "teamLinkMemberProfile",
+  guestId: "teamLinkGuestId",
   birthDate: "teamLinkBirthDate",
   monthlyGachaDraws: "teamLinkMonthlyGachaDraws",
   monthlyGachaSettings: "teamLinkMonthlyGachaSettings",
@@ -14,8 +16,10 @@ const STORAGE_KEYS = {
   gachaPrizes: "teamLinkGachaPrizes",
   gachaCardHistory: "teamLinkGachaCardHistory",
   gachaTestLog: "teamLinkGachaTestLog",
+  gachaAdminRewards: "teamLinkGachaAdminRewards",
   collectionRewards: "teamLinkCollectionRewards",
   myCoupons: "teamLinkMyCoupons",
+  mySelections: "teamLinkMySelections",
   loungeEntries: "teamLinkLoungeEntries",
   bookings: "teamLinkBookingRequests",
   fortuneHistory: "teamLinkFortuneHistory",
@@ -39,6 +43,8 @@ const viewMap = {
   coupons: "couponsView",
   gacha: "gachaView",
   mycards: "myCardsView",
+  collectionRewards: "collectionRewardsView",
+  gachaHistory: "gachaHistoryView",
   lounge: "loungeView",
   loungeRegister: "loungeRegisterView",
   mypage: "mypageView",
@@ -48,8 +54,8 @@ const viewMap = {
 const appState = {
   currentView: "homeView",
   previousView: "homeView",
-  couponCategory: "おすすめ",
-  adminCouponFilter: "公開中",
+  couponCategory: "クーポン",
+  adminCouponFilter: "LINEクーポン",
   todayFortune: null,
   adminTab: "dashboard",
   adminMemberFilter: "all",
@@ -57,12 +63,15 @@ const appState = {
   adminVisitShowHistory: false,
   adminMemberDetailId: "",
   memberChartTab: "basic",
-  bookingMenuMode: "coupon",
+  bookingMenuMode: "regular",
+  bookingDraft: null,
+  menuMasterSyncStatus: "pending",
   gachaCharacterEditId: "",
   gachaPreviewMode: "card",
   gachaTestRarity: "",
   gachaTestCardId: "",
-  gachaChoiceInProgress: false
+  gachaChoiceInProgress: false,
+  gachaBinderYear: null
 };
 
 const memberChartTabs = [
@@ -77,10 +86,12 @@ const memberChartTabs = [
 ];
 
 const defaultProfile = {
-  memberId: "TL-000001",
-  lineUserId: "U-demo-1",
-  nickname: "花子",
-  lastVisitDate: "2026-06-18",
+  memberId: "",
+  guestId: "",
+  identityType: "guest",
+  lineUserId: "",
+  nickname: "お客様",
+  lastVisitDate: "",
   nextReservation: null,
   preferredStaff: "BOSS",
   rank: "PRIVATE"
@@ -180,73 +191,7 @@ const defaultReservationMenus = [
     isRecommended: false,
     imageUrl: "",
     updatedAt: "2026-07-30"
-  },
-  {
-    menuId: "coupon-wed-thu-color-treatment",
-    type: "クーポン",
-    title: "水木カラー＆トリートメント",
-    description: "水曜・木曜にカラーとケアをまとめて相談できます。",
-    regularPrice: 14300,
-    couponPrice: 11800,
-    durationMinutes: 150,
-    targetStaff: ["boss-muramatsu", "kanda-kana", "matsumoto-ai", "no-preference"],
-    targetWeekdays: [3, 4],
-    condition: "水曜・木曜限定。ロング料金は店舗確認後に確定します",
-    publishStartAt: "2026-07-01",
-    publishEndAt: "",
-    isPublic: true,
-    sortOrder: 1,
-    isRecommended: true,
-    imageUrl: "",
-    updatedAt: "2026-07-30"
-  },
-  {
-    menuId: "coupon-nucleic-acid-color-tr",
-    type: "クーポン",
-    title: "核酸カラーTR",
-    description: "カラーとトリートメントでツヤを重視したい方へ。",
-    regularPrice: 15400,
-    couponPrice: 13200,
-    durationMinutes: 150,
-    targetStaff: ["boss-muramatsu", "kanda-kana", "matsumoto-ai", "no-preference"],
-    targetWeekdays: [0, 2, 3, 4, 5, 6],
-    condition: "髪の長さ・状態により追加料金の場合があります",
-    publishStartAt: "2026-07-01",
-    publishEndAt: "",
-    isPublic: true,
-    sortOrder: 2,
-    isRecommended: true,
-    imageUrl: "",
-    updatedAt: "2026-07-30"
-  },
-  {
-    menuId: "coupon-first-hair-repair",
-    type: "クーポン",
-    title: "初回髪質改善クーポン",
-    description: "初めて髪質改善を試したい方のための相談クーポン。",
-    regularPrice: 9900,
-    couponPrice: 7700,
-    durationMinutes: 90,
-    targetStaff: ["boss-muramatsu", "kanda-kana", "matsumoto-ai", "no-preference"],
-    targetWeekdays: [0, 2, 3, 4, 5, 6],
-    condition: "初回限定。単品利用可",
-    publishStartAt: "2026-07-01",
-    publishEndAt: "",
-    isPublic: true,
-    sortOrder: 3,
-    isRecommended: true,
-    imageUrl: "",
-    updatedAt: "2026-07-30"
   }
-];
-
-const couponData = [
-  { category: "おすすめ", title: "似合わせカラー相談", desc: "季節や雰囲気に合わせてカラーを相談したい方へ。", period: "今月のおすすめ", source: "team" },
-  { category: "期間限定", title: "平日限定メンテナンス", desc: "ゆっくり相談しながら整えたい方に。", period: "2026年8月末まで", source: "team" },
-  { category: "カラー", title: "透明感カラー", desc: "柔らかいベージュ・グレージュ系カラーに。", period: "利用条件あり", source: "team" },
-  { category: "髪質改善", title: "髪質改善トリートメント", desc: "ツヤとまとまりを出したい日に。", period: "おすすめ", source: "team" },
-  { category: "酸性ストレート", title: "酸性ストレート相談", desc: "クセや広がりを自然に整えたい方へ。", period: "カウンセリング推奨", source: "team" },
-  { category: "商品", title: "ホームケア商品相談", desc: "髪質に合うケア商品をスタッフが提案。", period: "店頭確認", source: "team" }
 ];
 
 const defaultManagedCoupons = [
@@ -641,6 +586,7 @@ function bindNavigation() {
     const adminActionButton = event.target.closest("[data-admin-action]");
     const bookingActionButton = event.target.closest("[data-booking-action]");
     const gachaActionButton = event.target.closest("[data-gacha-action]");
+    const couponActionButton = event.target.closest("[data-coupon-action]");
     if (adminTabButton) {
       appState.adminTab = adminTabButton.dataset.adminTab;
       renderAdmin();
@@ -656,6 +602,10 @@ function bindNavigation() {
     }
     if (gachaActionButton) {
       handleGachaAction(gachaActionButton);
+      return;
+    }
+    if (couponActionButton) {
+      handleCouponSelectionAction(couponActionButton);
       return;
     }
     if (viewButton) {
@@ -685,7 +635,7 @@ function bindNavigation() {
 }
 
 function bindForms() {
-  document.getElementById("adminLoginForm").addEventListener("submit", (event) => {
+  document.getElementById("adminLoginForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const adminId = String(form.get("adminId") || "");
@@ -702,6 +652,7 @@ function bindForms() {
     addAdminLog("login", "管理画面にログイン", admin.name);
     event.currentTarget.reset();
     renderAdmin();
+    await syncProductionAdminState();
   });
 
   document.getElementById("adminLogoutButton").addEventListener("click", () => {
@@ -738,14 +689,15 @@ function bindForms() {
         ["状態", request.status]
       ]);
       event.currentTarget.reset();
-      appState.bookingMenuMode = "coupon";
+      appState.bookingMenuMode = "regular";
+      appState.bookingDraft = null;
       renderBookingFormOptions();
       renderApp();
-      showView("bookingDone");
+      showView("bookingDone", { preserveBookingDraft: false });
     } catch (error) {
       showToast("通信に失敗しました。時間をおいてもう一度お試しください");
     } finally {
-      setButtonLoading(submitButton, false, "8. 送信する");
+      setButtonLoading(submitButton, false, "10. 送信する");
     }
   });
 
@@ -793,15 +745,30 @@ function bindBookingFormInputs() {
   ];
   modeSelect?.addEventListener("change", () => {
     appState.bookingMenuMode = modeSelect.value;
+    captureBookingDraft();
     renderBookingMenuChoices();
+    renderBookingCouponChoices();
+    renderBookingMySelectionChoices();
     updateBookingConfirm();
   });
   form?.addEventListener("change", (event) => {
-    if (event.target.matches("#bookingFirstDateTime, #bookingStaffSelect")) renderBookingMenuChoices();
+    if (event.target.matches("[data-my-booking-selection]")) {
+      syncMySelectionCheckboxToBooking(event.target);
+      return;
+    }
+    if (event.target.matches("input, select, textarea")) captureBookingDraft();
+    if (event.target.matches("#bookingFirstDateTime, #bookingStaffSelect")) {
+      renderBookingMenuChoices();
+      renderBookingCouponChoices();
+    }
+    renderBookingMySelectionChoices();
     if (event.target.matches("input, select, textarea")) updateBookingConfirm();
   });
   form?.addEventListener("input", (event) => {
-    if (event.target.matches("input, textarea")) updateBookingConfirm();
+    if (event.target.matches("input, textarea")) {
+      captureBookingDraft();
+      updateBookingConfirm();
+    }
   });
   inputs.forEach((input) => input?.addEventListener("blur", updateBookingConfirm));
 }
@@ -828,35 +795,160 @@ function renderBookingFormOptions() {
   const modeSelect = document.getElementById("bookingMenuMode");
   if (modeSelect) modeSelect.value = appState.bookingMenuMode;
   renderBookingMenuChoices();
+  renderBookingCouponChoices();
+  renderBookingMySelectionChoices();
   updateBookingDateConstraints();
   updateBookingConfirm();
 }
 
-function renderBookingMenuChoices() {
+function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("menuIds")) {
   const container = document.getElementById("bookingMenuChoices");
   const customField = document.getElementById("bookingCustomMenuField");
   if (!container) return;
   const mode = document.getElementById("bookingMenuMode")?.value || appState.bookingMenuMode;
-  const type = mode === "coupon" ? "クーポン" : "通常メニュー";
   customField.hidden = mode !== "consult";
   if (mode === "consult") {
     container.innerHTML = `<p class="soft-note">メニューが決まっていない場合は、下の欄に希望や髪のお悩みをご記入ください。</p>`;
     return;
   }
   const context = getBookingMenuContext();
-  const menus = mode === "coupon"
-    ? getBookableCouponMenus(context)
-    : getPublicReservationMenus(context).filter((menu) => menu.type === type);
+  const menus = getPublicReservationMenus(context).filter((menu) => menu.type === "通常メニュー");
+  const selected = new Set(selectedIds.map(String));
   container.innerHTML = menus.map((menu) => `
     <label class="menu-choice-card">
-      <input type="checkbox" name="menuIds" value="${escapeHtml(menu.menuId)}">
+      <input type="checkbox" name="menuIds" value="${escapeHtml(menu.menuId)}" ${selected.has(String(menu.menuId)) ? "checked" : ""}>
       <span>
         <strong>${escapeHtml(menu.title)}</strong>
         <small>${escapeHtml(menu.description || "")}</small>
         <em>${escapeHtml(formatMinutes(menu.durationMinutes))} / ${escapeHtml(formatYen(getMenuPrice(menu)))}${menu.isOwnedCoupon ? " / 保有クーポン" : ""}</em>
       </span>
     </label>
-  `).join("") || `<p class="soft-note">現在公開中の${escapeHtml(type)}はありません。</p>`;
+  `).join("") || `<p class="soft-note">現在公開中の通常メニューはありません。</p>`;
+}
+
+function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("couponIds")) {
+  const container = document.getElementById("bookingCouponChoices");
+  if (!container) return;
+  const coupons = getPublicLineCoupons(getBookingMenuContext());
+  const selected = new Set(selectedIds.map(String));
+  container.innerHTML = coupons.length ? coupons.map((coupon) => `
+    <label class="menu-choice-card">
+      <input type="checkbox" name="couponIds" value="${escapeHtml(coupon.couponId)}" ${selected.has(String(coupon.couponId)) ? "checked" : ""}>
+      <span>
+        <small>LINEクーポン</small>
+        <strong>${escapeHtml(coupon.title)}</strong>
+        <small>${escapeHtml(coupon.description || "LINE公式クーポン")}</small>
+        <em>期限 ${escapeHtml(formatDateUntil(coupon.validUntil || coupon.endDate))}</em>
+      </span>
+    </label>
+  `).join("") : `<p class="soft-note">現在予約時に選べるLINEクーポンはありません。</p>`;
+}
+
+function getBookingDraftSelectionIds(name) {
+  const form = document.getElementById("bookingForm");
+  const checked = form ? [...form.querySelectorAll(`input[name="${name}"]:checked`)].map((input) => input.value) : [];
+  if (checked.length) return checked;
+  const draft = appState.bookingDraft;
+  return Array.isArray(draft?.[name]) ? draft[name].map(String) : [];
+}
+
+function renderBookingMySelectionChoices() {
+  const container = document.getElementById("bookingMySelectionChoices");
+  if (!container) return;
+  const selections = getMySelections();
+  if (!selections.length) {
+    container.innerHTML = `<p class="soft-note">マイクーポンはまだ空です。「マイクーポンを見る」から追加できます。</p>`;
+    return;
+  }
+  const menuIds = new Set(getBookingDraftSelectionIds("menuIds"));
+  const couponIds = new Set(getBookingDraftSelectionIds("couponIds"));
+  const availableMenuIds = new Set(getPublicReservationMenus(getBookingMenuContext()).map((menu) => String(menu.menuId)));
+  const availableCouponIds = new Set(getPublicLineCoupons(getBookingMenuContext()).map((coupon) => String(coupon.couponId)));
+  container.innerHTML = selections.map((item) => {
+    const isCoupon = item.type === "coupon";
+    const selected = (isCoupon ? couponIds : menuIds).has(String(item.itemId));
+    const available = (isCoupon ? availableCouponIds : availableMenuIds).has(String(item.itemId));
+    const detail = isCoupon
+      ? `有効期限：${formatDateUntil(item.endDate)}`
+      : `${formatYen(item.price)} / ${formatMinutes(item.duration)}`;
+    return `
+      <label class="menu-choice-card booking-my-selection-card ${available ? "" : "is-unavailable"}">
+        <input type="checkbox" data-my-booking-selection data-item-type="${escapeHtml(item.type)}" data-item-id="${escapeHtml(item.itemId)}" ${selected ? "checked" : ""} ${available ? "" : "disabled"}>
+        <span>
+          <small>${isCoupon ? "LINEクーポン" : "通常メニュー"}</small>
+          <strong>${escapeHtml(item.title)}</strong>
+          <em>${escapeHtml(available ? detail : "現在は予約対象外です")}</em>
+        </span>
+      </label>
+    `;
+  }).join("");
+}
+
+function syncMySelectionCheckboxToBooking(checkbox) {
+  const name = checkbox.dataset.itemType === "coupon" ? "couponIds" : "menuIds";
+  const itemId = String(checkbox.dataset.itemId || "");
+  const form = document.getElementById("bookingForm");
+  const sourceInput = [...form.querySelectorAll(`input[name="${name}"]`)].find((input) => String(input.value) === itemId);
+  if (!sourceInput) {
+    checkbox.checked = false;
+    showToast("この項目は現在予約で選択できません。");
+    return;
+  }
+  sourceInput.checked = checkbox.checked;
+  captureBookingDraft();
+  renderBookingMySelectionChoices();
+  updateBookingConfirm();
+}
+
+function captureBookingDraft() {
+  const form = document.getElementById("bookingForm");
+  if (!form) return;
+  const data = new FormData(form);
+  appState.bookingDraft = {
+    firstDateTime: String(data.get("firstDateTime") || ""),
+    secondDateTime: String(data.get("secondDateTime") || ""),
+    staff: String(data.get("staff") || ""),
+    menuMode: String(data.get("menuMode") || "regular"),
+    customMenu: String(data.get("customMenu") || ""),
+    memo: String(data.get("memo") || ""),
+    menuIds: [...new Set(data.getAll("menuIds").map(String))],
+    couponIds: [...new Set(data.getAll("couponIds").map(String))]
+  };
+}
+
+function restoreBookingDraft() {
+  const draft = appState.bookingDraft;
+  const form = document.getElementById("bookingForm");
+  if (!draft || !form) {
+    renderBookingFormOptions();
+    return;
+  }
+  form.elements.firstDateTime.value = draft.firstDateTime || "";
+  form.elements.secondDateTime.value = draft.secondDateTime || "";
+  form.elements.staff.value = draft.staff || "";
+  form.elements.menuMode.value = draft.menuMode || "regular";
+  form.elements.customMenu.value = draft.customMenu || "";
+  form.elements.memo.value = draft.memo || "";
+  appState.bookingMenuMode = draft.menuMode || "regular";
+  renderBookingMenuChoices(draft.menuIds || []);
+  renderBookingCouponChoices(draft.couponIds || []);
+  renderBookingMySelectionChoices();
+  updateBookingDateConstraints();
+  updateBookingConfirm();
+}
+
+function startBookingFromMySelections() {
+  captureBookingDraft();
+  const selections = getMySelections();
+  const draft = appState.bookingDraft || {};
+  appState.bookingDraft = {
+    ...draft,
+    menuMode: "regular",
+    menuIds: selections.filter((item) => item.type === "menu").map((item) => String(item.itemId)),
+    couponIds: selections.filter((item) => item.type === "coupon").map((item) => String(item.itemId))
+  };
+  appState.bookingMenuMode = "regular";
+  showView("booking");
 }
 
 function updateBookingDateConstraints() {
@@ -873,21 +965,23 @@ function updateBookingConfirm() {
   if (!form || !confirm) return;
   const formData = new FormData(form);
   const selected = getSelectedReservationMenus(formData);
+  const selectedCoupons = getSelectedBookingCoupons(formData);
   const staff = getStaffName(formData.get("staff"));
-  const mode = String(formData.get("menuMode") || "coupon");
+  const mode = String(formData.get("menuMode") || "regular");
   const menuText = mode === "consult"
     ? String(formData.get("customMenu") || "相談して決めたい").trim()
     : selected.map((menu) => menu.title).join("＋") || "未選択";
   const totalMinutes = selected.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
   const referenceAmount = selected.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
   confirm.innerHTML = `
-    <strong>7. 内容確認</strong>
+    <strong>9. 内容確認</strong>
     <div class="summary-list">
       ${summaryRows([
         ["第1希望", formatDateTime(formData.get("firstDateTime")) || "未入力"],
         ["第2希望", formatDateTime(formData.get("secondDateTime")) || "未入力"],
         ["担当者", staff || "未選択"],
         ["メニュー", menuText],
+        ["LINEクーポン", selectedCoupons.map((coupon) => coupon.title).join("、") || "利用しない"],
         ["合計施術時間", totalMinutes ? formatMinutes(totalMinutes) : "店舗確認"],
         ["参考金額", referenceAmount ? formatYen(referenceAmount) : "店舗確認"]
       ])}
@@ -905,12 +999,12 @@ function buildBookingRequestFromForm(formElement) {
     return null;
   }
   const selectedMenus = getSelectedReservationMenus(form);
-  const menuMode = String(form.get("menuMode") || "coupon");
+  const menuMode = String(form.get("menuMode") || "regular");
   const customMenu = String(form.get("customMenu") || "").trim();
   const menuTitle = menuMode === "consult"
     ? customMenu
     : selectedMenus.map((menu) => menu.title).join("＋");
-  const selectedCoupons = selectedMenus.filter((menu) => menu.type === "クーポン");
+  const selectedCoupons = getSelectedBookingCoupons(form);
   const totalMinutes = selectedMenus.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
   const referenceAmount = selectedMenus.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
   const now = new Date().toISOString();
@@ -931,10 +1025,10 @@ function buildBookingRequestFromForm(formElement) {
     menuMode,
     menu: menuTitle,
     menuIds: selectedMenus.map((menu) => menu.menuId),
-    couponIds: selectedCoupons.map((menu) => menu.myCouponId || menu.couponId).filter(Boolean),
+    couponIds: selectedCoupons.map((coupon) => coupon.couponId).filter(Boolean),
     selectedMenus: selectedMenus.map(toReservationMenuSnapshot),
     selectedCoupons: selectedCoupons.map(toReservationMenuSnapshot),
-    couponTitle: selectedCoupons.map((menu) => menu.title).join("、"),
+    couponTitle: selectedCoupons.map((coupon) => coupon.title).join("、"),
     referenceAmount,
     totalMinutes,
     totalDurationMinutes: totalMinutes,
@@ -957,12 +1051,12 @@ function validateBookingForm(form) {
   const secondCheck = validateReservableDateTime(second);
   if (!secondCheck.ok) return { ok: false, message: `第二希望：${secondCheck.message}` };
   if (!String(form.get("staff") || "")) return { ok: false, message: "希望担当者を選択してください。" };
-  const mode = String(form.get("menuMode") || "coupon");
+  const mode = String(form.get("menuMode") || "regular");
   if (mode === "consult") {
     if (!String(form.get("customMenu") || "").trim()) return { ok: false, message: "相談したい内容を入力してください。" };
     return { ok: true };
   }
-  if (!getSelectedReservationMenus(form).length) return { ok: false, message: "メニューまたはクーポンを1つ以上選択してください。" };
+  if (!getSelectedReservationMenus(form).length) return { ok: false, message: "通常メニューを1つ以上選択してください。" };
   return { ok: true };
 }
 
@@ -986,11 +1080,18 @@ function getSelectedReservationMenus(form) {
     staffId: String(form.get("staff") || ""),
     dateTime: String(form.get("firstDateTime") || "")
   };
-  const mode = String(form.get("menuMode") || "coupon");
-  const menus = mode === "coupon"
-    ? getBookableCouponMenus(context)
-    : getPublicReservationMenus(context);
+  const menus = getPublicReservationMenus(context).filter((menu) => menu.type === "通常メニュー");
   return ids.map((id) => menus.find((menu) => menu.menuId === id)).filter(Boolean);
+}
+
+function getSelectedBookingCoupons(form) {
+  const ids = form.getAll("couponIds").map(String);
+  const context = {
+    staffId: String(form.get("staff") || ""),
+    dateTime: String(form.get("firstDateTime") || "")
+  };
+  const coupons = getPublicLineCoupons(context);
+  return ids.map((id) => coupons.find((coupon) => coupon.couponId === id)).filter(Boolean);
 }
 
 function toReservationMenuSnapshot(menu) {
@@ -1003,7 +1104,9 @@ function toReservationMenuSnapshot(menu) {
     price: getMenuPrice(menu),
     durationMinutes: Number(menu.durationMinutes || 0),
     source: menu.source || "",
-    status: menu.status || ""
+    status: menu.status || "",
+    lineCouponUrl: menu.lineCouponUrl || "",
+    imageUrl: menu.imageUrl || ""
   };
 }
 
@@ -1015,8 +1118,40 @@ function getPublicCoupons(context = {}) {
   return getAdminCoupons()
     .filter((coupon) => coupon.isPublic !== false)
     .filter((coupon) => getCouponPublicationState(coupon) === "公開中")
-    .filter((coupon) => isCouponForDate(coupon, context.dateTime || jstDateKey()))
+    .filter((coupon) => isCouponWithinValidityPeriod(coupon, context.dateTime || jstDateKey()))
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+}
+
+function isCouponWithinValidityPeriod(coupon, dateTime) {
+  const date = dateTime ? new Date(dateTime) : new Date();
+  const key = Number.isNaN(date.getTime())
+    ? jstDateKey()
+    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const validFrom = normalizeApiDateKey(coupon.validStartAt || coupon.startDate || coupon.validFrom || "");
+  const validUntil = normalizeApiDateKey(coupon.validUntil || coupon.endDate || coupon.expires || "");
+  if (validFrom && key < validFrom) return false;
+  if (validUntil && key > validUntil) return false;
+  return true;
+}
+
+function isLineCouponDefinition(coupon) {
+  return Boolean(coupon?.lineCouponUrl) || coupon?.couponType === "LINE公式クーポン" || coupon?.source === "LINE公式アカウント";
+}
+
+function getPublicLineCoupons(context = {}) {
+  return getPublicCoupons(context)
+    .filter(isLineCouponDefinition)
+    .filter((coupon) => isCouponForStaff(coupon, context.staffId))
+    .filter((coupon) => isSafeLineCouponUrl(coupon.lineCouponUrl));
+}
+
+function isSafeLineCouponUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && url.hostname === "lin.ee";
+  } catch (_) {
+    return false;
+  }
 }
 
 function getProfileCoupons() {
@@ -1105,11 +1240,20 @@ function refreshGachaCardStates() {
     let changed = false;
     const next = list.map((card) => {
       const normalized = normalizeGachaDrawRecord(card);
-      const shouldExpire = ["available", "pending"].includes(normalized.lifecycleState) && isPastDateLabel(normalized.validUntil || normalized.expires);
+      const issueMonth = normalizeServerYearMonth(normalized.issueMonth || normalized.obtainedAt || normalized.drawnAt);
+      const isPastIssueMonth = issueMonth < currentMonthKey();
+      const shouldStoreInBinder = normalized.lifecycleState === "used" && isPastIssueMonth;
+      const shouldExpire = ["available", "pending", "cancelled"].includes(normalized.lifecycleState) && isPastIssueMonth;
+      if (shouldStoreInBinder) {
+        normalized.inBinder = true;
+        normalized.binderYear = issueMonth.slice(0, 4);
+        normalized.binderStoredAt = normalized.binderStoredAt || new Date().toISOString();
+      }
       if (shouldExpire) {
         normalized.lifecycleState = "expired";
         normalized.useState = "expired";
         normalized.status = "expired";
+        normalized.inBinder = false;
         normalized.expiredAt = normalized.expiredAt || new Date().toISOString();
       }
       if (JSON.stringify(normalized) !== JSON.stringify(card)) changed = true;
@@ -1168,7 +1312,8 @@ function couponToReservationMenu(coupon, isOwnedCoupon) {
 }
 
 async function markBookingCouponsAsPlanned(request) {
-  const selected = Array.isArray(request.selectedCoupons) ? request.selectedCoupons : [];
+  const selected = (Array.isArray(request.selectedCoupons) ? request.selectedCoupons : [])
+    .filter((coupon) => !coupon.lineCouponUrl && coupon.source !== "LINE公式アカウント");
   if (!selected.length) return;
   const coupons = readJson(STORAGE_KEYS.myCoupons, []);
   const member = findMember(request.memberId) || getProfile();
@@ -1263,6 +1408,7 @@ function normalizeCouponDefinition(coupon) {
     title: coupon.title || coupon.name || "クーポン",
     description: coupon.description || coupon.desc || coupon.message || "",
     imageUrl: coupon.imageUrl || "",
+    lineCouponUrl: coupon.lineCouponUrl || "",
     couponType: coupon.couponType || (coupon.isLineOnly ? "LINE限定クーポン" : "全会員向けクーポン"),
     category: coupon.category || "おすすめ",
     regularPrice: Number(coupon.regularPrice || 0),
@@ -1273,10 +1419,12 @@ function normalizeCouponDefinition(coupon) {
     targetStaff: Array.isArray(coupon.targetStaff) ? coupon.targetStaff : ["all"],
     targetWeekdays: Array.isArray(coupon.targetWeekdays) ? coupon.targetWeekdays : [0, 2, 3, 4, 5, 6],
     condition: coupon.condition || coupon.usageCondition || "",
-    publishStartAt: coupon.publishStartAt || coupon.startAt || jstDateKey(),
-    publishEndAt: coupon.publishEndAt || coupon.endAt || "",
-    validStartAt: coupon.validStartAt || coupon.startAt || jstDateKey(),
-    validUntil: coupon.validUntil || coupon.expires || coupon.endAt || endOfMonthDateKey(),
+    startDate: coupon.startDate || coupon.validFrom || coupon.publishStartAt || coupon.startAt || jstDateKey(),
+    endDate: coupon.endDate || coupon.validUntil || coupon.expires || coupon.publishEndAt || coupon.endAt || "",
+    publishStartAt: coupon.publishStartAt || coupon.startDate || coupon.validFrom || coupon.startAt || jstDateKey(),
+    publishEndAt: coupon.publishEndAt || coupon.endDate || coupon.validUntil || coupon.endAt || "",
+    validStartAt: coupon.validStartAt || coupon.startDate || coupon.validFrom || coupon.startAt || jstDateKey(),
+    validUntil: coupon.validUntil || coupon.endDate || coupon.expires || coupon.endAt || endOfMonthDateKey(),
     perUserLimit: Number(coupon.perUserLimit || 1),
     canCombine: Boolean(coupon.canCombine),
     selectableOnBooking: coupon.selectableOnBooking !== false,
@@ -1331,6 +1479,7 @@ function getCouponBenefitText(coupon) {
 
 function couponMatchesAdminFilter(coupon, filter) {
   const state = getCouponPublicationState(coupon);
+  if (filter === "LINEクーポン") return isLineCouponDefinition(coupon) && state === "公開中";
   if (["公開中", "公開予定", "終了", "非公開"].includes(filter)) return state === filter;
   if (filter === "個別付与用") return coupon.couponType === "個別付与クーポン" || coupon.source === "スタッフ手動付与";
   if (filter === "ガチャ連動") return coupon.couponType === "ガチャ当選クーポン" || coupon.source === "ガチャ";
@@ -1546,6 +1695,8 @@ function renderApp() {
   renderFortune();
   renderGacha();
   renderMyCards();
+  renderCollectionRewardsPage();
+  renderGachaHistoryPage();
   renderLounge();
   renderMyPage();
   renderAdmin();
@@ -1553,7 +1704,7 @@ function renderApp() {
 
 function renderHome() {
   const nextReservation = buildNextReservationCardData(getNextReservation());
-  const coupons = getAvailableCoupons();
+  const coupons = [...getPublicLineCoupons(), ...getAvailableCoupons()];
   const gachaStatus = getMonthlyGachaStatus();
   const reservationTitle = document.getElementById("homeNextReservationTitle");
   const reservationMeta = document.getElementById("homeNextReservationMeta");
@@ -1661,6 +1812,7 @@ function showView(viewKey, options = {}) {
   const viewId = viewMap[viewKey] || viewKey;
   const target = document.getElementById(viewId);
   if (!target) return;
+  if (appState.currentView === "bookingView" && viewId !== "bookingView" && options.preserveBookingDraft !== false) captureBookingDraft();
   if (!options.replace) appState.previousView = appState.currentView;
   appState.currentView = viewId;
   document.querySelectorAll(".view").forEach((view) => view.classList.toggle("is-active", view.id === viewId));
@@ -1673,10 +1825,13 @@ function showView(viewKey, options = {}) {
   window.scrollTo({ top: 0, behavior: "smooth" });
   updateNav(routeKey);
   if (routeKey === "home") renderHome();
+  if (routeKey === "booking") restoreBookingDraft();
   if (routeKey === "fortune") renderFortune();
   if (routeKey === "coupons") renderCoupons();
   if (routeKey === "gacha") renderGacha();
   if (routeKey === "mycards") renderMyCards();
+  if (routeKey === "collectionRewards") renderCollectionRewardsPage();
+  if (routeKey === "gachaHistory") renderGachaHistoryPage();
   if (routeKey === "lounge") renderLounge();
   if (routeKey === "mypage") renderMyPage();
   if (routeKey === "admin") renderAdmin();
@@ -2213,12 +2368,13 @@ function renderFortuneCompatibilityError(error) {
 }
 
 function renderCoupons() {
-  const publicCoupons = getPublicCoupons();
-  const myCoupons = getProfileCoupons();
-  const categories = ["使用可能", "使用済み", "期限切れ", "予約で使用予定", "ガチャ当選", "年間特典", ...new Set(publicCoupons.map((coupon) => coupon.category || coupon.couponType))];
-  if (!categories.includes(appState.couponCategory)) appState.couponCategory = "使用可能";
+  const lineCoupons = getPublicLineCoupons();
+  const menus = getPublicReservationMenus();
+  const mySelections = getMySelections();
+  const categories = ["クーポン", "通常メニュー", "マイクーポン"];
+  if (!categories.includes(appState.couponCategory)) appState.couponCategory = "クーポン";
   document.getElementById("couponTabs").innerHTML = categories.map((category) => `
-    <button type="button" class="${category === appState.couponCategory ? "is-active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>
+    <button type="button" role="tab" aria-selected="${category === appState.couponCategory}" class="${category === appState.couponCategory ? "is-active" : ""}" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>
   `).join("");
   document.getElementById("couponTabs").querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -2228,31 +2384,174 @@ function renderCoupons() {
   });
 
   const selected = appState.couponCategory;
-  let cards = [];
-  if (["使用可能", "使用済み", "期限切れ", "予約で使用予定"].includes(selected)) {
-    cards = myCoupons.filter((coupon) => getCouponStatus(coupon) === selected);
-  } else if (selected === "ガチャ当選") {
-    cards = myCoupons.filter((coupon) => coupon.sourceType === "gacha-card" || coupon.source === "ガチャ");
-  } else if (selected === "年間特典") {
-    cards = myCoupons.filter((coupon) => coupon.sourceType === "collection-reward" || coupon.source === "年間特典");
-  } else {
-    cards = publicCoupons.filter((coupon) => (coupon.category || coupon.couponType) === selected);
+  const couponList = document.getElementById("couponList");
+  if (selected === "クーポン") {
+    couponList.innerHTML = lineCoupons.map(lineCouponSelectionCardHtml).join("") || "<p class=\"soft-note\">現在表示できるクーポンはありません。</p>";
+    return;
   }
-  document.getElementById("couponList").innerHTML = cards.map((coupon) => couponCardHtml(coupon, myCoupons.includes(coupon))).join("") || "<p class=\"soft-note\">表示できるクーポンはありません。</p>";
+  if (selected === "通常メニュー") {
+    couponList.innerHTML = menus.map(menuSelectionCardHtml).join("") || "<p class=\"soft-note\">現在表示できる通常メニューはありません。</p>";
+    return;
+  }
+  couponList.innerHTML = `
+    ${mySelections.map(mySelectionCardHtml).join("") || "<p class=\"soft-note\">まだ選択された項目はありません。クーポンまたは通常メニューから追加してください。</p>"}
+    <div class="my-booking-cta">
+      <button class="primary-button" type="button" data-coupon-action="book" ${mySelections.length ? "" : "disabled"}>${mySelections.length === 1 && mySelections[0].type === "coupon" ? "このクーポンを使って予約する" : "この内容で予約する"}</button>
+    </div>
+  `;
 }
 
-function couponCardHtml(coupon, isMine = false) {
-  const status = isMine ? getCouponStatus(coupon) : getCouponPublicationState(coupon);
-  const benefit = getCouponBenefitText(coupon);
+function getMySelections() {
+  const selections = readJson(STORAGE_KEYS.mySelections, []);
+  if (!Array.isArray(selections)) return [];
+  const seen = new Set();
+  return selections.filter((item) => {
+    const type = item?.type === "coupon" || item?.type === "menu" ? item.type : "";
+    const itemId = String(item?.itemId || "");
+    const key = `${type}:${itemId}`;
+    if (!type || !itemId || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mySelectionKey(type, itemId) {
+  return `${String(type || "")}:${String(itemId || "")}`;
+}
+
+function isMySelectionAdded(type, itemId) {
+  const key = mySelectionKey(type, itemId);
+  return getMySelections().some((item) => mySelectionKey(item.type, item.itemId) === key);
+}
+
+function handleCouponSelectionAction(button) {
+  const action = button.dataset.couponAction;
+  const type = button.dataset.itemType;
+  const itemId = button.dataset.itemId;
+  if (action === "add") addMySelection(type, itemId);
+  if (action === "remove") removeMySelection(type, itemId);
+  if (action === "book") startBookingFromMySelections();
+}
+
+function addMySelection(type, itemId) {
+  const selections = getMySelections();
+  const key = mySelectionKey(type, itemId);
+  if (selections.some((item) => mySelectionKey(item.type, item.itemId) === key)) {
+    showToast("すでにマイクーポンへ追加済みです。");
+    return;
+  }
+
+  let selection = null;
+  if (type === "coupon") {
+    const coupon = getPublicLineCoupons().find((item) => String(item.couponId) === String(itemId));
+    if (coupon) {
+      selection = {
+        type: "coupon",
+        itemId: String(coupon.couponId),
+        title: coupon.title,
+        description: coupon.description || coupon.message || "",
+        imageUrl: coupon.imageUrl || "",
+        lineCouponUrl: coupon.lineCouponUrl || "",
+        endDate: coupon.expires || coupon.validUntil || coupon.endDate || coupon.endAt || "",
+        addedAt: new Date().toISOString()
+      };
+    }
+  }
+  if (type === "menu") {
+    const menu = getPublicReservationMenus().find((item) => String(item.menuId) === String(itemId));
+    if (menu) {
+      selection = {
+        type: "menu",
+        itemId: String(menu.menuId),
+        title: menu.title,
+        category: menu.category || "その他",
+        description: menu.description || "",
+        price: Number(menu.regularPrice || 0),
+        duration: Number(menu.durationMinutes || 0),
+        addedAt: new Date().toISOString()
+      };
+    }
+  }
+  if (!selection) {
+    showToast("項目を追加できませんでした。再読み込みしてお試しください。");
+    return;
+  }
+  writeJson(STORAGE_KEYS.mySelections, [...selections, selection]);
+  renderCoupons();
+  showToast("マイクーポンへ追加しました。");
+}
+
+function removeMySelection(type, itemId) {
+  const key = mySelectionKey(type, itemId);
+  const selections = getMySelections();
+  const next = selections.filter((item) => mySelectionKey(item.type, item.itemId) !== key);
+  if (next.length === selections.length) return;
+  writeJson(STORAGE_KEYS.mySelections, next);
+  renderCoupons();
+  showToast("マイクーポンから削除しました。");
+}
+
+function buildMySelectionReservationPayload() {
+  const selectedItems = getMySelections().map(({ type, itemId, title }) => ({ type, itemId, title }));
+  return {
+    selectedItems,
+    menuIds: selectedItems.filter((item) => item.type === "menu").map((item) => item.itemId),
+    couponIds: selectedItems.filter((item) => item.type === "coupon").map((item) => item.itemId)
+  };
+}
+
+function selectionButtonHtml(type, itemId) {
+  const added = isMySelectionAdded(type, itemId);
+  return `<button class="secondary-button ${added ? "is-added" : ""}" type="button" data-coupon-action="add" data-item-type="${escapeHtml(type)}" data-item-id="${escapeHtml(itemId)}" ${added ? "disabled" : ""}>${added ? "追加済み" : "マイクーポンに追加"}</button>`;
+}
+
+function lineCouponSelectionCardHtml(coupon) {
+  const expiry = coupon.expires || coupon.validUntil || coupon.endDate || coupon.endAt;
   return `
-    <article class="coupon-card ${isMine ? "is-mine" : ""}">
+    <article class="coupon-card">
       ${coupon.imageUrl ? `<img src="${escapeHtml(coupon.imageUrl)}" alt="${escapeHtml(coupon.title)}">` : ""}
-      <span>${escapeHtml(coupon.couponType || coupon.category || "クーポン")}</span>
+      <span>クーポン</span>
       <h3>${escapeHtml(coupon.title)}</h3>
-      <p>${escapeHtml(benefit || coupon.description || coupon.message || "")}</p>
-      <small>期限：${escapeHtml(formatDateUntil(coupon.expires || coupon.validUntil || coupon.endAt))} / 発行元：${escapeHtml(coupon.source || coupon.sourceType || "Console作成")}</small>
-      <small>状態：${escapeHtml(status)}${coupon.reservationId ? ` / 予約 ${escapeHtml(coupon.reservationId)}` : ""}</small>
-      <button class="secondary-button" type="button" data-message="ご利用時はスタッフがTEAM LINK Consoleで使用確認します。お客様自身では使用済みにできません。">使い方を見る</button>
+      <p>${escapeHtml(coupon.description || coupon.message || "")}</p>
+      <small>有効期限：${escapeHtml(formatDateUntil(expiry))}</small>
+      ${selectionButtonHtml("coupon", coupon.couponId)}
+    </article>
+  `;
+}
+
+function menuSelectionCardHtml(menu) {
+  return `
+    <article class="coupon-card menu-selection-card">
+      <span>通常メニュー</span>
+      <small class="selection-category">${escapeHtml(menu.category || "その他")}</small>
+      <h3>${escapeHtml(menu.title)}</h3>
+      <p>${escapeHtml(menu.description || "")}</p>
+      <div class="selection-meta">
+        <strong>${escapeHtml(formatYen(menu.regularPrice))}</strong>
+        <small>施術時間：${escapeHtml(formatMinutes(menu.durationMinutes))}</small>
+      </div>
+      ${selectionButtonHtml("menu", menu.menuId)}
+    </article>
+  `;
+}
+
+function mySelectionCardHtml(item) {
+  const isCoupon = item.type === "coupon";
+  const safeLineUrl = isCoupon && isSafeLineCouponUrl(item.lineCouponUrl) ? item.lineCouponUrl : "";
+  return `
+    <article class="coupon-card is-mine">
+      ${isCoupon && item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.title)}">` : ""}
+      <span>${isCoupon ? "クーポン" : "通常メニュー"}</span>
+      ${!isCoupon && item.category ? `<small class="selection-category">${escapeHtml(item.category)}</small>` : ""}
+      <h3>${escapeHtml(item.title)}</h3>
+      ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+      ${isCoupon
+        ? `<small>有効期限：${escapeHtml(formatDateUntil(item.endDate))}</small>`
+        : `<div class="selection-meta"><strong>${escapeHtml(formatYen(item.price))}</strong><small>施術時間：${escapeHtml(formatMinutes(item.duration))}</small></div>`}
+      <div class="selection-actions">
+        ${safeLineUrl ? `<a class="secondary-button" href="${escapeHtml(safeLineUrl)}" target="_blank" rel="noopener noreferrer">LINEでクーポンを開く</a>` : ""}
+        <button class="selection-remove-button" type="button" data-coupon-action="remove" data-item-type="${escapeHtml(item.type)}" data-item-id="${escapeHtml(item.itemId)}">削除</button>
+      </div>
     </article>
   `;
 }
@@ -2331,14 +2630,27 @@ function renderGachaCardChoices() {
 }
 
 function renderGachaClaimedStage(draw) {
+  const state = getGachaLifecycleState(draw || {});
+  const canPresent = !["used", "expired"].includes(state);
+  const userFacingState = state === "used" ? "使用済み" : state === "expired" ? "期限切れ" : "未使用";
   return `
-    <div class="gacha-claimed-stage">
-      <p class="kicker">Already collected</p>
-      <strong>今月のカードは獲得済みです</strong>
+    <div class="gacha-claimed-stage gacha-current-win">
+      <p class="kicker">This month's card</p>
+      <strong>今月当たったカード</strong>
       <div class="gacha-claimed-card">
         ${gachaCompletedCardHtml(draw || {}, "result")}
       </div>
-      <small>獲得カード：${escapeHtml(draw?.characterName || draw?.cardName || "獲得カード")} / ${escapeHtml(draw?.prizeName || "今月の景品")}</small>
+      <div class="gacha-current-win-details">
+        ${summaryRows([
+          ["キャラクター", draw?.characterName || draw?.cardName || "獲得カード"],
+          ["レアリティ", draw?.rarity || "-"],
+          ["景品", draw?.prizeName || "今月の景品"],
+          ["景品内容", draw?.prizeDescription || draw?.message || "-"],
+          ["獲得日", formatDateTime(draw?.obtainedAt || draw?.drawnAt) || "-"],
+          ["状態", userFacingState]
+        ])}
+      </div>
+      ${canPresent ? `<div class="gacha-staff-present"><strong>スタッフにこの画面を見せてください</strong><small>来店時にこのカードと景品内容をスタッフが確認します。</small>${draw?.confirmationCode ? `<em>確認コード ${escapeHtml(draw.confirmationCode)}</em>` : ""}</div>` : ""}
     </div>
   `;
 }
@@ -2403,29 +2715,11 @@ async function selectGachaCard(button) {
 function renderCouponGachaDashboard() {
   const container = document.getElementById("couponGachaDashboard");
   if (!container) return;
-  const profile = getProfile();
-  const cards = getMemberCardHistory(profile);
-  const available = cards.filter((card) => getGachaLifecycleState(card) === "available");
-  const pending = cards.filter((card) => getGachaLifecycleState(card) === "pending");
-  const used = cards.filter((card) => getGachaLifecycleState(card) === "used");
-  const expired = cards.filter((card) => getGachaLifecycleState(card) === "expired");
-  const currentYearCards = used.filter((card) => String(card.issueMonth || "").startsWith(String(currentYear())));
-  const currentYearCollectedCards = cards.filter((card) => getGachaLifecycleState(card) !== "expired" && String(card.issueMonth || "").startsWith(String(currentYear())));
-  const archivedYears = [...new Set(used.map((card) => String(card.issueMonth || "").slice(0, 4)).filter((year) => year && Number(year) !== currentYear()))].sort().reverse();
-  const rewards = getCollectionRewardStates(profile, used);
   container.innerHTML = `
-    <section class="coupon-gacha-panel">
-      <div class="section-head compact-head">
-        <p class="kicker">Coupon gacha</p>
-        <h3>クーポンガチャ</h3>
-        <p>当選カードは月末まで使用できます。使用時はスタッフ確認が必要です。</p>
-      </div>
-      ${renderGachaCouponShelf("未使用クーポン", available, "available")}
-      ${renderGachaCouponShelf("スタッフ確認待ち", pending, "pending")}
-      ${renderGachaBinderSection(currentYear(), currentYearCards, currentYearCollectedCards)}
-      ${renderArchivedBinderYears(archivedYears, used)}
-      ${renderExpiredGachaHistory(expired)}
-      ${renderCollectionRewardPanel(rewards)}
+    <section class="gacha-top-actions" aria-label="ガチャメニュー">
+      <button type="button" data-view="mycards"><strong>マイカードを見る</strong><small>取得状況と30キャラクター一覧</small></button>
+      <button type="button" data-view="collectionRewards"><strong>コレクション特典</strong><small>達成条件と現在の進捗</small></button>
+      <button type="button" data-view="gachaHistory"><strong>ガチャ履歴</strong><small>過去に獲得したカード</small></button>
     </section>
   `;
 }
@@ -2518,9 +2812,15 @@ function handleGachaAction(button) {
   const action = button.dataset.gachaAction;
   const id = button.dataset.id || "";
   if (action === "selectCard") return selectGachaCard(button);
+  if (action === "selectBinderYear") {
+    appState.gachaBinderYear = Number(button.dataset.year || currentYear());
+    renderMyCards();
+    return;
+  }
   if (action === "closeRevealToCoupons") {
     closeGachaPreviewAnimation();
-    document.getElementById("couponGachaDashboard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    renderGacha();
+    document.getElementById("gachaStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
   if (action === "requestUse") return requestGachaCardUse(id);
@@ -2567,9 +2867,10 @@ async function requestGachaCardUse(cardId) {
   if (isProductionApiMode() && card.drawId) {
     try {
       const profile = getProfile();
+      const userKey = getCurrentUserKey();
       const result = await apiRequest("requestCouponUse", {
-        userId: profile.memberId,
-        memberId: profile.memberId,
+        userId: userKey,
+        memberId: userKey,
         lineUserId: profile.lineUserId || "",
         drawId: card.drawId
       });
@@ -2582,7 +2883,7 @@ async function requestGachaCardUse(cardId) {
         item.confirmationCode = coupon.confirmationCode || item.confirmationCode || "";
       });
       showToast(`スタッフへこの画面を見せてください。確認コード：${coupon.confirmationCode || "-"}`);
-      await refreshProductionGachaCoupons(profile.memberId);
+      await refreshProductionGachaCoupons(userKey);
       renderApp();
       return;
     } catch (error) {
@@ -2611,13 +2912,14 @@ async function cancelGachaUseRequest(cardId) {
   if (isProductionApiMode() && card.drawId) {
     try {
       const profile = getProfile();
+      const userKey = getCurrentUserKey();
       await apiRequest("cancelCouponUseRequest", {
-        userId: profile.memberId,
-        memberId: profile.memberId,
+        userId: userKey,
+        memberId: userKey,
         lineUserId: profile.lineUserId || "",
         drawId: card.drawId
       });
-      await refreshProductionGachaCoupons(profile.memberId);
+      await refreshProductionGachaCoupons(userKey);
       showToast("使用申請をキャンセルしました。");
       renderApp();
       return;
@@ -2670,8 +2972,9 @@ async function drawGachaRemote(issueMonth, options = {}) {
   try {
     if (!options.silent) showToast("抽選しています…");
     const profile = getProfile();
+    const userKey = getCurrentUserKey();
     console.info("[TEAM LINK GACHA] drawMonthlyGacha start", {
-      userId: profile.memberId,
+      userId: userKey,
       lineUserId: profile.lineUserId || "",
       targetYearMonth: issueMonth
     });
@@ -2679,8 +2982,8 @@ async function drawGachaRemote(issueMonth, options = {}) {
       const configResult = await apiRequest("getGachaConfig", {});
       console.info("[TEAM LINK API OK]", { action: "getGachaConfig", data: configResult.data || configResult });
       const statusResult = await apiRequest("checkMonthlyDrawStatus", {
-        userId: profile.memberId,
-        memberId: profile.memberId,
+        userId: userKey,
+        memberId: userKey,
         lineUserId: profile.lineUserId || "",
         targetYearMonth: issueMonth
       });
@@ -2689,15 +2992,15 @@ async function drawGachaRemote(issueMonth, options = {}) {
         if (statusResult.data?.draw) {
           const existing = mapServerGachaDrawToLocal(statusResult.data.draw, statusResult.data.coupon || {});
           upsertLocalGachaDraw(existing);
-          await refreshProductionGachaCoupons(profile.memberId);
+          await refreshProductionGachaCoupons(userKey);
         }
         showToast(statusResult.data?.draw ? "今月のガチャはすでに引いています。" : "今月のガチャは利用できません。");
         return null;
       }
     }
     const result = await apiRequest("drawMonthlyGacha", {
-      userId: profile.memberId,
-      memberId: profile.memberId,
+      userId: userKey,
+      memberId: userKey,
       lineUserId: profile.lineUserId || "",
       targetYearMonth: issueMonth,
       transactionId: createTransactionId("GACHA-DRAW")
@@ -2728,6 +3031,7 @@ async function drawGachaRemote(issueMonth, options = {}) {
 
 function mapServerGachaDrawToLocal(draw, reward) {
   const profile = getProfile();
+  const userKey = getCurrentUserKey();
   const issueMonth = normalizeServerYearMonth(draw.targetYearMonth || reward.targetYearMonth || draw.drawnAt || reward.createdAt);
   const serverCardId = draw.cardId || reward.cardId || "";
   const officialCard = getOfficialGachaCard(serverCardId, issueMonth);
@@ -2741,7 +3045,7 @@ function mapServerGachaDrawToLocal(draw, reward) {
     ...(officialCard || {}),
     drawId: draw.drawId,
     cardHistoryId: draw.drawId,
-    memberId: profile.memberId,
+    memberId: userKey,
     lineUserId: profile.lineUserId || "",
     issueMonth,
     cardId: officialCard?.cardId || characterId || serverCardId,
@@ -2839,7 +3143,7 @@ function showGachaResult(card, isSaved) {
       ["状態", card.status || "未使用"]
     ])}</div>
     <div class="action-row">
-      <button class="primary-button compact" type="button" data-view="gacha">クーポンを見る</button>
+      <button class="primary-button compact" type="button" data-view="gacha">当選カードを見る</button>
       <button class="primary-button compact" type="button" data-view="mycards">コレクションを見る</button>
       <button class="secondary-button compact" type="button" data-view="home">ホームへ戻る</button>
     </div>
@@ -3391,6 +3695,7 @@ function drawPrize(issueMonth) {
 
 function createGachaDraw(issueMonth) {
   const profile = getProfile();
+  const userKey = getCurrentUserKey();
   const setting = getGachaSetting(issueMonth);
   if (!setting || setting.status !== "公開") {
     showToast("今月のガチャは準備中です。");
@@ -3409,7 +3714,7 @@ function createGachaDraw(issueMonth) {
   return {
     drawId: createId("GACHA"),
     cardHistoryId: createId("CARD"),
-    memberId: profile.memberId,
+    memberId: userKey,
     lineUserId: profile.lineUserId || "",
     issueMonth,
     cardId: card.cardId,
@@ -3535,7 +3840,7 @@ function removeLocalGachaDrawForUserMonth(userId, month) {
   });
 }
 
-async function refreshProductionGachaCoupons(userId = getProfile().memberId) {
+async function refreshProductionGachaCoupons(userId = getCurrentUserKey()) {
   if (!isProductionApiMode()) return;
   const result = await apiRequest("getUserCoupons", { userId });
   const coupons = result.data?.coupons || result.coupons || [];
@@ -3601,7 +3906,7 @@ function openGachaRevealAnimation({ choice = "center", testMode = false } = {}) 
     </article>
     <p class="gacha-reveal-message" data-gacha-reveal-message>運命のカードを選んでいます…</p>
     <div class="gacha-reveal-actions" data-gacha-reveal-actions hidden>
-      <button class="primary-button compact" type="button" data-gacha-action="closeRevealToCoupons">クーポンを見る</button>
+      <button class="primary-button compact" type="button" data-gacha-action="closeRevealToCoupons">当選カードを見る</button>
     </div>
   `;
   window.setTimeout(() => {
@@ -3830,17 +4135,19 @@ function renderMyCards() {
   if (!container) return;
   const profile = getProfile();
   const cards = getMemberCardHistory(profile);
-  const unused = cards.filter((card) => getGachaLifecycleState(card) === "available");
-  const pending = cards.filter((card) => getGachaLifecycleState(card) === "pending");
-  const used = cards.filter((card) => getGachaLifecycleState(card) === "used");
-  const expired = cards.filter((card) => getGachaLifecycleState(card) === "expired");
-  const collected = cards.filter((card) => getGachaLifecycleState(card) !== "expired");
-  const collection = buildCollectionSummary(collected, currentYear());
+  const availableYears = getBinderYears(cards);
+  const selectedYear = availableYears.includes(Number(appState.gachaBinderYear)) ? Number(appState.gachaBinderYear) : currentYear();
+  appState.gachaBinderYear = selectedYear;
+  const collected = getBinderCards(cards, selectedYear);
+  const collection = buildCollectionSummary(collected, selectedYear);
   const characterCollection = buildCharacterCollection(collected);
   container.innerHTML = `
+    <div class="binder-year-tabs" role="tablist" aria-label="カードバインダーの年">
+      ${availableYears.map((year) => `<button type="button" role="tab" data-gacha-action="selectBinderYear" data-year="${year}" aria-selected="${year === selectedYear}">${year}年${year === currentYear() ? "" : "（過去）"}</button>`).join("")}
+    </div>
     <article class="admin-preview">
-      <p class="kicker">${currentYear()} collection</p>
-      <h3>ガチャコレクション</h3>
+      <p class="kicker">${selectedYear} collection</p>
+      <h3>${selectedYear}年カードバインダー</h3>
       <div class="collection-progress"><strong>${characterCollection.owned} / 30種類</strong><span>コンプリート率 ${characterCollection.rate}% / 次の年間特典まであと${collection.nextRemaining}枚</span></div>
       <div class="mini-grid">
         <span>UR ${characterCollection.rarity.UR || 0}種</span>
@@ -3851,12 +4158,62 @@ function renderMyCards() {
       </div>
     </article>
     ${renderCollectionDex(characterCollection.items)}
-    ${renderCardShelf("未使用", unused)}
-    ${renderCardShelf("スタッフ確認待ち", pending)}
-    ${renderCardShelf("使用済み", used)}
-    ${renderCardShelf("期限切れ", expired)}
-    ${renderCardShelf("今年のバインダー", used.filter((card) => String(card.issueMonth || "").startsWith(String(currentYear()))))}
-    ${renderCardShelf("過去年度の履歴", used.filter((card) => !String(card.issueMonth || "").startsWith(String(currentYear()))))}
+    ${renderCardShelf("取得済みカード", collected)}
+  `;
+}
+
+function renderCollectionRewardsPage() {
+  const container = document.getElementById("collectionRewardsContent");
+  if (!container) return;
+  const profile = getProfile();
+  const cards = getBinderCards(getMemberCardHistory(profile), currentYear());
+  const rewards = getCollectionRewardStates(profile, cards)
+    .filter((reward) => reward.isPublic !== false && reward.active !== false)
+    .sort((a, b) => Number(a.sortOrder || 999) - Number(b.sortOrder || 999));
+  container.innerHTML = `
+    <div class="collection-reward-list">
+      ${rewards.map((reward) => {
+        const progress = getCollectionRewardProgress(reward, cards);
+        const achieved = progress.achieved;
+        return `
+          <article class="collection-reward-card ${achieved ? "is-achieved" : ""}">
+            <div class="collection-reward-head">
+              <span>${achieved ? "達成" : "チャレンジ中"}</span>
+              <strong>${escapeHtml(reward.title)}</strong>
+            </div>
+            <p>${escapeHtml(reward.description || "")}</p>
+            <div class="collection-reward-progress">
+              <strong>現在 ${escapeHtml(progress.current)} / ${escapeHtml(progress.target)}</strong>
+              <progress max="${escapeHtml(progress.target)}" value="${escapeHtml(Math.min(progress.current, progress.target))}"></progress>
+            </div>
+            ${reward.prizeName ? `<div class="collection-reward-prize"><small>達成特典</small><strong>${escapeHtml(reward.prizeName)}</strong>${reward.prizeDescription ? `<p>${escapeHtml(reward.prizeDescription)}</p>` : ""}</div>` : ""}
+          </article>
+        `;
+      }).join("") || `<p class="soft-note">現在表示できるコレクション特典はありません。</p>`}
+    </div>
+    <button class="secondary-button" type="button" data-view="gacha">今月のガチャへ戻る</button>
+  `;
+}
+
+function renderGachaHistoryPage() {
+  const container = document.getElementById("gachaHistoryContent");
+  if (!container) return;
+  const cards = getMemberCardHistory(getProfile());
+  container.innerHTML = `
+    <div class="gacha-history-list">
+      ${cards.map((card) => `
+        <article class="gacha-history-row">
+          ${gachaCharacterImageHtml(card)}
+          <div>
+            <small>${escapeHtml(formatDateTime(card.obtainedAt || card.drawnAt) || card.issueMonth || "")}</small>
+            <strong>${escapeHtml(card.characterName || card.cardName || "獲得カード")}</strong>
+            <span>${escapeHtml(card.rarity || "-")} / ${escapeHtml(card.prizeName || "景品")}</span>
+            <em>${escapeHtml(getGachaStateLabel(card))}</em>
+          </div>
+        </article>
+      `).join("") || `<p class="soft-note">ガチャ履歴はまだありません。</p>`}
+    </div>
+    <button class="secondary-button" type="button" data-view="gacha">今月のガチャへ戻る</button>
   `;
 }
 
@@ -4570,25 +4927,23 @@ function bookingCard(booking) {
 function renderAdminReservationMenus() {
   const menus = getReservationMenus();
   const regularMenus = menus.filter((menu) => menu.type === "通常メニュー");
-  const couponMenus = menus.filter((menu) => menu.type === "クーポン");
   return `
     <section class="admin-section-head">
       <div>
         <h3>予約メニュー管理</h3>
-        <p>お客様向け予約相談フォームに表示する通常メニューとクーポンを管理します。</p>
+        <p>通常メニューは本番スプレッドシートの MenuMaster を正本として管理します。</p>
       </div>
-      <button class="secondary-button compact" type="button" data-admin-action="addReservationMenu">新規作成</button>
+      <a class="secondary-button compact" href="https://docs.google.com/spreadsheets/d/${escapeHtml(TEAM_LINK_DATA_SPREADSHEET_ID)}/edit#gid=2060810001" target="_blank" rel="noopener">MenuMasterを開く</a>
     </section>
     <article class="admin-preview">
       <div class="mini-grid">
-        <span>公開中 ${menus.filter((menu) => menu.isPublic !== false).length}件</span>
+        <span>公開中 ${regularMenus.filter((menu) => menu.isPublic !== false).length}件</span>
         <span>通常 ${regularMenus.length}件</span>
-        <span>クーポン ${couponMenus.length}件</span>
+        <span>${appState.menuMasterSyncStatus === "synced" ? "データ元 MenuMaster" : appState.menuMasterSyncStatus === "unavailable" ? "MenuMaster取得失敗" : "MenuMaster同期中"}</span>
       </div>
-      <p class="soft-note">予約フォームでは、公開中・公開期間内・対象曜日内・選択スタッフ対応可のメニューだけを表示します。予約履歴には予約時点の価格と時間を保存します。</p>
+      <p class="soft-note">${appState.menuMasterSyncStatus === "synced" ? "本番スプレッドシートのMenuMasterから同期済みです。" : appState.menuMasterSyncStatus === "unavailable" ? "MenuMasterを取得できませんでした。API接続を確認してください。" : "本番スプレッドシートのMenuMasterを取得しています。"} 予約履歴には予約時点の価格と時間を保存します。</p>
     </article>
     ${renderReservationMenuGroup("通常メニュー", regularMenus)}
-    ${renderReservationMenuGroup("クーポン", couponMenus)}
   `;
 }
 
@@ -4629,12 +4984,9 @@ function reservationMenuCard(menu) {
       </div>
       ${menu.condition ? `<p>利用条件：${escapeHtml(menu.condition)}</p>` : ""}
       <div class="admin-actions mini">
-        <button type="button" data-admin-action="editReservationMenu" data-id="${escapeHtml(menu.menuId)}">編集</button>
-        <button type="button" data-admin-action="duplicateReservationMenu" data-id="${escapeHtml(menu.menuId)}">複製</button>
-        <button type="button" data-admin-action="toggleReservationMenuPublic" data-id="${escapeHtml(menu.menuId)}">${menu.isPublic === false ? "公開" : "非公開"}</button>
-        <button type="button" data-admin-action="moveReservationMenuUp" data-id="${escapeHtml(menu.menuId)}">上へ</button>
-        <button type="button" data-admin-action="moveReservationMenuDown" data-id="${escapeHtml(menu.menuId)}">下へ</button>
-        <button type="button" data-admin-action="deleteReservationMenu" data-id="${escapeHtml(menu.menuId)}">削除</button>
+        ${isProductionApiMode()
+          ? `<span class="soft-note">編集はMenuMasterで行います</span>`
+          : `<button type="button" data-admin-action="editReservationMenu" data-id="${escapeHtml(menu.menuId)}">編集</button><button type="button" data-admin-action="duplicateReservationMenu" data-id="${escapeHtml(menu.menuId)}">複製</button><button type="button" data-admin-action="toggleReservationMenuPublic" data-id="${escapeHtml(menu.menuId)}">${menu.isPublic === false ? "公開" : "非公開"}</button><button type="button" data-admin-action="moveReservationMenuUp" data-id="${escapeHtml(menu.menuId)}">上へ</button><button type="button" data-admin-action="moveReservationMenuDown" data-id="${escapeHtml(menu.menuId)}">下へ</button><button type="button" data-admin-action="deleteReservationMenu" data-id="${escapeHtml(menu.menuId)}">削除</button>`}
       </div>
     </article>
   `;
@@ -4643,17 +4995,17 @@ function reservationMenuCard(menu) {
 function renderAdminCoupons() {
   const coupons = getAdminCoupons();
   const myCoupons = readJson(STORAGE_KEYS.myCoupons, []);
-  const filters = ["公開中", "公開予定", "終了", "非公開", "個別付与用", "ガチャ連動", "年間特典連動"];
-  const current = filters.includes(appState.adminCouponFilter) ? appState.adminCouponFilter : "公開中";
+  const filters = ["LINEクーポン", "公開予定", "終了", "非公開", "ガチャ連動", "年間特典連動"];
+  const current = filters.includes(appState.adminCouponFilter) ? appState.adminCouponFilter : "LINEクーポン";
   const visibleCoupons = coupons.filter((coupon) => couponMatchesAdminFilter(coupon, current));
   return `
     <section class="admin-section-head">
       <div>
         <h3>クーポン管理</h3>
-        <p>通常クーポン、個別付与、ガチャ当選、年間特典を同じ仕組みで管理します。</p>
+        <p>LINE公式アカウントで作成済みのクーポンURLを登録します。利用判定はLINE側が正本です。</p>
       </div>
       <div class="admin-head-actions">
-        <button class="secondary-button compact" type="button" data-admin-action="addCoupon">新規作成</button>
+        <button class="secondary-button compact" type="button" data-admin-action="addCoupon">LINEクーポンを登録</button>
         <button class="secondary-button compact" type="button" data-admin-action="grantCouponToMember">会員へ付与</button>
       </div>
     </section>
@@ -4691,14 +5043,10 @@ function renderAdminCouponGroup(title, coupons, myCoupons) {
               </header>
               <p>${escapeHtml(coupon.description || "")}</p>
               <div class="record-meta-grid">
-                <span>通常 ${escapeHtml(formatYen(coupon.regularPrice))}</span>
-                <span>クーポン ${escapeHtml(formatYen(coupon.couponPrice))}</span>
-                <span>${escapeHtml(getCouponBenefitText(coupon))}</span>
-                <span>対象 ${escapeHtml(coupon.targetMenu || "全メニュー")}</span>
-                <span>スタッフ ${escapeHtml(formatTargetStaff(coupon.targetStaff))}</span>
+                ${isLineCouponDefinition(coupon) ? `<span>LINE URL ${isSafeLineCouponUrl(coupon.lineCouponUrl) ? "登録済み" : "未登録"}</span>` : `<span>${escapeHtml(getCouponBenefitText(coupon))}</span>`}
+                <span>画像 ${coupon.imageUrl ? "登録済み" : "未登録"}</span>
                 <span>期間 ${escapeHtml(coupon.validStartAt || coupon.startAt || "-")}〜${escapeHtml(coupon.validUntil || coupon.endAt || "-")}</span>
-                <span>回数 ${escapeHtml(coupon.perUserLimit || 1)}回</span>
-                <span>発行 ${stats.issued} / 使用 ${stats.used} / 未使用 ${stats.unused}</span>
+                ${isLineCouponDefinition(coupon) ? "" : `<span>発行 ${stats.issued} / 使用 ${stats.used} / 未使用 ${stats.unused}</span>`}
               </div>
               <div class="admin-actions mini">
                 <button type="button" data-admin-action="editCoupon" data-id="${escapeHtml(coupon.couponId)}">編集</button>
@@ -4706,8 +5054,7 @@ function renderAdminCouponGroup(title, coupons, myCoupons) {
                 <button type="button" data-admin-action="toggleCoupon" data-id="${escapeHtml(coupon.couponId)}">${coupon.isPublic ? "非公開" : "公開"}</button>
                 <button type="button" data-admin-action="endCoupon" data-id="${escapeHtml(coupon.couponId)}">終了</button>
                 <button type="button" data-admin-action="deleteCoupon" data-id="${escapeHtml(coupon.couponId)}">削除</button>
-                <button type="button" data-admin-action="grantCoupon" data-id="${escapeHtml(coupon.couponId)}">会員へ付与</button>
-                <button type="button" data-admin-action="couponUsage" data-id="${escapeHtml(coupon.couponId)}">利用状況</button>
+                ${isLineCouponDefinition(coupon) ? "" : `<button type="button" data-admin-action="grantCoupon" data-id="${escapeHtml(coupon.couponId)}">会員へ付与</button><button type="button" data-admin-action="couponUsage" data-id="${escapeHtml(coupon.couponId)}">利用状況</button>`}
               </div>
             </article>
           `;
@@ -4719,8 +5066,7 @@ function renderAdminCouponGroup(title, coupons, myCoupons) {
 
 function couponDashboardCards(coupons, myCoupons) {
   return [
-    ["公開中", coupons.filter((coupon) => couponMatchesAdminFilter(coupon, "公開中")).length, "予約画面に表示可能"],
-    ["個別付与用", coupons.filter((coupon) => couponMatchesAdminFilter(coupon, "個別付与用")).length, "会員カルテから付与"],
+    ["LINEクーポン", coupons.filter(isLineCouponDefinition).length, "LINEで開いて利用"],
     ["ガチャ連動", coupons.filter((coupon) => couponMatchesAdminFilter(coupon, "ガチャ連動")).length, "当選時に自動発行"],
     ["年間特典連動", coupons.filter((coupon) => couponMatchesAdminFilter(coupon, "年間特典連動")).length, "達成時に発行"]
   ].map(([label, value, desc]) => `<article class="admin-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(desc)}</small></article>`).join("");
@@ -4728,7 +5074,7 @@ function couponDashboardCards(coupons, myCoupons) {
 
 function renderAdminGacha() {
   const setting = getCurrentGachaSetting();
-  const cards = getGachaCards(setting);
+  const cards = readJson(STORAGE_KEYS.gachaAdminRewards, getGachaCards(setting));
   const oddsTotal = getGachaOddsTotal(setting);
   const rarityTotal = getRarityOddsTotal(setting);
   const draws = readJson(STORAGE_KEYS.monthlyGachaDraws, []);
@@ -4869,6 +5215,13 @@ function renderAdminGachaTest() {
   const setting = getCurrentGachaSetting();
   const cards = getGachaCards(setting);
   const testLog = readJson(STORAGE_KEYS.gachaTestLog, []);
+  const latest = testLog[0] || null;
+  const rarityCounts = Object.keys(rarityMeta).reduce((result, rarity) => {
+    result[rarity] = testLog.filter((draw) => draw.rarity === rarity).length;
+    return result;
+  }, {});
+  const testBinder = testLog.filter((draw) => draw.testStatus === "used");
+  const uniqueCardCount = new Set(testBinder.map((draw) => String(draw.cardId || ""))).size;
   return `
     <section class="admin-section-head">
       <div>
@@ -4877,16 +5230,43 @@ function renderAdminGachaTest() {
       </div>
     </section>
     <div class="admin-grid">
-      <article class="admin-card"><span>保存影響</span><strong>なし</strong><small>履歴・クーポン・在庫・集計に保存しません</small></article>
+      <article class="admin-card"><span>実行モード</span><strong>TEST</strong><small>本番設定は読取のみ。本番履歴へ書き込みません</small></article>
       <article class="admin-card"><span>対象年月</span><strong>${escapeHtml(formatMonthLabel(setting.issueMonth))}</strong><small>${escapeHtml(setting.status)} / ${escapeHtml(cards.length)}カード</small></article>
-      <article class="admin-card"><span>テスト履歴</span><strong>${testLog.length}</strong><small>運営確認ログのみ</small></article>
+      <article class="admin-card"><span>テスト回数</span><strong>${testLog.length}回</strong><small>${Object.keys(rarityMeta).map((rarity) => `${rarity}:${rarityCounts[rarity]}`).join(" / ")}</small></article>
     </div>
+    ${latest ? `<article class="admin-preview gacha-test-result rarity-${escapeHtml(String(latest.rarity || "N").toLowerCase())}">
+      <h3>直近の当選カード</h3>
+      <div class="gacha-test-result-card">${gachaCompletedCardHtml(latest, "admin-test")}</div>
+      <div class="summary-list">${summaryRows([
+        ["キャラクター", latest.characterName || latest.cardName || "-"],
+        ["レアリティ", latest.rarity || "-"],
+        ["景品", latest.prizeName || "-"],
+        ["景品内容", latest.prizeDescription || "-"],
+        ["テスト状態", latest.testStatus === "used" ? "使用済み" : "未使用"]
+      ])}</div>
+      <div class="admin-actions"><button type="button" data-admin-action="toggleGachaTestUse" data-id="${escapeHtml(latest.testId)}">${latest.testStatus === "used" ? "未使用に戻す" : "使用済みにする"}</button></div>
+    </article>` : ""}
     <section class="reservation-menu-group">
       <header><h4>テスト方法</h4><span>管理者専用</span></header>
       <div class="admin-head-actions inline-actions">
-        <button class="secondary-button compact" type="button" data-admin-action="runGachaTest" data-mode="normal">通常確率で抽選</button>
+        <button class="primary-button compact" type="button" data-admin-action="runGachaTest" data-mode="normal">テストガチャを引く</button>
+        <button class="secondary-button compact" type="button" data-admin-action="resetGachaTestData">リセット</button>
         ${Object.keys(rarityMeta).map((rarity) => `<button class="secondary-button compact" type="button" data-admin-action="runGachaTest" data-mode="rarity" data-rarity="${escapeHtml(rarity)}">${escapeHtml(rarity)}演出テスト</button>`).join("")}
       </div>
+    </section>
+    <section class="reservation-menu-group">
+      <header><h4>テスト用バインダー</h4><span>使用済み ${testBinder.length}枚 / ${uniqueCardCount}種類</span></header>
+      <div class="gacha-character-admin-grid">${testBinder.map((draw) => `<article class="collection-dex-card rarity-${escapeHtml(String(draw.rarity || "N").toLowerCase())}">${gachaCharacterImageHtml(draw)}<span>${escapeHtml(draw.rarity || "")}</span><strong>${escapeHtml(draw.characterName || draw.cardName || "")}</strong><small>${escapeHtml(draw.prizeName || "")}</small></article>`).join("") || "<p>使用済みにしたテストカードはまだありません。</p>"}</div>
+    </section>
+    <section class="reservation-menu-group">
+      <header><h4>テスト用コレクション進捗</h4><span>本番データとは完全分離</span></header>
+      <div class="chart-list">${getCollectionRewards().map((reward) => {
+        const required = Number(reward.conditionValue || reward.requiredCount || 0);
+        const type = String(reward.conditionType || "total_count");
+        const rarity = String(reward.rarity || reward.targetRarity || "");
+        const current = type === "unique_count" ? uniqueCardCount : type === "rarity_count" ? testBinder.filter((draw) => draw.rarity === rarity).length : testBinder.length;
+        return `<article class="chart-row"><strong>${escapeHtml(reward.title || reward.rewardName || "コレクション特典")}</strong><span>現在 ${current} / ${required || "-"}${required && current >= required ? " / 達成" : ""}</span></article>`;
+      }).join("") || "<p>公開中のコレクション特典はありません。</p>"}</div>
     </section>
     <section class="reservation-menu-group">
       <header><h4>カードを直接指定</h4><span>${cards.length}種類</span></header>
@@ -4911,7 +5291,7 @@ function renderAdminGachaTest() {
   `;
 }
 
-function runAdminGachaTest(button) {
+async function runAdminGachaTest(button) {
   const session = getAdminSession();
   if (session?.role !== "admin") {
     showToast("テストガチャは管理者のみ利用できます。");
@@ -4927,7 +5307,18 @@ function runAdminGachaTest(button) {
     const pool = getGachaCards(setting).filter((item) => item.rarity === rarity && item.isPublic !== false && item.isDrawable !== false);
     card = pool[Math.floor(Math.random() * pool.length)] || getGachaCards(setting).find((item) => item.rarity === rarity);
   } else {
-    card = drawPrize(setting.issueMonth);
+    if (isProductionApiMode()) {
+      try {
+        const result = await apiRequest("testDrawGacha", { targetYearMonth: setting.issueMonth });
+        const reward = result.reward || result.data?.reward;
+        card = reward ? mapServerGachaRewardToLocal(reward, getOfficialGachaCard(reward.cardId, setting.issueMonth) || {}) : null;
+      } catch (error) {
+        showToast("テスト抽選に失敗しました。");
+        return;
+      }
+    } else {
+      card = drawPrize(setting.issueMonth);
+    }
   }
   if (!card) {
     showToast("テスト対象カードがありません。");
@@ -4937,11 +5328,13 @@ function runAdminGachaTest(button) {
     ...card,
     drawId: createId("TEST-GACHA"),
     cardHistoryId: createId("TEST-CARD"),
-    memberId: "TEST",
+    dataMode: "TEST",
+    memberId: "TEST_ADMIN_ONLY",
     issueMonth: setting.issueMonth,
     lifecycleState: "test",
     useState: "test",
     status: "test",
+    testStatus: "available",
     validUntil: endOfMonthDateKeyFor(setting.issueMonth),
     expires: endOfMonthDateKeyFor(setting.issueMonth),
     obtainedAt: new Date().toISOString(),
@@ -4951,14 +5344,31 @@ function runAdminGachaTest(button) {
   writeJson(STORAGE_KEYS.gachaTestLog, [{
     testId: testDraw.drawId,
     mode,
-    rarity: testDraw.rarity,
-    cardId: testDraw.cardId || testDraw.characterId,
-    cardName: testDraw.characterName || testDraw.cardName,
+    ...testDraw,
     testedAt: new Date().toISOString(),
     adminName: session.name,
     savedToProduction: false
-  }, ...log].slice(0, 50));
+  }, ...log].slice(0, 500));
   openGachaTestChoiceStage(testDraw);
+}
+
+function toggleAdminGachaTestUse(testId) {
+  const testLog = readJson(STORAGE_KEYS.gachaTestLog, []);
+  const draw = testLog.find((item) => String(item.testId) === String(testId));
+  if (!draw || draw.dataMode !== "TEST") return;
+  draw.testStatus = draw.testStatus === "used" ? "available" : "used";
+  draw.usedAt = draw.testStatus === "used" ? new Date().toISOString() : "";
+  writeJson(STORAGE_KEYS.gachaTestLog, testLog);
+  renderAdmin();
+}
+
+function resetAdminGachaTestData() {
+  const confirmed = window.confirm("テストデータをリセットします。本番データには影響しません");
+  if (!confirmed) return;
+  localStorage.removeItem(STORAGE_KEYS.gachaTestLog);
+  writeJson(STORAGE_KEYS.gachaTestLog, []);
+  showToast("テストガチャのデータだけをリセットしました。");
+  renderAdmin();
 }
 
 function renderGachaCharacterEditor(setting) {
@@ -5479,6 +5889,8 @@ function handleAdminAction(button) {
   if (action === "editRarityRates") return editGachaRarityRates();
   if (action === "resetMonthlyGachaTest") return resetMonthlyGachaTest();
   if (action === "runGachaTest") return runAdminGachaTest(button);
+  if (action === "toggleGachaTestUse") return toggleAdminGachaTestUse(id);
+  if (action === "resetGachaTestData") return resetAdminGachaTestData();
   if (action === "editGachaCharacter") return editGachaCharacter(id);
   if (action === "setGachaPreviewTab") {
     appState.gachaPreviewMode = id || "card";
@@ -5513,6 +5925,12 @@ function handleAdminAction(button) {
 function handleBookingAction(button) {
   const action = button.dataset.bookingAction;
   const id = button.dataset.id || "";
+  if (action === "openMyCoupons") {
+    captureBookingDraft();
+    appState.couponCategory = "マイクーポン";
+    showView("coupons");
+    return;
+  }
   if (action === "changeRequest") return requestBookingChange(id);
   if (action === "cancelRequest") return requestBookingCancel(id);
 }
@@ -6657,11 +7075,27 @@ async function updateBookingStatus(requestId, status) {
     }
   }
   writeJson(STORAGE_KEYS.bookings, bookings);
+  if (isProductionApiMode() && getAdminSession()) {
+    try {
+      await apiRequest("updateBookingRequest", {
+        requestId,
+        status,
+        currentStatus: status,
+        confirmedDateTime: booking.confirmedDateTime || "",
+        confirmedAt: booking.confirmedAt || "",
+        cancelledAt: booking.cancelledAt || "",
+        visitedAt: booking.visitedAt || ""
+      });
+    } catch (error) {
+      showToast("管理データの保存に失敗しました。再度お試しください。");
+      return;
+    }
+  }
   addAdminLog("booking", `${booking.customerName || "お客様"} の予約を${status}に変更`, getAdminSession()?.name);
   renderApp();
 }
 
-function confirmBookingChoice(requestId, choice) {
+async function confirmBookingChoice(requestId, choice) {
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   const booking = bookings.find((item) => item.requestId === requestId);
   if (!booking) return;
@@ -6676,12 +7110,13 @@ function confirmBookingChoice(requestId, choice) {
   booking.currentStatus = "サロンボード入力済み";
   booking.updatedAt = new Date().toISOString();
   writeJson(STORAGE_KEYS.bookings, bookings);
+  if (isProductionApiMode()) await apiRequest("updateBookingRequest", { requestId, status: booking.status, currentStatus: booking.currentStatus, confirmedDateTime: booking.confirmedDateTime });
   addAdminLog("booking_choice", `${booking.customerName || "お客様"} を${booking.confirmedChoice}で仮確定`, getAdminSession()?.name, booking.memberId || "");
   renderApp();
   showToast("サロンボード入力済みにしました。最終確定前に手動入力を確認してください。");
 }
 
-function confirmBookingAfterSalonBoard(requestId) {
+async function confirmBookingAfterSalonBoard(requestId) {
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   const booking = bookings.find((item) => item.requestId === requestId);
   if (!booking) return;
@@ -6693,6 +7128,7 @@ function confirmBookingAfterSalonBoard(requestId) {
   booking.confirmedAt = new Date().toISOString();
   booking.updatedAt = new Date().toISOString();
   writeJson(STORAGE_KEYS.bookings, bookings);
+  if (isProductionApiMode()) await apiRequest("updateBookingRequest", { requestId, status: booking.status, currentStatus: booking.currentStatus, confirmedDateTime: booking.confirmedDateTime, confirmedAt: booking.confirmedAt });
   addAdminLog("booking_confirm", `${booking.customerName || "お客様"} の予約を確定`, getAdminSession()?.name, booking.memberId || "");
   renderApp();
   showToast("予約確定にしました。");
@@ -6869,9 +7305,7 @@ function editReservationMenu(menuId) {
     return;
   }
   next.menuId = normalizedId;
-  const typeValue = window.prompt("種別を入力してください（通常メニュー / クーポン）", next.type || "通常メニュー");
-  if (!typeValue) return;
-  next.type = typeValue.includes("クーポン") ? "クーポン" : "通常メニュー";
+  next.type = "通常メニュー";
   const title = window.prompt("表示名を入力してください", next.title || "");
   if (!title) return;
   next.title = title.trim();
@@ -6989,20 +7423,12 @@ function addAdminCoupon() {
 async function editAdminCoupon(couponId) {
   const coupons = getAdminCoupons();
   const existing = coupons.find((item) => item.couponId === couponId);
+  if (!existing || isLineCouponDefinition(existing)) {
+    await editLineCouponDefinition(existing, coupons);
+    return;
+  }
   const now = new Date().toISOString();
-  const next = existing ? { ...existing } : normalizeCouponDefinition({
-    couponId: createId("COUPON"),
-    title: "新しいクーポン",
-    couponType: "全会員向けクーポン",
-    category: "おすすめ",
-    source: "Console作成",
-    publishStartAt: jstDateKey(),
-    validStartAt: jstDateKey(),
-    validUntil: endOfMonthDateKey(),
-    isPublic: true,
-    selectableOnBooking: true,
-    createdAt: now
-  });
+  const next = { ...existing };
   const title = window.prompt("クーポン名を入力してください", next.title);
   if (!title) return;
   next.title = title;
@@ -7073,6 +7499,84 @@ async function editAdminCoupon(couponId) {
   writeJson(STORAGE_KEYS.adminCoupons, coupons);
   addAdminLog("coupon_save", `${next.title} を保存`, getAdminSession()?.name, next.couponId);
   renderAdmin();
+}
+
+async function editLineCouponDefinition(existing, coupons) {
+  const now = new Date().toISOString();
+  const next = normalizeCouponDefinition(existing || {
+    couponId: createId("LINE-COUPON"),
+    title: "",
+    description: "",
+    imageUrl: "",
+    lineCouponUrl: "",
+    couponType: "LINE公式クーポン",
+    category: "LINEクーポン",
+    source: "LINE公式アカウント",
+    startDate: jstDateKey(),
+    endDate: "",
+    isPublic: false,
+    selectableOnBooking: true,
+    createdAt: now
+  });
+  const title = window.prompt("LINEクーポン名を入力してください", next.title || "");
+  if (!title) return;
+  next.title = title.trim();
+  const description = window.prompt("簡単な説明を入力してください", next.description || "LINE限定クーポン");
+  if (description === null) return;
+  next.description = description.trim();
+  const imageUrl = window.prompt("クーポン画像URLを入力してください", next.imageUrl || "");
+  if (imageUrl === null) return;
+  next.imageUrl = imageUrl.trim();
+  const lineCouponUrl = window.prompt("LINE公式アカウントのクーポン共有URL（https://lin.ee/...）を入力してください", next.lineCouponUrl || "");
+  if (lineCouponUrl === null) return;
+  if (!isSafeLineCouponUrl(lineCouponUrl.trim())) {
+    showToast("https://lin.ee/ から始まるLINEクーポン共有URLを入力してください。");
+    return;
+  }
+  next.lineCouponUrl = lineCouponUrl.trim();
+  const startDate = window.prompt("公開・利用開始日を入力してください（YYYY-MM-DD）", next.startDate || next.validStartAt || jstDateKey());
+  if (!startDate) return;
+  const endDate = window.prompt("公開・利用終了日を入力してください（YYYY-MM-DD）", next.endDate || next.validUntil || "");
+  if (!endDate) return;
+  next.startDate = startDate.trim();
+  next.endDate = endDate.trim();
+  next.publishStartAt = next.startDate;
+  next.validStartAt = next.startDate;
+  next.publishEndAt = next.endDate;
+  next.validUntil = next.endDate;
+  next.isPublic = window.confirm("TEAM LINKに公開しますか？ OK=公開 / キャンセル=非公開");
+  next.status = next.isPublic ? "公開" : "非公開";
+  next.sortOrder = promptNumber("並び順を入力してください", next.sortOrder || nextCouponSortOrder(coupons));
+  if (next.sortOrder === null) return;
+  next.couponType = "LINE公式クーポン";
+  next.category = "LINEクーポン";
+  next.source = "LINE公式アカウント";
+  next.selectableOnBooking = true;
+  next.updatedAt = now;
+  try {
+    if (isProductionApiMode()) {
+      showToast("保存しています…");
+      await apiRequest(existing ? "updateCouponMaster" : "createCouponMaster", {
+        ...next,
+        couponName: next.title,
+        validFrom: next.startDate,
+        validUntil: next.endDate,
+        issueType: next.source,
+        displayOrder: next.sortOrder,
+        status: next.isPublic ? "active" : "stopped",
+        transactionId: createTransactionId("LINE-COUPON-SAVE")
+      });
+    }
+  } catch (error) {
+    showToast("通信に失敗しました。時間をおいてもう一度お試しください");
+    return;
+  }
+  if (existing) Object.assign(existing, next);
+  else coupons.unshift(next);
+  writeJson(STORAGE_KEYS.adminCoupons, coupons);
+  addAdminLog("line_coupon_save", `${next.title} を保存`, getAdminSession()?.name, next.couponId);
+  renderApp();
+  showToast(`${next.title}を保存しました。`);
 }
 
 async function duplicateAdminCoupon(couponId) {
@@ -7383,7 +7887,11 @@ function getStoreSettings() {
 }
 
 function getReservationMenus() {
-  return readJson(STORAGE_KEYS.reservationMenus, defaultReservationMenus)
+  const fallback = isProductionApiMode() ? [] : defaultReservationMenus;
+  const storedMenus = isProductionApiMode() && appState.menuMasterSyncStatus === "pending"
+    ? []
+    : readJson(STORAGE_KEYS.reservationMenus, fallback);
+  return storedMenus
     .map((menu) => ({
       ...menu,
       regularPrice: Number(menu.regularPrice || 0),
@@ -7393,6 +7901,7 @@ function getReservationMenus() {
       targetStaff: Array.isArray(menu.targetStaff) ? menu.targetStaff : parseCsv(menu.targetStaff),
       targetWeekdays: Array.isArray(menu.targetWeekdays) ? menu.targetWeekdays.map(Number) : parseCsv(menu.targetWeekdays).map(Number)
     }))
+    .filter((menu) => menu.type === "通常メニュー")
     .sort((a, b) => (String(a.type).localeCompare(String(b.type), "ja")) || Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
 }
 
@@ -7486,7 +7995,7 @@ function createSlugId(prefix) {
 function ensureDefaultReservationMenus() {
   const menus = getReservationMenus();
   let changed = false;
-  defaultReservationMenus.forEach((defaultMenu) => {
+  defaultReservationMenus.filter((menu) => menu.type === "通常メニュー").forEach((defaultMenu) => {
     if (!menus.some((menu) => menu.menuId === defaultMenu.menuId)) {
       menus.push(defaultMenu);
       changed = true;
@@ -7837,6 +8346,57 @@ function normalizeSearchText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
+function createGuestId() {
+  const uuid = globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  return `guest_${String(uuid).replace(/[^a-zA-Z0-9]/g, "")}`;
+}
+
+function getOrCreateGuestId() {
+  const stored = String(localStorage.getItem(STORAGE_KEYS.guestId) || "").trim();
+  if (stored) return stored;
+  const guestId = createGuestId();
+  localStorage.setItem(STORAGE_KEYS.guestId, guestId);
+  return guestId;
+}
+
+function resolveCurrentUserKey(profile = {}, guestId = getOrCreateGuestId()) {
+  const linkedMemberId = String(profile.linkedMemberId || "").trim();
+  if (linkedMemberId) return linkedMemberId;
+  const memberId = String(profile.memberId || "").trim();
+  if (memberId && memberId !== "demo-member") return memberId;
+  return String(profile.guestId || guestId).trim() || guestId;
+}
+
+function getCurrentUserKey() {
+  return resolveCurrentUserKey(readJson(STORAGE_KEYS.profile, {}), getOrCreateGuestId());
+}
+
+async function linkGuestToMemberIdentity(memberId, lineUserId = "") {
+  const nextMemberId = String(memberId || "").trim();
+  if (!nextMemberId) throw new Error("会員IDが必要です。");
+  const storedProfile = readJson(STORAGE_KEYS.profile, {});
+  const guestId = String(storedProfile.guestId || getOrCreateGuestId()).trim();
+  if (isProductionApiMode() && guestId && guestId !== nextMemberId) {
+    await apiRequest("linkGuestUser", {
+      guestId,
+      userId: nextMemberId,
+      memberId: nextMemberId,
+      lineUserId: String(lineUserId || "").trim()
+    });
+  }
+  writeJson(STORAGE_KEYS.profile, {
+    ...defaultProfile,
+    ...storedProfile,
+    guestId,
+    memberId: nextMemberId,
+    linkedMemberId: nextMemberId,
+    lineUserId: String(lineUserId || storedProfile.lineUserId || "").trim(),
+    identityType: "member"
+  });
+  return nextMemberId;
+}
+
 function isToday(value) {
   if (!value) return false;
   return String(value).slice(0, 10) === jstDateKey();
@@ -7850,11 +8410,33 @@ function daysBetween(fromDate, toDate) {
 }
 
 function ensureDemoState() {
+  const guestId = getOrCreateGuestId();
+  const storedProfile = readJson(STORAGE_KEYS.profile, {});
+  if (!localStorage.getItem(STORAGE_KEYS.profile) || !storedProfile.memberId || storedProfile.memberId === "demo-member") {
+    writeJson(STORAGE_KEYS.profile, {
+      ...defaultProfile,
+      ...storedProfile,
+      memberId: guestId,
+      guestId,
+      lineUserId: "",
+      identityType: "guest",
+      nickname: storedProfile.nickname && storedProfile.nickname !== "花子" ? storedProfile.nickname : "お客様"
+    });
+  } else if (!storedProfile.guestId || !storedProfile.identityType) {
+    writeJson(STORAGE_KEYS.profile, {
+      ...defaultProfile,
+      ...storedProfile,
+      guestId: storedProfile.guestId || guestId,
+      identityType: String(storedProfile.memberId).startsWith("guest_") ? "guest" : "member"
+    });
+  }
   if (!localStorage.getItem(STORAGE_KEYS.storeSettings)) {
     writeJson(STORAGE_KEYS.storeSettings, defaultStoreSettings);
   }
-  if (!localStorage.getItem(STORAGE_KEYS.reservationMenus)) {
-    writeJson(STORAGE_KEYS.reservationMenus, defaultReservationMenus);
+  if (isProductionApiMode()) {
+    writeJson(STORAGE_KEYS.reservationMenus, []);
+  } else if (!localStorage.getItem(STORAGE_KEYS.reservationMenus)) {
+    writeJson(STORAGE_KEYS.reservationMenus, defaultReservationMenus.filter((menu) => menu.type === "通常メニュー"));
   } else {
     ensureDefaultReservationMenus();
   }
@@ -7871,7 +8453,9 @@ function ensureDemoState() {
     ensureCollectionGachaSettings();
   }
   syncGachaCharacterNames();
-  if (!localStorage.getItem(STORAGE_KEYS.collectionRewards)) {
+  if (isProductionApiMode()) {
+    writeJson(STORAGE_KEYS.collectionRewards, []);
+  } else if (!localStorage.getItem(STORAGE_KEYS.collectionRewards)) {
     writeJson(STORAGE_KEYS.collectionRewards, defaultCollectionRewards);
   } else {
     ensureDefaultCollectionRewards();
@@ -7888,14 +8472,6 @@ function ensureDemoState() {
     writeJson(STORAGE_KEYS.gachaTestLog, []);
   }
   refreshGachaCardStates();
-  if (!localStorage.getItem(STORAGE_KEYS.profile)) {
-    writeJson(STORAGE_KEYS.profile, defaultProfile);
-  } else {
-    const profile = readJson(STORAGE_KEYS.profile, {});
-    if (profile.memberId === "demo-member") {
-      writeJson(STORAGE_KEYS.profile, { ...defaultProfile, ...profile, memberId: "TL-000001", lineUserId: "U-demo-1", nickname: profile.nickname === "お客様" ? "花子" : profile.nickname });
-    }
-  }
   if (!localStorage.getItem(STORAGE_KEYS.members)) {
     writeJson(STORAGE_KEYS.members, [
       {
@@ -8120,7 +8696,16 @@ function removeLegacyHomeDemoBooking() {
 }
 
 function getProfile() {
-  return { ...defaultProfile, ...readJson(STORAGE_KEYS.profile, {}) };
+  const storedProfile = readJson(STORAGE_KEYS.profile, {});
+  const guestId = String(storedProfile.guestId || getOrCreateGuestId()).trim();
+  const memberId = resolveCurrentUserKey(storedProfile, guestId);
+  return {
+    ...defaultProfile,
+    ...storedProfile,
+    guestId,
+    memberId,
+    identityType: String(memberId).startsWith("guest_") ? "guest" : (storedProfile.identityType || "member")
+  };
 }
 
 function formatMemberDisplayName(nickname) {
@@ -8175,12 +8760,13 @@ function getNextReservation() {
 
 function getMonthlyGachaStatus() {
   const profile = getProfile();
+  const userKey = getCurrentUserKey();
   const month = currentMonthKey();
   const draws = readJson(STORAGE_KEYS.monthlyGachaDraws, []);
   const draw = draws.find((item) => (
     String(item.issueMonth || "") === month &&
     (
-      String(item.memberId || "") === String(profile.memberId || "") ||
+      String(item.memberId || item.userId || "") === String(userKey) ||
       (profile.lineUserId && String(item.lineUserId || "") === String(profile.lineUserId))
     )
   ));
@@ -8322,12 +8908,33 @@ function getMemberCardHistory(member) {
   }).sort((a, b) => String(b.obtainedAt || b.drawnAt).localeCompare(String(a.obtainedAt || a.drawnAt)));
 }
 
+function getGachaCardYear(card) {
+  return Number(card.binderYear || card.year || String(card.issueMonth || card.obtainedAt || card.drawnAt || "").slice(0, 4));
+}
+
+function getBinderYears(cards) {
+  return [...new Set([
+    currentYear(),
+    ...cards.filter((card) => card.inBinder === true).map(getGachaCardYear).filter(Number.isFinite)
+  ])].sort((a, b) => b - a);
+}
+
+function getBinderCards(cards, year) {
+  const targetYear = Number(year);
+  return cards.filter((card) => (
+    card.inBinder === true &&
+    getGachaLifecycleState(card) === "used" &&
+    getGachaCardYear(card) === targetYear &&
+    normalizeServerYearMonth(card.issueMonth || card.usedAt || card.obtainedAt) < currentMonthKey()
+  ));
+}
+
 function getCardUsageState(card) {
   return getGachaStateLabel(card);
 }
 
 function buildCollectionSummary(cards, year) {
-  const yearly = cards.filter((card) => String(card.issueMonth || "").startsWith(String(year)));
+  const yearly = cards.filter((card) => getGachaCardYear(card) === Number(year));
   const rarity = { UR: 0, SSR: 0, SR: 0, R: 0, N: 0 };
   yearly.forEach((card) => { rarity[card.rarity] = Number(rarity[card.rarity] || 0) + 1; });
   const rewards = getCollectionRewards().filter((reward) => Number(reward.year) === Number(year) && reward.isPublic !== false).sort((a, b) => Number(a.requiredCount) - Number(b.requiredCount));
@@ -8340,27 +8947,50 @@ function buildCollectionSummary(cards, year) {
 }
 
 function getCollectionRewards() {
-  return readJson(STORAGE_KEYS.collectionRewards, defaultCollectionRewards);
+  const fallback = isProductionApiMode() ? [] : defaultCollectionRewards;
+  return readJson(STORAGE_KEYS.collectionRewards, fallback)
+    .slice()
+    .sort((a, b) => Number(a.sortOrder || 999) - Number(b.sortOrder || 999));
 }
 
 function getCollectionRewardStates(member, cards) {
-  const collection = buildCollectionSummary(cards, currentYear());
   return getCollectionRewards().filter((reward) => Number(reward.year) === currentYear()).map((reward) => ({
     ...reward,
-    state: isCollectionRewardAchieved(reward, cards, collection)
+    state: isCollectionRewardAchieved(reward, cards)
       ? (reward.receivedMembers?.includes?.(member.memberId) ? "受取済み" : reward.grantedMembers?.includes?.(member.memberId) ? "付与済み" : "達成")
       : "未付与"
   }));
 }
 
-function isCollectionRewardAchieved(reward, cards, collection = buildCollectionSummary(cards, Number(reward.year) || currentYear())) {
-  const yearCards = cards.filter((card) => String(card.issueMonth || "").startsWith(String(reward.year || currentYear())));
-  const required = Number(reward.requiredCount || 0);
-  const rarity = String(reward.requiredRarity || "").trim();
-  if (rarity === "ALL_RARITY") return Object.keys(rarityMeta).every((key) => Number(collection.rarity[key] || 0) >= required);
-  if (rarity === "COMPLETE") return new Set(yearCards.map((card) => card.characterId || card.cardId)).size >= required;
-  if (rarity && rarityMeta[rarity]) return Number(collection.rarity[rarity] || 0) >= required;
-  return collection.total >= required;
+function getCollectionRewardProgress(reward, cards) {
+  const yearCards = cards.filter((card) => getGachaCardYear(card) === Number(reward.year || currentYear()));
+  const conditionType = String(reward.conditionType || (
+    reward.requireAllRarities ? "all_rarities" :
+      reward.requireCompleteCollection ? "unique_card_count" :
+        reward.requiredRarity ? "rarity_count" : "total_card_count"
+  ));
+  const conditionValue = Math.max(1, Number(reward.conditionValue || reward.requiredCount || 1));
+  const rarity = String(reward.rarity || reward.requiredRarity || "").trim();
+  let current = 0;
+  let target = conditionValue;
+  if (conditionType === "rarity_count") {
+    current = yearCards.filter((card) => String(card.rarity || "") === rarity).length;
+  } else if (conditionType === "unique_card_count") {
+    current = new Set(yearCards.map((card) => card.characterId || card.cardId).filter(Boolean)).size;
+  } else if (conditionType === "specific_card") {
+    current = yearCards.some((card) => String(card.characterId || card.cardId) === String(reward.targetCardId || "")) ? 1 : 0;
+    target = 1;
+  } else if (conditionType === "all_rarities") {
+    current = Object.keys(rarityMeta).filter((key) => yearCards.filter((card) => card.rarity === key).length >= conditionValue).length;
+    target = Object.keys(rarityMeta).length;
+  } else {
+    current = yearCards.length;
+  }
+  return { current, target, achieved: current >= target, conditionType, rarity };
+}
+
+function isCollectionRewardAchieved(reward, cards) {
+  return getCollectionRewardProgress(reward, cards).achieved;
 }
 
 function endOfMonthDateKey() {
@@ -8609,31 +9239,42 @@ async function syncProductionState() {
   if (!isProductionApiMode()) return;
   try {
     const profile = getProfile();
+    const userKey = getCurrentUserKey();
     const results = await Promise.allSettled([
       apiRequest("listCouponMasters", {}),
-      apiRequest("listMemberCoupons", { memberId: profile.memberId }),
+      apiRequest("listMenuMasters", {}),
+      apiRequest("listMemberCoupons", { memberId: userKey }),
       apiRequest("getGachaConfig", {}),
       apiRequest("getPublishedRewards", {}),
-      apiRequest("getUserCoupons", { userId: profile.memberId }),
-      apiRequest("checkMonthlyDrawStatus", { userId: profile.memberId, memberId: profile.memberId, lineUserId: profile.lineUserId || "", targetYearMonth: currentMonthKey() }),
-      apiRequest("getUserBinder", { userId: profile.memberId }),
-      apiRequest("getCollectionRewards", { userId: profile.memberId })
+      apiRequest("getUserCoupons", { userId: userKey }),
+      apiRequest("checkMonthlyDrawStatus", { userId: userKey, memberId: userKey, lineUserId: profile.lineUserId || "", targetYearMonth: currentMonthKey() }),
+      apiRequest("getUserBinder", { userId: userKey, year: String(currentYear()) }),
+      apiRequest("getPastBinderHistory", { userId: userKey, currentYear: String(currentYear()) }),
+      apiRequest("getCollectionRewards", { userId: userKey, targetYear: String(currentYear()) })
     ]);
-    const [masters, memberCoupons, gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, collectionRewards] = results.map((result, index) => {
+    const [masters, menuMasters, memberCoupons, gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, pastBinders, collectionRewards] = results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
       console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", { index, reason: result.reason });
       return {};
     });
     if (masters.coupons) writeJson(STORAGE_KEYS.adminCoupons, masters.coupons.map(mapServerCouponMasterToLocal));
+    const serverMenus = menuMasters.menus || menuMasters.data?.menus;
+    if (Array.isArray(serverMenus)) {
+      writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
+      appState.menuMasterSyncStatus = "synced";
+    } else {
+      appState.menuMasterSyncStatus = "unavailable";
+    }
     if (memberCoupons.coupons) writeJson(STORAGE_KEYS.myCoupons, memberCoupons.coupons.map(mapServerMemberCouponToLocal));
     if (gachaRewards.data?.rewards) mergeServerGachaRewards(gachaRewards.data.rewards);
-    if (gachaCoupons.data?.coupons) replaceServerGachaCoupons(gachaCoupons.data.coupons, profile.memberId);
+    if (gachaCoupons.data?.coupons) replaceServerGachaCoupons(gachaCoupons.data.coupons, userKey);
     if (drawStatus.data?.canDraw === true && drawStatus.data?.alreadyDrawn === false) {
-      removeLocalGachaDrawForUserMonth(profile.memberId, drawStatus.data.targetYearMonth || currentMonthKey());
+      removeLocalGachaDrawForUserMonth(userKey, drawStatus.data.targetYearMonth || currentMonthKey());
     } else if (drawStatus.data?.draw) {
       upsertLocalGachaDraw(mapServerGachaDrawToLocal(drawStatus.data.draw, drawStatus.data.coupon || {}));
     }
     if (binder.data?.cards) mergeServerBinderCards(binder.data.cards);
+    if (pastBinders.data?.years) Object.values(pastBinders.data.years).forEach(mergeServerBinderCards);
     if (collectionRewards.data?.rewards) mergeServerCollectionRewards(collectionRewards.data.rewards);
     if (gachaConfig.data?.config?.currentYearMonth) {
       const settings = getGachaSettings();
@@ -8641,9 +9282,47 @@ async function syncProductionState() {
         writeGachaSettings([{ issueMonth: gachaConfig.data.config.currentYearMonth, title: "本番ガチャ", status: "公開" }, ...settings]);
       }
     }
+    await syncProductionAdminState({ render: false });
     renderApp();
   } catch (error) {
     showToast("通信に失敗しました。時間をおいてもう一度お試しください");
+  }
+}
+
+function parseServerJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(String(value));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+async function syncProductionAdminState(options = {}) {
+  if (!isProductionApiMode() || !getAdminSession()) return;
+  try {
+    const [result, gachaMasterResult] = await Promise.all([
+      apiRequest("listBookingRequests", {}),
+      apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() })
+    ]);
+    const serverBookings = result.bookings || result.data?.bookings;
+    if (Array.isArray(serverBookings)) {
+      writeJson(STORAGE_KEYS.bookings, serverBookings.map((booking) => ({
+        ...booking,
+        selectedMenus: parseServerJsonArray(booking.selectedMenus),
+        selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
+        menuIds: parseServerJsonArray(booking.menuIds),
+        couponIds: parseServerJsonArray(booking.couponIds)
+      })));
+    }
+    const rewardMasters = gachaMasterResult.rewards || gachaMasterResult.data?.rewards;
+    if (Array.isArray(rewardMasters)) writeJson(STORAGE_KEYS.gachaAdminRewards, rewardMasters.map(mapServerGachaRewardToLocal));
+    if (options.render !== false) renderApp();
+  } catch (error) {
+    console.error("[TEAM LINK ADMIN SYNC FAILED]", error);
+    showToast("管理データの取得に失敗しました。");
   }
 }
 
@@ -8652,8 +9331,21 @@ function mergeServerGachaRewards(rewards) {
   const local = getGachaPrizes();
   const byId = new Map(local.map((item) => [String(item.prizeId || item.cardId), item]));
   rewards.forEach((reward) => {
-    byId.set(String(reward.cardId), {
-      ...(byId.get(String(reward.cardId)) || {}),
+    byId.set(String(reward.cardId), mapServerGachaRewardToLocal(reward, byId.get(String(reward.cardId)) || {}));
+  });
+  writeGachaPrizes(Array.from(byId.values()));
+  const settings = getGachaSettings();
+  const targetMonth = normalizeServerYearMonth(rewards[0]?.targetYearMonth || currentMonthKey());
+  const current = settings.find((setting) => setting.issueMonth === targetMonth);
+  if (current) {
+    current.cards = rewards.map((reward) => mapServerGachaRewardToLocal(reward, getOfficialGachaCard(reward.cardId, targetMonth) || {}));
+    writeGachaSettings(settings);
+  }
+}
+
+function mapServerGachaRewardToLocal(reward, existing = {}) {
+  return {
+      ...existing,
       prizeId: reward.cardId,
       cardId: reward.cardId,
       prizeName: reward.rewardName,
@@ -8669,9 +9361,7 @@ function mergeServerGachaRewards(rewards) {
       isPublic: reward.isPublished === true || String(reward.isPublished).toUpperCase() === "TRUE",
       sortOrder: Number(reward.cardNumber || reward.sortOrder || 999),
       updatedAt: reward.updatedAt || ""
-    });
-  });
-  writeGachaPrizes(Array.from(byId.values()));
+    };
 }
 
 function mergeServerGachaCoupons(coupons) {
@@ -8772,21 +9462,27 @@ function mergeServerBinderCards(cards) {
   cards.forEach((card) => {
     const id = String(card.drawId || card.binderId || "");
     if (!id) return;
-    const issueMonth = normalizeServerYearMonth(card.targetYearMonth || card.issueMonth || card.createdAt || card.usedAt);
+    const existing = byId.get(id) || {};
+    const issueMonth = normalizeServerYearMonth(card.targetYearMonth || card.issueMonth || existing.issueMonth || card.usedAt || card.createdAt);
     const officialCard = getOfficialGachaCard(card.cardId, issueMonth);
     const characterId = officialCard?.characterId || normalizeGachaCharacterId(card.cardId);
     byId.set(id, {
       ...(officialCard || {}),
-      ...(byId.get(id) || {}),
+      ...existing,
       drawId: card.drawId,
       cardHistoryId: card.drawId,
+      binderId: card.binderId || "",
       memberId: card.userId,
       cardId: officialCard?.cardId || characterId || card.cardId,
       characterId,
       serverCardId: card.cardId,
       issueMonth,
+      year: Number(card.year || issueMonth.slice(0, 4)),
+      binderYear: Number(card.year || issueMonth.slice(0, 4)),
       rarity: officialCard?.rarity || card.rarity,
       usedAt: card.usedAt,
+      inBinder: true,
+      binderStoredAt: card.createdAt || "",
       lifecycleState: "used",
       useState: "used",
       status: "used",
@@ -8810,27 +9506,61 @@ function mergeServerCollectionRewards(rewards) {
       title: reward.rewardTitle,
       description: reward.rewardDescription,
       year: reward.targetYear,
-      requiredRarity: reward.targetRarity,
-      requiredCount: Number(reward.requiredCount || 0),
-      isPublic: reward.isPublished === true || String(reward.isPublished).toUpperCase() === "TRUE",
+      requiredRarity: reward.rarity || reward.targetRarity,
+      requiredCount: Number(reward.conditionValue || reward.requiredCount || 0),
+      requireAllRarities: reward.requireAllRarities === true || String(reward.requireAllRarities).toUpperCase() === "TRUE",
+      requireCompleteCollection: reward.requireCompleteCollection === true || String(reward.requireCompleteCollection).toUpperCase() === "TRUE",
+      conditionType: reward.conditionType || "",
+      conditionValue: Number(reward.conditionValue || reward.requiredCount || 0),
+      rarity: reward.rarity || reward.targetRarity || "",
+      targetCardId: reward.targetCardId || "",
+      prizeName: reward.prizeName || "",
+      prizeDescription: reward.prizeDescription || "",
+      active: reward.active === true || String(reward.active).toUpperCase() === "TRUE",
+      isPublic: (reward.active === true || String(reward.active).toUpperCase() === "TRUE") && (reward.isPublished === true || String(reward.isPublished).toUpperCase() === "TRUE"),
+      sortOrder: Number(reward.sortOrder || 999),
+      achieved: reward.achieved === true,
       validUntil: reward.expiryDate || ""
     });
   });
   writeJson(STORAGE_KEYS.collectionRewards, Array.from(byId.values()));
 }
 
+function mapServerMenuMasterToLocal(menu) {
+  return {
+    menuId: String(menu.menuId || ""),
+    type: "通常メニュー",
+    category: menu.category || "その他",
+    title: menu.menuName || menu.title || "",
+    description: menu.description || "",
+    regularPrice: Number(menu.price || menu.regularPrice || 0),
+    couponPrice: 0,
+    durationMinutes: Number(menu.duration || menu.durationMinutes || 0),
+    isPublic: menu.active === true || String(menu.active).toUpperCase() === "TRUE" || menu.status === "active",
+    sortOrder: Number(menu.sortOrder || menu.displayOrder || 999),
+    source: "MenuMaster",
+    updatedAt: menu.updatedAt || ""
+  };
+}
+
 function mapServerCouponMasterToLocal(coupon) {
+  const validFrom = normalizeApiDateKey(coupon.startDate || coupon.validFrom);
+  const validUntil = normalizeApiDateKey(coupon.endDate || coupon.validUntil);
   return normalizeCouponDefinition({
     couponId: coupon.couponId,
     title: coupon.couponName || coupon.title,
     description: coupon.description,
+    imageUrl: coupon.imageUrl,
+    lineCouponUrl: coupon.lineCouponUrl,
     couponType: coupon.couponType,
     discountAmount: coupon.discountAmount,
     discountRate: coupon.discountRate,
     targetMenu: coupon.targetMenu,
     minimumAmount: coupon.minimumAmount,
-    validStartAt: coupon.validFrom,
-    validUntil: coupon.validUntil,
+    startDate: validFrom,
+    endDate: validUntil,
+    validStartAt: validFrom,
+    validUntil,
     perUserLimit: coupon.usageLimit,
     canCombine: coupon.allowCombination,
     isPublic: coupon.status === "active",
@@ -8840,6 +9570,22 @@ function mapServerCouponMasterToLocal(coupon) {
     createdAt: coupon.createdAt,
     updatedAt: coupon.updatedAt
   });
+}
+
+function normalizeApiDateKey(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const plainDate = raw.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/);
+  if (plainDate) return `${plainDate[1]}-${plainDate[2]}-${plainDate[3]}`;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date).reduce((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 function mapServerMemberCouponToLocal(coupon) {

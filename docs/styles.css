@@ -22,6 +22,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { background: var(--bg); }
 
@@ -1021,6 +1022,47 @@ p {
   line-height: 1.6;
 }
 
+.booking-my-coupon-panel {
+  padding: 14px;
+  border: 1px solid rgba(228, 199, 126, .28);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(196,150,66,.12), rgba(255,255,255,.045));
+}
+
+.booking-my-coupon-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.booking-my-coupon-head button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(228, 199, 126, .32);
+  border-radius: 999px;
+  color: var(--gold-bright);
+  background: rgba(255,255,255,.07);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.booking-my-selection-card.is-unavailable {
+  opacity: .55;
+}
+
+.my-booking-cta {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+
+.my-booking-cta .primary-button {
+  min-height: 60px;
+  font-size: 16px;
+}
+
 .mini-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -1103,6 +1145,13 @@ p {
   color: var(--champagne);
   border: 1px solid var(--line);
   background: rgba(255,255,255,.08);
+}
+.coupon-card .secondary-button,
+.admin-section-head a.secondary-button {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  text-decoration: none;
 }
 .primary-button:disabled,
 .secondary-button:disabled {
@@ -1521,6 +1570,17 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   color: #15100c;
   background: linear-gradient(135deg, #c49642, #edd187);
 }
+.coupon-tabs-simple {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: visible;
+}
+.coupon-tabs-simple button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
 .coupon-card {
   display: grid;
   gap: 11px;
@@ -1544,6 +1604,44 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 }
 .coupon-card.is-mine p,
 .coupon-card.is-mine small { color: rgba(255,250,239,.78); }
+
+.selection-category {
+  color: var(--gold-bright);
+  font-weight: 900;
+}
+
+.selection-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(228, 199, 126, .18);
+  border-radius: 14px;
+  background: rgba(255,255,255,.05);
+}
+
+.selection-meta strong { color: var(--gold-bright); }
+
+.selection-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.selection-remove-button {
+  min-height: 44px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px;
+  color: rgba(255,250,239,.76);
+  background: transparent;
+  font-weight: 900;
+}
+
+.secondary-button.is-added {
+  color: rgba(255,250,239,.68);
+  border-color: rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05);
+}
 
 .coupon-admin-filter {
   margin-bottom: 18px;
@@ -5467,4 +5565,146 @@ body.is-home-view .app-shell {
   0% { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.92); }
   34% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.08); }
   100% { opacity: 0; transform: translateX(-50%) translateY(-18px) scale(1); }
+}
+
+.gacha-current-win {
+  width: min(100%, 520px);
+  gap: 14px;
+  padding: 18px;
+}
+
+.gacha-current-win .gacha-claimed-card .tl-simple-card,
+.gacha-current-win .gacha-claimed-card .tl-simple-card.is-compact,
+.gacha-current-win .gacha-claimed-card .tl-simple-card.mode-result {
+  width: min(78vw, 310px);
+}
+
+.gacha-current-win-details { width: 100%; }
+
+.gacha-staff-present {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 15px;
+  border: 1px solid rgba(232, 197, 124, .42);
+  border-radius: 16px;
+  color: var(--cream);
+  background: linear-gradient(135deg, rgba(196,150,66,.25), rgba(255,255,255,.06));
+  text-align: center;
+}
+
+.gacha-staff-present strong { color: var(--gold-bright); }
+.gacha-staff-present em { font-style: normal; font-weight: 900; letter-spacing: .08em; }
+
+.gacha-top-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.gacha-top-actions button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 68px;
+  padding: 14px 18px;
+  border: 1px solid rgba(228,199,126,.28);
+  border-radius: 18px;
+  color: var(--cream);
+  background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(196,150,66,.08));
+  box-shadow: 0 12px 28px rgba(0,0,0,.22);
+  text-align: left;
+}
+
+.gacha-top-actions button strong { color: var(--gold-bright); font-size: 16px; }
+.gacha-top-actions button small { color: rgba(255,250,239,.68); }
+
+.binder-year-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.binder-year-tabs::-webkit-scrollbar { display: none; }
+
+.binder-year-tabs button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(228,199,126,.24);
+  border-radius: 999px;
+  color: rgba(255,250,239,.72);
+  background: rgba(255,255,255,.055);
+  font-weight: 900;
+}
+
+.binder-year-tabs button[aria-selected="true"] {
+  color: #17110c;
+  border-color: var(--gold-bright);
+  background: linear-gradient(135deg, #c49642, #edd187);
+  box-shadow: 0 8px 20px rgba(196,150,66,.22);
+}
+
+.collection-reward-list,
+.gacha-history-list {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.collection-reward-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(20,15,11,.72));
+  box-shadow: 0 14px 32px rgba(0,0,0,.24);
+}
+
+.collection-reward-card.is-achieved { border-color: rgba(228,199,126,.48); }
+.collection-reward-head { display: grid; gap: 5px; }
+.collection-reward-head span { color: var(--gold-bright); font-size: 12px; font-weight: 900; }
+.collection-reward-head strong { color: var(--cream); font-size: 18px; }
+.collection-reward-progress { display: grid; gap: 8px; }
+.collection-reward-progress progress { width: 100%; }
+.collection-reward-prize { padding: 12px; border-radius: 14px; background: rgba(196,150,66,.12); }
+.collection-reward-prize small,
+.collection-reward-prize strong { display: block; }
+.collection-reward-prize strong { color: var(--gold-bright); }
+
+.gacha-history-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 18px;
+  background: rgba(255,255,255,.055);
+}
+
+.gacha-history-row .gacha-character-image,
+.gacha-history-row .gacha-character-placeholder {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+}
+
+.gacha-history-row > div { display: grid; gap: 4px; min-width: 0; }
+.gacha-history-row strong { color: var(--cream); }
+.gacha-history-row span,
+.gacha-history-row small { color: rgba(255,250,239,.68); }
+.gacha-history-row em { color: var(--gold-bright); font-style: normal; font-weight: 900; }
+
+.gacha-test-result-card {
+  width: min(100%, 360px);
+  margin: 0 auto 20px;
+}
+
+.gacha-test-result-card .gacha-completed-card,
+.gacha-test-result-card .gacha-card-shell {
+  width: 100%;
 }
