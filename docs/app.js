@@ -1,6 +1,6 @@
 const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkApiUrl") : "") || "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
-const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("fortuneApiUrl") : "") || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
+const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
 const ASSET_VERSION = "20260801-character-hires-1";
@@ -2026,7 +2026,7 @@ async function loadTeamFortune(birthDate) {
   if (!TEAM_LINK_FORTUNE_API_URL || !TEAM_LINK_FORTUNE_DB_ID) {
     throw createFortuneError("FORTUNE_API_NOT_CONFIGURED", "TEAM LINK Fortune DB APIが未設定です。");
   }
-  const result = await apiRequest("resolveTeamFortune", {
+  const result = await fortuneApiRequest("resolveTeamFortune", {
     birthDate,
     targetDate: jstDateKey(),
     fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
@@ -2042,6 +2042,54 @@ function createFortuneError(code, message, data = {}) {
   error.code = code;
   error.data = data;
   return error;
+}
+
+async function fortuneApiRequest(action, payload = {}) {
+  const url = new URL(TEAM_LINK_FORTUNE_API_URL);
+  url.searchParams.set("action", action);
+  url.searchParams.set("payload", JSON.stringify(payload));
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null || typeof value === "object") return;
+    url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set("_", String(Date.now()));
+  let response;
+  let text = "";
+  try {
+    response = await fetch(url.toString(), { method: "GET", redirect: "follow", cache: "no-store" });
+    text = await response.text();
+    const contentType = response.headers.get("content-type") || "";
+    console.info("[TEAM FORTUNE API RESPONSE]", {
+      action,
+      apiUrl: TEAM_LINK_FORTUNE_API_URL,
+      responseUrl: response.url,
+      httpStatus: response.status,
+      contentType,
+      responsePrefix: text.slice(0, 200)
+    });
+    if (!response.ok) throw createFortuneError("FORTUNE_HTTP_ERROR", `HTTP ${response.status}`);
+    if (!/^\s*[\[{]/.test(text)) throw createFortuneError("FORTUNE_NON_JSON_RESPONSE", "Fortune API returned a non-JSON response.");
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      throw createFortuneError("FORTUNE_JSON_PARSE_ERROR", "Fortune API response could not be parsed.", { cause: parseError?.message || "" });
+    }
+    if (!data?.success) throw createFortuneError(data?.errorCode || "FORTUNE_API_ERROR", data?.message || "Fortune API returned an error.", data?.data || data);
+    return data;
+  } catch (error) {
+    console.error("[TEAM FORTUNE API ERROR]", {
+      action,
+      apiUrl: TEAM_LINK_FORTUNE_API_URL,
+      responseUrl: response?.url || "",
+      httpStatus: response?.status || "network_error",
+      contentType: response?.headers?.get("content-type") || "",
+      responsePrefix: text.slice(0, 200),
+      error: error?.message || String(error),
+      errorCode: error?.code || error?.errorCode || ""
+    });
+    throw error;
+  }
 }
 
 function renderTeamFortuneResult(result) {
@@ -2111,37 +2159,16 @@ function fortuneMeter(label, value) {
 }
 
 function renderTeamFortuneDataWaiting(error, birthDate) {
-  const missingItems = [
-    "相性判定用の正式資料"
-  ];
   return `
     <article class="fortune-card team-fortune-card">
-      <span class="badge">データ待ち</span>
-      <h3>TEAM占いは正確な資料を待っています</h3>
-      <p>登録済み生年月日：${escapeHtml(birthDate || "-")}</p>
-      <p>今回の占いでは、未確認の運気名をAIやランダムで補完しません。必要な資料が揃うまで、正確な占い結果は表示しない設計です。</p>
+      <span class="badge">通信エラー</span>
+      <h3>占いデータを取得できませんでした</h3>
+      <p>通信状況をご確認のうえ、もう一度お試しください。</p>
       <div class="team-fortune-alert">
-        <strong>${escapeHtml(error?.code || "FORTUNE_DATA_WAITING")}</strong>
-        <span>${escapeHtml(error?.message || "正式データが不足しています。")}</span>
+        <strong>占い結果を表示できませんでした</strong>
+        <span>正式な占いデータ以外を代わりに表示することはありません。</span>
       </div>
-      <div class="team-fortune-section">
-        <h4>登録済みデータ</h4>
-        <ul>
-          <li>24タイプ CharacterMaster 初期文章</li>
-          <li>12運気 LuckCycle</li>
-          <li>2026年 YearLuck / MonthLuck / DayLuckAnchor 正式検証済み</li>
-          <li>TEAM LINKタイプ別の複合運気表示 正式検証済み</li>
-        </ul>
-      </div>
-      <div class="team-fortune-section">
-        <h4>不足している正式資料</h4>
-        <ul>${missingItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-      </div>
-      <div class="team-fortune-section">
-        <h4>TEAM LINK Fortune DB</h4>
-        <p>スプレッドシートID：${escapeHtml(TEAM_LINK_FORTUNE_DB_ID)}</p>
-        <a class="secondary-button compact" href="https://docs.google.com/spreadsheets/d/${escapeHtml(TEAM_LINK_FORTUNE_DB_ID)}/edit" target="_blank" rel="noopener">Fortune DBを開く</a>
-      </div>
+      <button class="primary-button" type="button" id="retryTeamFortune">もう一度試す</button>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
     </article>
   `;
@@ -2352,6 +2379,7 @@ function renderFortuneTextGrid(character) {
 }
 
 function bindTeamFortuneActions(container) {
+  container.querySelector("#retryTeamFortune")?.addEventListener("click", () => renderFortune());
   container.querySelector("#resetBirthDate")?.addEventListener("click", () => {
     localStorage.removeItem(STORAGE_KEYS.birthDate);
     renderApp();
@@ -2373,7 +2401,7 @@ function bindTeamFortuneActions(container) {
       resultBox.innerHTML = `<div class="team-fortune-compatibility-loading">ふたりのご縁を確認しています。</div>`;
     }
     try {
-      const result = await apiRequest("calculateTeamFortuneCompatibility", {
+      const result = await fortuneApiRequest("calculateTeamFortuneCompatibility", {
         birthDate,
         partnerBirthDate,
         partnerNickname: formData.get("nickname") || "",
