@@ -559,7 +559,7 @@ const adminUsers = {
 
 const adminTabs = [
   { key: "dashboard", label: "ダッシュボード" },
-  { key: "visits", label: "来店受付" },
+  { key: "visits", label: "来店確認" },
   { key: "members", label: "会員管理" },
   { key: "bookings", label: "予約管理" },
   { key: "reservationMenus", label: "予約メニュー管理" },
@@ -2066,30 +2066,43 @@ function renderTeamFortuneResult(result) {
       <h3>${escapeHtml(character.displayName || "判定中")}</h3>
       <p>${escapeHtml(character.catchCopy || "")}</p>
       ${renderFortuneJudgement(calculation, character)}
-      <div class="team-fortune-luck-stack">
-        ${renderFortuneSummaryPanel("今日の運気", today, "今日の過ごし方", character, calculation)}
-        ${renderFortuneSummaryPanel("今月の運気", month, "今月の流れ", character, calculation)}
-        ${renderFortuneSummaryPanel("2026年の運気", year, "今年のテーマ", character, calculation)}
-      </div>
-      <div class="team-fortune-section">
-        <h4>基本性格</h4>
-        <p>${escapeHtml(character.basicPersonality || "")}</p>
-      </div>
-      ${renderFortuneList("あなたの長所", character.strengths)}
-      ${renderFortuneList("気をつけたいところ", character.cautions)}
-      ${renderFortuneTextGrid(character)}
-      <div class="team-fortune-compatibility">
-        <h4>気になるあの人との相性</h4>
-        <form id="fortuneCompatibilityForm" class="mini-form">
-          <label class="field">ニックネーム<input name="nickname" placeholder="任意"></label>
-          <label class="field">相手の生年月日<input type="date" name="partnerBirthDate" required></label>
-          <button class="secondary-button" type="submit">二人の相性を見る</button>
-        </form>
-        <p class="muted">正式資料にもとづく2つのご縁から、TEAM LINK独自の総合相性を表示します。</p>
-        <div id="fortuneCompatibilityResult" class="team-fortune-compatibility-result" aria-live="polite"></div>
+      <div class="team-fortune-overview">
+        ${renderFortuneOverviewItem("今日の運気", today, renderFortuneSummaryPanel("今日の運気", today, "今日の過ごし方", character, calculation), true)}
+        ${renderFortuneOverviewItem("今月の運気", month, renderFortuneSummaryPanel("今月の運気", month, "今月の流れ", character, calculation))}
+        ${renderFortuneOverviewItem(`${new Date().getFullYear()}年の運気`, year, renderFortuneSummaryPanel(`${new Date().getFullYear()}年の運気`, year, "今年のテーマ", character, calculation))}
+        <details class="team-fortune-overview-item">
+          <summary><span>あなたの基本性格</span><strong>${escapeHtml(character.basicPersonality || "詳しく見る")}</strong></summary>
+          <div class="team-fortune-overview-detail">
+            <div class="team-fortune-section"><h4>基本性格</h4><p>${escapeHtml(character.basicPersonality || "")}</p></div>
+            ${renderFortuneList("あなたの長所", character.strengths)}
+            ${renderFortuneList("気をつけたいところ", character.cautions)}
+            ${renderFortuneTextGrid(character)}
+          </div>
+        </details>
+        <details class="team-fortune-overview-item fortune-compatibility-panel" id="fortuneCompatibilityPanel">
+          <summary><span>相性を見る</span><strong>気になる相手との相性を確認</strong></summary>
+          <div class="team-fortune-overview-detail">
+            <form id="fortuneCompatibilityForm" class="mini-form compatibility-input-form">
+              <label class="field">お相手の名前<input name="nickname" autocomplete="name" placeholder="お名前" required></label>
+              <label class="field">お相手の生年月日<input type="date" name="partnerBirthDate" required></label>
+              <label class="field">お相手の性別<select name="partnerGender" required><option value="">選択してください</option><option value="female">女性</option><option value="male">男性</option><option value="other">その他・回答しない</option></select></label>
+              <button class="primary-button" type="submit">相性を見る</button>
+            </form>
+            <div id="fortuneCompatibilityResult" class="team-fortune-compatibility-result" aria-live="polite"></div>
+          </div>
+        </details>
       </div>
       <button class="secondary-button" type="button" id="resetBirthDate">生年月日を変更する</button>
     </article>
+  `;
+}
+
+function renderFortuneOverviewItem(title, luck, detailHtml, open = false) {
+  return `
+    <details class="team-fortune-overview-item" ${open ? "open" : ""}>
+      <summary><span>${escapeHtml(title)}</span><strong>${escapeHtml(getTeamFortuneLuckDisplay(luck) || "詳しく見る")}</strong></summary>
+      <div class="team-fortune-overview-detail">${detailHtml}</div>
+    </details>
   `;
 }
 
@@ -2364,6 +2377,7 @@ function bindTeamFortuneActions(container) {
         birthDate,
         partnerBirthDate,
         partnerNickname: formData.get("nickname") || "",
+        partnerGender: formData.get("partnerGender") || "",
         targetDate: jstDateKey(),
         fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
       }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
@@ -2392,8 +2406,8 @@ function renderFortuneCompatibilityResult(data) {
   if (!compatibility.status || compatibility.status !== "confirmed") {
     return `
       <section class="team-fortune-alert">
-        <strong>FORTUNE_COMPATIBILITY_DEPLOY_WAITING</strong>
-        <span>正式資料は登録済みです。相性判定APIの最新版反映後に結果を表示できます。</span>
+        <strong>相性結果を表示できませんでした</strong>
+        <span>時間をおいて、もう一度お試しください。</span>
       </section>
     `;
   }
@@ -2431,7 +2445,7 @@ function renderCompatibilitySymbol(label, judgement) {
 function renderFortuneCompatibilityError(error) {
   return `
     <section class="team-fortune-alert">
-      <strong>${escapeHtml(error?.code || "FORTUNE_COMPATIBILITY_ERROR")}</strong>
+      <strong>相性結果を表示できませんでした</strong>
       <span>${escapeHtml(error?.message || "相性判定を取得できませんでした。")}</span>
     </section>
   `;
@@ -2578,29 +2592,20 @@ function selectionButtonHtml(type, itemId) {
 function lineCouponSelectionCardHtml(coupon) {
   const expiry = coupon.expires || coupon.validUntil || coupon.endDate || coupon.endAt;
   return `
-    <article class="coupon-card">
+    <article class="coupon-card compact-selection-card has-image">
       ${coupon.imageUrl ? `<img src="${escapeHtml(coupon.imageUrl)}" alt="${escapeHtml(coupon.title)}">` : ""}
-      <span>クーポン</span>
-      <h3>${escapeHtml(coupon.title)}</h3>
-      <p>${escapeHtml(coupon.description || coupon.message || "")}</p>
-      <small>有効期限：${escapeHtml(formatDateUntil(expiry))}</small>
-      ${selectionButtonHtml("coupon", coupon.couponId)}
+      <div class="compact-selection-body"><span>クーポン</span><h3>${escapeHtml(coupon.title)}</h3><p>${escapeHtml(coupon.description || coupon.message || "")}</p><small>有効期限：${escapeHtml(formatDateUntil(expiry))}</small></div>
+      <div class="compact-selection-action">${selectionButtonHtml("coupon", coupon.couponId)}</div>
     </article>
   `;
 }
 
 function menuSelectionCardHtml(menu) {
   return `
-    <article class="coupon-card menu-selection-card">
-      <span>通常メニュー</span>
-      <small class="selection-category">${escapeHtml(menu.category || "その他")}</small>
-      <h3>${escapeHtml(menu.title)}</h3>
-      <p>${escapeHtml(menu.description || "")}</p>
-      <div class="selection-meta">
-        <strong>${escapeHtml(formatYen(menu.regularPrice))}</strong>
-        <small>施術時間：${escapeHtml(formatMinutes(menu.durationMinutes))}</small>
-      </div>
-      ${selectionButtonHtml("menu", menu.menuId)}
+    <article class="coupon-card menu-selection-card compact-selection-card">
+      <div class="compact-selection-body"><span>通常メニュー</span><small class="selection-category">${escapeHtml(menu.category || "その他")}</small><h3>${escapeHtml(menu.title)}</h3><p>${escapeHtml(menu.description || "")}</p></div>
+      <div class="selection-meta"><strong>${escapeHtml(formatYen(menu.regularPrice))}</strong><small>${escapeHtml(formatMinutes(menu.durationMinutes))}</small></div>
+      <div class="compact-selection-action">${selectionButtonHtml("menu", menu.menuId)}</div>
     </article>
   `;
 }
@@ -2609,15 +2614,12 @@ function mySelectionCardHtml(item) {
   const isCoupon = item.type === "coupon";
   const safeLineUrl = isCoupon && isSafeLineCouponUrl(item.lineCouponUrl) ? item.lineCouponUrl : "";
   return `
-    <article class="coupon-card is-mine">
+    <article class="coupon-card is-mine compact-selection-card ${isCoupon && item.imageUrl ? "has-image" : ""}">
       ${isCoupon && item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.title)}">` : ""}
-      <span>${isCoupon ? "クーポン" : "通常メニュー"}</span>
-      ${!isCoupon && item.category ? `<small class="selection-category">${escapeHtml(item.category)}</small>` : ""}
-      <h3>${escapeHtml(item.title)}</h3>
-      ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
+      <div class="compact-selection-body"><span>${isCoupon ? "クーポン" : "通常メニュー"}</span>${!isCoupon && item.category ? `<small class="selection-category">${escapeHtml(item.category)}</small>` : ""}<h3>${escapeHtml(item.title)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}
       ${isCoupon
         ? `<small>有効期限：${escapeHtml(formatDateUntil(item.endDate))}</small>`
-        : `<div class="selection-meta"><strong>${escapeHtml(formatYen(item.price))}</strong><small>施術時間：${escapeHtml(formatMinutes(item.duration))}</small></div>`}
+        : `<div class="selection-meta"><strong>${escapeHtml(formatYen(item.price))}</strong><small>${escapeHtml(formatMinutes(item.duration))}</small></div>`}</div>
       <div class="selection-actions">
         ${safeLineUrl ? `<a class="secondary-button" href="${escapeHtml(safeLineUrl)}" target="_blank" rel="noopener noreferrer">LINEでクーポンを開く</a>` : ""}
         <button class="selection-remove-button" type="button" data-coupon-action="remove" data-item-type="${escapeHtml(item.type)}" data-item-id="${escapeHtml(item.itemId)}">削除</button>
@@ -4613,36 +4615,36 @@ function dashboardMetricSection(title, cards) {
 function renderAdminVisits() {
   const allReceptions = getVisitReceptions();
   const receptions = appState.adminVisitShowHistory ? allReceptions : allReceptions.filter((item) => isToday(item.receivedAt));
-  const unconfirmed = receptions.filter((item) => item.status === "確認待ち");
-  const confirmed = receptions.filter((item) => item.status === "確認済み");
-  const normalMessages = receptions.filter((item) => item.status === "通常メッセージ");
+  const unconfirmed = receptions.filter((item) => item.status === "未確認" || item.status === "確認待ち");
+  const confirmed = receptions.filter((item) => item.status === "来店済み" || item.status === "確認済み");
+  const normalMessages = receptions.filter((item) => item.status === "対象外" || item.status === "通常メッセージ");
   const todayReceptions = allReceptions.filter((item) => isToday(item.receivedAt));
   const todaySummary = {
-    total: todayReceptions.filter((item) => item.status !== "通常メッセージ" && item.status !== "取り消し").length,
-    unconfirmed: todayReceptions.filter((item) => item.status === "確認待ち").length,
-    confirmed: todayReceptions.filter((item) => item.status === "確認済み").length,
-    normal: todayReceptions.filter((item) => item.status === "通常メッセージ").length
+    total: todayReceptions.length,
+    unconfirmed: todayReceptions.filter((item) => item.status === "未確認" || item.status === "確認待ち").length,
+    confirmed: todayReceptions.filter((item) => item.status === "来店済み" || item.status === "確認済み").length,
+    normal: todayReceptions.filter((item) => item.status === "対象外" || item.status === "通常メッセージ").length
   };
   return `
     <section class="admin-section-head">
       <div>
-        <h3>来店受付</h3>
-        <p>本日受信した名前候補だけを初期表示します。過去分は履歴から確認できます。</p>
+        <h3>来店確認</h3>
+        <p>本日LINEに届いたメッセージを確認し、スタッフが確定したものだけを正式な来店として保存します。</p>
       </div>
       <div class="admin-head-actions">
         <button class="secondary-button compact" type="button" data-admin-action="toggleVisitHistory">${appState.adminVisitShowHistory ? "本日だけ表示" : "履歴を見る"}</button>
-        <button class="secondary-button compact" type="button" data-admin-action="simulateVisit">名前送信を追加</button>
+        ${isProductionApiMode() ? "" : `<button class="secondary-button compact" type="button" data-admin-action="simulateVisit">TESTメッセージを追加</button>`}
       </div>
     </section>
     <section class="visit-summary-grid">
-      ${summaryMetric("本日の受付人数", todaySummary.total)}
+      ${summaryMetric("本日のメッセージ", todaySummary.total)}
       ${summaryMetric("未確認人数", todaySummary.unconfirmed)}
       ${summaryMetric("確認済み人数", todaySummary.confirmed)}
-      ${summaryMetric("通常メッセージ件数", todaySummary.normal)}
+      ${summaryMetric("対象外", todaySummary.normal)}
     </section>
     ${visitGroup("未確認", "warning", unconfirmed, "未確認の来店受付はありません")}
     ${visitGroup("確認済み", "success", confirmed, "確認済みの受付はありません")}
-    ${visitGroup("通常メッセージ", "neutral", normalMessages, "通常メッセージはありません")}
+    ${visitGroup("対象外", "neutral", normalMessages, "対象外にしたメッセージはありません")}
   `;
 }
 
@@ -4668,15 +4670,16 @@ function visitReceptionCard(item, tone = "") {
   const lastVisitDays = member?.lastVisitDate ? `${daysSince(member.lastVisitDate)}日` : "-";
   const time = formatReceptionTime(item.receivedAt);
   return `
-    <article class="admin-record visit-card ${item.status === "確認待ち" ? "is-pending" : ""} ${tone}">
+    <article class="admin-record visit-card ${item.status === "未確認" || item.status === "確認待ち" ? "is-pending" : ""} ${tone}">
       <header>
         <span class="badge status-${statusTone(item.status)}">${escapeHtml(item.status)}</span>
-        <strong>${escapeHtml(item.sentName)}</strong>
+        <strong>${escapeHtml(item.lineDisplayName || item.sentName || "LINEユーザー")}</strong>
         <small>受付 ${escapeHtml(time)}</small>
       </header>
       <div class="admin-record-grid">
         ${summaryRows([
-          ["送信された名前", item.sentName],
+          ["LINE表示名", item.lineDisplayName || "未取得"],
+          ["送られてきた本文", item.messageText || item.sentName || "-"],
           ["登録氏名", member?.realName || "未登録"],
           ["会員ID", item.memberId],
           ["新規／既存", item.receptionType],
@@ -4690,17 +4693,15 @@ function visitReceptionCard(item, tone = "") {
       </div>
       <small class="line-id-chip">LINE ID: ${escapeHtml(item.lineUserId)}</small>
       <div class="admin-actions priority-actions">
-        <button type="button" data-admin-action="confirmVisit" data-id="${escapeHtml(item.receptionId)}">来店確認</button>
-        <button type="button" data-admin-action="memberDetail" data-id="${escapeHtml(item.memberId)}">会員詳細</button>
-        <button type="button" data-admin-action="memberCoupons" data-id="${escapeHtml(item.memberId)}">クーポン</button>
-        <button type="button" data-admin-action="memberGacha" data-id="${escapeHtml(item.memberId)}">ガチャ</button>
+        ${(item.status === "未確認" || item.status === "確認待ち") ? `<button type="button" data-admin-action="confirmVisit" data-id="${escapeHtml(item.receptionId)}">来店確認</button><button type="button" class="secondary-button" data-admin-action="markMessage" data-id="${escapeHtml(item.receptionId)}">対象外</button>` : ""}
+        ${item.memberId ? `<button type="button" data-admin-action="memberDetail" data-id="${escapeHtml(item.memberId)}">会員詳細</button>` : ""}
       </div>
       <details class="more-actions">
         <summary>その他</summary>
         <div class="admin-actions">
           <button type="button" data-admin-action="memberBooking" data-id="${escapeHtml(item.memberId)}">予約</button>
           <button type="button" data-admin-action="renameVisit" data-id="${escapeHtml(item.receptionId)}">氏名修正</button>
-          <button type="button" data-admin-action="markMessage" data-id="${escapeHtml(item.receptionId)}">通常メッセージとして扱う</button>
+          <button type="button" data-admin-action="markMessage" data-id="${escapeHtml(item.receptionId)}">対象外として扱う</button>
           <button type="button" data-admin-action="mergeMember" data-id="${escapeHtml(item.receptionId)}">別会員と統合</button>
           <button type="button" data-admin-action="cancelVisit" data-id="${escapeHtml(item.receptionId)}">受付取り消し</button>
         </div>
@@ -5981,7 +5982,7 @@ function handleAdminAction(button) {
   if (action === "applyMemberFilter") return applyMemberFilter();
   if (action === "confirmVisit") return confirmVisitReception(id);
   if (action === "renameVisit") return renameVisitReception(id);
-  if (action === "markMessage") return updateVisitReceptionStatus(id, "通常メッセージ");
+  if (action === "markMessage") return updateVisitReceptionStatus(id, "対象外");
   if (action === "mergeMember") return mergeVisitReceptionMember(id);
   if (action === "cancelVisit") return updateVisitReceptionStatus(id, "取り消し");
   if (action === "memberDetail") return openMemberChart(id);
@@ -6311,7 +6312,19 @@ function createTemporaryMember(lineUserId, lineDisplayName, sentName) {
   };
 }
 
-function confirmVisitReception(receptionId) {
+async function confirmVisitReception(receptionId) {
+  if (isProductionApiMode()) {
+    try {
+      await apiRequest("confirmVisitReception", { receptionId });
+      await syncProductionVisitReceptions({ render: false });
+      renderApp();
+      showToast("来店を確認しました。正式な来店履歴へ反映しました。");
+    } catch (error) {
+      console.error("[TEAM LINK VISIT CONFIRM FAILED]", error);
+      showToast(error?.message || "来店確認に失敗しました。");
+    }
+    return;
+  }
   const receptions = getVisitReceptions();
   const reception = receptions.find((item) => item.receptionId === receptionId);
   if (!reception) return;
@@ -6363,7 +6376,19 @@ function renameVisitReception(receptionId) {
   renderApp();
 }
 
-function updateVisitReceptionStatus(receptionId, status) {
+async function updateVisitReceptionStatus(receptionId, status) {
+  if (isProductionApiMode()) {
+    try {
+      await apiRequest("updateVisitReceptionStatus", { receptionId, status: status === "対象外" ? "excluded" : status });
+      await syncProductionVisitReceptions({ render: false });
+      renderApp();
+      showToast("メッセージを対象外にしました。");
+    } catch (error) {
+      console.error("[TEAM LINK VISIT STATUS FAILED]", error);
+      showToast(error?.message || "状態を更新できませんでした。");
+    }
+    return;
+  }
   const receptions = getVisitReceptions();
   const reception = receptions.find((item) => item.receptionId === receptionId);
   if (!reception) return;
@@ -9601,10 +9626,29 @@ async function syncProductionBookingRequests(options = {}) {
   return bookings;
 }
 
+function normalizeVisitReceptionStatus(status) {
+  const value = String(status || "pending");
+  if (["visited", "confirmed", "確認済み", "来店済み"].includes(value)) return "来店済み";
+  if (["excluded", "通常メッセージ", "対象外"].includes(value)) return "対象外";
+  return "未確認";
+}
+
+async function syncProductionVisitReceptions(options = {}) {
+  if (!isProductionApiMode() || !getAdminSession()) return [];
+  const result = await apiRequest("listVisitReceptions", { date: jstDateKey(), includeHistory: appState.adminVisitShowHistory });
+  const rows = result.receptions || result.data?.receptions;
+  if (!Array.isArray(rows)) return [];
+  const receptions = rows.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) }));
+  writeJson(STORAGE_KEYS.visitReceptions, receptions);
+  if (options.render !== false) renderApp();
+  return receptions;
+}
+
 async function syncProductionAdminState(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return;
-  const [bookingSync, gachaMasterSync, gachaHistorySync] = await Promise.allSettled([
+  const [bookingSync, visitSync, gachaMasterSync, gachaHistorySync] = await Promise.allSettled([
     apiRequest("listBookingRequests", {}),
+    apiRequest("listVisitReceptions", { date: jstDateKey(), includeHistory: appState.adminVisitShowHistory }),
     apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() }),
     apiRequest("listGachaUsageHistory", {})
   ]);
@@ -9623,6 +9667,12 @@ async function syncProductionAdminState(options = {}) {
     })));
   } else {
     console.error("[TEAM LINK BOOKING ADMIN SYNC FAILED]", bookingSync.reason);
+  }
+  if (visitSync.status === "fulfilled") {
+    const rows = visitSync.value.receptions || visitSync.value.data?.receptions;
+    if (Array.isArray(rows)) writeJson(STORAGE_KEYS.visitReceptions, rows.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) })));
+  } else {
+    console.error("[TEAM LINK VISIT ADMIN SYNC FAILED]", visitSync.reason);
   }
   if (gachaMasterSync.status === "fulfilled") {
     const gachaMasterResult = gachaMasterSync.value;
