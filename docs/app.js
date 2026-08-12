@@ -2581,7 +2581,9 @@ function renderFortuneCompatibilityResult(data) {
 }
 
 function firstFortuneSentence(value) {
-  return String(value || "").trim().split(/(?<=[。！？])/u).filter(Boolean)[0] || "";
+  const text = String(value || "").trim();
+  const boundary = [...text].findIndex((character) => "。！？".includes(character));
+  return boundary >= 0 ? [...text].slice(0, boundary + 1).join("") : text;
 }
 
 function firstFortuneItems(value, count = 2) {
