@@ -6540,7 +6540,7 @@ function createMemberBooking(memberId) {
   if (!menu) return;
   const firstDateTime = window.prompt("来店予定日時を入力してください（例: 2026-08-12T13:00）", "2026-08-12T13:00");
   if (!firstDateTime) return;
-  const staffName = window.prompt("担当者を入力してください", member.staff || member.preferredStaff || "BOSS 村松剛好") || "";
+  const staffName = window.prompt("担当者を入力してください", formatStaffDisplayName(member.staff || member.preferredStaff) || "村松剛好") || "";
   const source = window.prompt("予約元を入力してください（Hot Pepper / TEAM LINK相談 / LINEチャット / 電話 / 店頭次回予約 / その他）", "店頭次回予約") || "その他";
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   bookings.unshift({
@@ -8766,7 +8766,7 @@ function ensureDemoState() {
         visitCount: 1,
         visitHistory: [{ date: "2026-07-12", source: "LINE来店受付" }],
         memberStatus: "既存会員",
-        staff: "BOSS",
+        staff: "村松剛好",
         visitCycle: "60日前後",
         recommendedMenu: "髪質改善トリートメント",
         caution: "",
