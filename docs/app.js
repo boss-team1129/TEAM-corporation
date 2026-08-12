@@ -588,6 +588,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindNavigation() {
+  document.body.addEventListener("pointerdown", (event) => {
+    const choiceButton = event.target.closest("[data-gacha-action='selectCard']");
+    if (!choiceButton || appState.gachaChoiceInProgress || event.button > 0) return;
+    choiceButton.dataset.gachaPointerStartedAt = String(performance.now());
+    choiceButton.classList.add("is-pressed");
+    choiceButton.closest("[data-gacha-choice-stage]")?.classList.add("has-pointer-feedback");
+  }, { passive: true });
   document.body.addEventListener("click", (event) => {
     const viewButton = event.target.closest("[data-view]");
     const messageButton = event.target.closest("[data-message]");
@@ -2581,7 +2588,7 @@ function renderGacha() {
   const choiceStage = document.getElementById("gachaChoiceStage");
   const setting = getCurrentGachaSetting();
   const gachaCards = getGachaCards(setting);
-  preloadGachaRevealAssets(gachaCards).catch((error) => {
+  preloadGachaRevealAssets().catch((error) => {
     console.warn("[TEAM LINK GACHA PRELOAD FAILED]", error);
   });
   const grandPrize = gachaCards.find((card) => card.rarity === "UR") || gachaCards.find((card) => card.rarity === "SSR") || gachaCards[0];
@@ -2721,22 +2728,41 @@ async function selectGachaCard(button) {
   appState.gachaChoiceInProgress = true;
   const stage = button.closest("[data-gacha-choice-stage]");
   const choice = button.dataset.choice || "center";
+  const pointerStartedAt = Number(button.dataset.gachaPointerStartedAt || performance.now());
+  const clickStartedAt = performance.now();
   stage?.classList.add("is-selecting", `selected-${choice}`);
   stage?.querySelectorAll("button").forEach((item) => {
     item.disabled = true;
     if (item !== button) item.classList.add("is-fading");
-    else item.classList.add("is-picked");
+    else item.classList.add("is-picked", "is-pressed");
   });
-  console.info("[TEAM LINK GACHA] choice animation start", { choice, month: latestStatus.month });
+  console.info("[TEAM LINK GACHA] choice animation start", {
+    choice,
+    month: latestStatus.month,
+    pointerToClickMs: Math.round(clickStartedAt - pointerStartedAt)
+  });
   openGachaRevealAnimation({ choice });
   try {
+    await waitForGachaInteractionPaint();
+    const apiStartedAt = performance.now();
+    console.info("[TEAM LINK GACHA] immediate feedback painted", {
+      pointerToFeedbackMs: Math.round(apiStartedAt - pointerStartedAt)
+    });
     const draw = isProductionApiMode() ? await drawGachaRemote(latestStatus.month, { silent: true, skipPreflight: true }) : createGachaDraw(latestStatus.month);
     if (!draw) {
       closeGachaRevealAnimation();
       renderApp();
       return;
     }
+    const apiCompletedAt = performance.now();
+    console.info("[TEAM LINK GACHA] production draw ready", {
+      apiMs: Math.round(apiCompletedAt - apiStartedAt),
+      pointerToResultMs: Math.round(apiCompletedAt - pointerStartedAt)
+    });
     await completeGachaReveal(draw);
+    console.info("[TEAM LINK GACHA] front card visible", {
+      pointerToFrontCompleteMs: Math.round(performance.now() - pointerStartedAt)
+    });
     const saved = await saveGachaDraw(draw);
     if (!saved) throw new Error("GACHA_SAVE_FAILED");
     const refreshPromise = isProductionApiMode()
@@ -2765,6 +2791,12 @@ async function selectGachaCard(button) {
   } finally {
     appState.gachaChoiceInProgress = false;
   }
+}
+
+function waitForGachaInteractionPaint() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+  });
 }
 
 function renderCouponGachaDashboard() {
@@ -2952,7 +2984,6 @@ async function confirmGachaCardUse(cardId) {
     renderApp();
     return;
   }
-  const profile = getProfile();
   const userKey = getCurrentUserKey();
   if (card.memberId && String(card.memberId) !== String(userKey)) {
     appState.gachaUseConfirmId = "";
@@ -2965,50 +2996,30 @@ async function confirmGachaCardUse(cardId) {
   renderApp();
   try {
     if (isProductionApiMode() && card.drawId) {
-      let confirmationCode = String(card.confirmationCode || "").trim();
-      if (state !== "pending" || !confirmationCode) {
-        const requestResult = await apiRequest("requestCouponUse", {
-          userId: userKey,
-          memberId: userKey,
-          lineUserId: profile.lineUserId || "",
-          drawId: card.drawId
-        });
-        const requestedCoupon = requestResult.data?.coupon || requestResult.coupon || {};
-        if (requestedCoupon.userId && String(requestedCoupon.userId) !== String(userKey)) {
-          throw new Error("景品のユーザー情報が一致しません。");
-        }
-        confirmationCode = String(requestedCoupon.confirmationCode || "").trim();
-        updateGachaCardEverywhere(cardId, (item) => {
-          item.lifecycleState = requestedCoupon.status || "pending";
-          item.useState = requestedCoupon.status || "pending";
-          item.status = requestedCoupon.status || "pending";
-          item.useRequestedAt = requestedCoupon.requestedAt || new Date().toISOString();
-          item.confirmationCode = confirmationCode || item.confirmationCode || "";
-          item.usageId = requestedCoupon.usageId || item.usageId || "";
-        });
+      if (card.dataMode === "TEST") throw new Error("TESTカードは本番画面から使用できません。");
+      if (normalizeServerYearMonth(card.issueMonth || card.obtainedAt) !== currentMonthKey()) {
+        throw new Error("このカードは当月の景品ではありません。");
       }
-      if (!confirmationCode) throw new Error("使用確認情報を取得できませんでした。");
-      const confirmResult = await apiRequest("confirmCouponUseByCustomer", {
+      const confirmResult = await apiRequest("confirmGachaPrizeUse", {
         userId: userKey,
         memberId: userKey,
         drawId: card.drawId,
-        confirmationCode,
         confirmedBy: "店頭スタッフ（お客様画面）",
         storeName: getStoreSettings().shopName
       });
-      const confirmedCoupon = confirmResult.data?.coupon || confirmResult.coupon || {};
-      if (normalizeGachaState(confirmedCoupon.status || "used") !== "used") {
+      const confirmedDraw = confirmResult.data?.draw || confirmResult.draw || {};
+      const confirmedUsage = confirmResult.data?.usage || confirmResult.usage || {};
+      if (normalizeGachaState(confirmedDraw.status || confirmedUsage.status) !== "used") {
         throw new Error("使用済み状態を確認できませんでした。");
       }
       updateGachaCardEverywhere(cardId, (item) => {
         item.lifecycleState = "used";
         item.useState = "used";
         item.status = "used";
-        item.usedAt = confirmedCoupon.confirmedAt || new Date().toISOString();
+        item.usedAt = confirmedDraw.usedAt || confirmedUsage.confirmedAt || new Date().toISOString();
         item.useConfirmedAt = item.usedAt;
-        item.usedByStaff = confirmedCoupon.confirmedBy || "店頭スタッフ（お客様画面）";
-        item.usedStore = confirmedCoupon.storeName || getStoreSettings().shopName;
-        item.confirmationCode = confirmationCode;
+        item.usedByStaff = confirmedDraw.usedByStaff || confirmedUsage.confirmedBy || "店頭スタッフ（お客様画面）";
+        item.usedStore = confirmedUsage.storeName || getStoreSettings().shopName;
       });
       appState.gachaUseConfirmId = "";
       renderGachaCollectionViews();
@@ -3018,7 +3029,7 @@ async function confirmGachaCardUse(cardId) {
       renderGachaCollectionViews();
     } else {
       const usedAt = new Date().toISOString();
-      const updated = updateGachaCardEverywhere(cardId, (item) => {
+      updateGachaCardEverywhere(cardId, (item) => {
         item.lifecycleState = "used";
         item.useState = "used";
         item.status = "used";
@@ -3027,138 +3038,31 @@ async function confirmGachaCardUse(cardId) {
         item.usedByStaff = "店頭スタッフ（お客様画面）";
         item.usedStore = getStoreSettings().shopName;
       });
-      if (updated) syncLinkedCouponFromGacha(updated, "used");
     }
     appState.gachaUseConfirmId = "";
     renderGachaCollectionViews();
     showToast("景品を使用済みにしました。");
   } catch (error) {
     console.error("[TEAM LINK GACHA CUSTOMER USE CONFIRM FAILED]", error);
-    showToast(error?.message || "使用確定に失敗しました。もう一度お試しください。");
+    showToast(getGachaUseErrorMessage(error));
   } finally {
     appState.gachaUseConfirmBusy = false;
     renderApp();
   }
 }
 
-async function requestGachaCardUse(cardId) {
-  const card = findGachaCardRecord(cardId);
-  if (!card) return;
-  const state = getGachaLifecycleState(card);
-  if (state === "expired") {
-    showToast("このカードは期限切れのため使用申請できません。");
-    return;
-  }
-  if (state === "used") {
-    showToast("このカードはすでに使用済みです。");
-    return;
-  }
-  if (state === "pending") {
-    showToast(`スタッフ確認待ちです。確認コード：${card.confirmationCode || "-"}`);
-    return;
-  }
-  if (isProductionApiMode() && card.drawId) {
-    try {
-      const profile = getProfile();
-      const userKey = getCurrentUserKey();
-      const result = await apiRequest("requestCouponUse", {
-        userId: userKey,
-        memberId: userKey,
-        lineUserId: profile.lineUserId || "",
-        drawId: card.drawId
-      });
-      const coupon = result.data?.coupon || result.coupon || {};
-      updateGachaCardEverywhere(cardId, (item) => {
-        item.lifecycleState = coupon.status || "pending";
-        item.useState = coupon.status || "pending";
-        item.status = coupon.status || "pending";
-        item.useRequestedAt = coupon.requestedAt || new Date().toISOString();
-        item.confirmationCode = coupon.confirmationCode || item.confirmationCode || "";
-      });
-      showToast(`スタッフへこの画面を見せてください。確認コード：${coupon.confirmationCode || "-"}`);
-      await refreshProductionGachaCoupons(userKey);
-      renderApp();
-      return;
-    } catch (error) {
-      console.error("[TEAM LINK GACHA USE REQUEST FAILED]", error);
-      showToast(error?.message || "使用申請に失敗しました。");
-      return;
-    }
-  }
-  const code = createGachaConfirmCode(card);
-  updateGachaCardEverywhere(cardId, (item) => {
-    item.lifecycleState = "pending";
-    item.useState = "pending";
-    item.status = "pending";
-    item.useRequestedAt = new Date().toISOString();
-    item.confirmationCode = item.confirmationCode || code;
-    item.pendingExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  });
-  syncLinkedCouponPendingState(card, "スタッフ確認待ち", code);
-  showToast(`スタッフへこの画面を見せてください。確認コード：${code}`);
-  renderApp();
-}
-
-async function cancelGachaUseRequest(cardId) {
-  const card = findGachaCardRecord(cardId);
-  if (!card || getGachaLifecycleState(card) !== "pending") return;
-  if (isProductionApiMode() && card.drawId) {
-    try {
-      const profile = getProfile();
-      const userKey = getCurrentUserKey();
-      await apiRequest("cancelCouponUseRequest", {
-        userId: userKey,
-        memberId: userKey,
-        lineUserId: profile.lineUserId || "",
-        drawId: card.drawId
-      });
-      await refreshProductionGachaCoupons(userKey);
-      showToast("使用申請をキャンセルしました。");
-      renderApp();
-      return;
-    } catch (error) {
-      console.error("[TEAM LINK GACHA USE CANCEL FAILED]", error);
-      showToast(error?.message || "キャンセルに失敗しました。");
-      return;
-    }
-  }
-  const requestedAt = new Date(card.useRequestedAt || 0).getTime();
-  if (requestedAt && Date.now() - requestedAt > 15 * 60 * 1000) {
-    showToast("申請から時間が経過したため、スタッフへお声がけください。");
-    return;
-  }
-  updateGachaCardEverywhere(cardId, (item) => {
-    item.lifecycleState = "available";
-    item.useState = "available";
-    item.status = "available";
-    item.useCancelledAt = new Date().toISOString();
-    item.previousConfirmationCode = item.confirmationCode || "";
-    item.confirmationCode = "";
-    item.pendingExpiresAt = "";
-  });
-  syncLinkedCouponPendingState(card, "未使用", "");
-  showToast("使用申請をキャンセルしました。");
-  renderApp();
+function getGachaUseErrorMessage(error) {
+  const code = String(error?.errorCode || "");
+  const message = String(error?.message || "");
+  if (code === "ALREADY_USED" || /すでに使用済み/.test(message)) return "この景品はすでに使用済みです。";
+  if (code === "EXPIRED" || /期限/.test(message)) return "この景品は有効期限が切れています。";
+  if (code === "NOT_FOUND" || code === "USER_MISMATCH" || /見つかりません|一致しません/.test(message)) return "カード情報を取得できませんでした。";
+  return "通信に失敗しました。もう一度お試しください。";
 }
 
 function createGachaConfirmCode(card) {
   const seed = `${card.memberId || ""}${card.cardHistoryId || card.drawId || ""}${Date.now()}`;
   return `TL-${Math.abs(hashString(seed)).toString(36).toUpperCase().slice(0, 6).padEnd(6, "0")}`;
-}
-
-function syncLinkedCouponPendingState(card, status, confirmationCode) {
-  const coupons = readJson(STORAGE_KEYS.myCoupons, []);
-  let changed = false;
-  coupons.forEach((coupon) => {
-    const linked = String(coupon.linkedCardHistoryId || coupon.sourceId || "") === String(card.cardHistoryId || card.drawId) ||
-      (card.linkedCouponId && String(coupon.couponId) === String(card.linkedCouponId));
-    if (!linked) return;
-    coupon.status = status;
-    coupon.confirmationCode = confirmationCode || "";
-    coupon.updatedAt = new Date().toISOString();
-    changed = true;
-  });
-  if (changed) writeJson(STORAGE_KEYS.myCoupons, coupons);
 }
 
 async function drawGachaRemote(issueMonth, options = {}) {
@@ -3769,11 +3673,11 @@ function preloadGachaImage(url, timeoutMs = 2200) {
 function preloadGachaRevealAssets(cards = []) {
   const rarityKeys = ["n", "r", "sr", "ssr", "ur"];
   const baseAssets = [
-    "images/gacha/bg-gacha.png",
-    "images/gacha/card-back.png",
+    "images/gacha/bg-gacha.webp",
+    "images/gacha/card-back.webp",
     ...rarityKeys.flatMap((rarity) => [
-      `images/gacha/frames/frame-${rarity}.png`,
-      `images/gacha/inside/inside-${rarity}.png`
+      `images/gacha/frames/frame-${rarity}.webp`,
+      `images/gacha/inside/inside-${rarity}.webp`
     ])
   ];
   const characterAssets = cards
@@ -3784,7 +3688,7 @@ function preloadGachaRevealAssets(cards = []) {
 
 function gachaFrameImageHtml(card) {
   const rarity = String(card.rarity || "N").toLowerCase();
-  const frameImage = card.frameImageUrl || card.snapshotFrameImageUrl || `images/gacha/frames/frame-${rarity}.png`;
+  const frameImage = card.frameImageUrl || card.snapshotFrameImageUrl || `images/gacha/frames/frame-${rarity}.webp`;
   if (!frameImage) return "";
   const src = escapeHtml(frameImage);
   return ["top", "left", "right", "bottom"].map((part) => (
@@ -3794,7 +3698,7 @@ function gachaFrameImageHtml(card) {
 
 function gachaInsideImageHtml(card) {
   const rarity = String(card.rarity || "N").toLowerCase();
-  const insideImage = card.insideImageUrl || card.snapshotInsideImageUrl || `images/gacha/inside/inside-${rarity}.png`;
+  const insideImage = card.insideImageUrl || card.snapshotInsideImageUrl || `images/gacha/inside/inside-${rarity}.webp`;
   return insideImage
     ? `<img class="gacha-inside-image" src="${escapeHtml(insideImage)}" alt="" aria-hidden="true" onerror="this.closest('.gacha-complete-card')?.classList.add('is-inside-missing')">`
     : "";
@@ -3802,14 +3706,18 @@ function gachaInsideImageHtml(card) {
 
 function getGachaCharacterSrc(cardData = {}) {
   const characterId = normalizeGachaCharacterId(cardData.characterId || cardData.cardId || "");
-  return String(cardData.imageUrl || cardData.snapshotImageUrl || cardData.imagePath || (characterId ? `images/gacha/characters/${characterId}.png` : "")).trim();
+  const source = String(cardData.imageUrl || cardData.snapshotImageUrl || cardData.imagePath || (characterId ? `images/gacha/characters/${characterId}.png` : "")).trim();
+  if (/^images\/gacha\/characters\/character-\d+\.png(?:\?.*)?$/i.test(source)) {
+    return source.replace(/\.png(?=\?|$)/i, ".webp");
+  }
+  return source;
 }
 
 function createSimpleGachaCard(cardData = {}, options = {}) {
   const rarityKey = String(cardData.rarity || "N").toLowerCase();
   const characterSrc = getGachaCharacterSrc(cardData);
-  const insideSrc = cardData.insideImageUrl || cardData.snapshotInsideImageUrl || `images/gacha/inside/inside-${rarityKey}.png`;
-  const frameSrc = cardData.frameImageUrl || cardData.snapshotFrameImageUrl || `images/gacha/frames/frame-${rarityKey}.png`;
+  const insideSrc = cardData.insideImageUrl || cardData.snapshotInsideImageUrl || `images/gacha/inside/inside-${rarityKey}.webp`;
+  const frameSrc = cardData.frameImageUrl || cardData.snapshotFrameImageUrl || `images/gacha/frames/frame-${rarityKey}.webp`;
   const characterName = cardData.characterName || cardData.cardName || "";
   const introText = cardData.intro || cardData.description || "TEAM LINKだけのコレクションカード";
   const effectName = cardData.effectName || cardData.effectTitle || "ビューティー運アップ";
@@ -3850,7 +3758,7 @@ function createSimpleGachaCard(cardData = {}, options = {}) {
 function gachaRevealBackHtml() {
   return `
     <div class="gacha-card-back-art">
-      <img src="images/gacha/card-back.png" alt="" aria-hidden="true" onerror="this.hidden=true;this.closest('.gacha-card-back-art')?.classList.add('is-css-back')">
+      <img src="images/gacha/card-back.webp" alt="" aria-hidden="true" onerror="this.hidden=true;this.closest('.gacha-card-back-art')?.classList.add('is-css-back')">
     </div>
   `;
 }
@@ -4078,7 +3986,7 @@ function revealGachaCard(card) {
 function openGachaRevealAnimation({ choice = "center", testMode = false } = {}) {
   const overlay = document.getElementById("gachaReveal");
   if (!overlay) return;
-  preloadGachaRevealAssets(getGachaCards(getCurrentGachaSetting())).catch((error) => {
+  preloadGachaRevealAssets().catch((error) => {
     console.warn("[TEAM LINK GACHA PRELOAD FAILED]", error);
   });
   overlay.hidden = false;
@@ -5713,7 +5621,7 @@ function gachaPreviewPanelHtml(card, mode = "card") {
     const checkerStyle = "min-height:190px;display:grid;place-items:center;padding:10px;border-radius:14px;background-color:#fff;background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0;";
     const darkStyle = "min-height:190px;display:grid;place-items:center;padding:10px;border-radius:14px;background:#050505;";
     const whiteStyle = "min-height:190px;display:grid;place-items:center;padding:10px;border-radius:14px;background:#fff;";
-    const insideStyle = `min-height:190px;display:grid;place-items:center;padding:10px;border-radius:14px;background:#090909 url('images/gacha/inside/inside-${rarityKey}.png') center/cover no-repeat;`;
+    const insideStyle = `min-height:190px;display:grid;place-items:center;padding:10px;border-radius:14px;background:#090909 url('images/gacha/inside/inside-${rarityKey}.webp') center/cover no-repeat;`;
     return `
       <section class="gacha-preview-mode">
         <header><strong>透過確認プレビュー</strong><small>元PNGを直接表示します。Canvas加工は使いません。</small></header>

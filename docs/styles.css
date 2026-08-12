@@ -1691,7 +1691,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   border: 1px solid rgba(232,197,124,.22);
   background:
     linear-gradient(180deg, rgba(5,5,8,.34), rgba(5,5,8,.68)),
-    url("images/gacha/bg-gacha.png") center / cover no-repeat,
+    url("images/gacha/bg-gacha.webp") center / cover no-repeat,
     rgba(6,6,8,.88);
   box-shadow: 0 28px 70px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.12);
 }
@@ -1781,6 +1781,16 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   transform-style: preserve-3d;
   transition: transform .36s cubic-bezier(.2,.7,.2,1), opacity .32s ease, filter .32s ease, box-shadow .32s ease;
   animation: choiceCardFloat 4.4s ease-in-out infinite;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  will-change: transform, opacity, filter;
+}
+
+.gacha-choice-card.is-pressed {
+  filter: brightness(1.28) drop-shadow(0 0 24px rgba(255,225,135,.72));
+  box-shadow: 0 22px 48px rgba(0,0,0,.42), 0 0 0 3px rgba(255,232,168,.54), 0 0 48px rgba(232,197,124,.62);
+  transition-duration: .08s;
+  animation-play-state: paused;
 }
 
 .gacha-choice-card.is-center {
@@ -2970,7 +2980,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   inset: 0;
   background:
     linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.48)),
-    url("images/gacha/bg-gacha.png") center / cover no-repeat,
+    url("images/gacha/bg-gacha.webp") center / cover no-repeat,
     radial-gradient(circle at 50% 50%, rgba(232,197,124,.20), transparent 32%),
     #05060c;
   transform: scale(1.04);
