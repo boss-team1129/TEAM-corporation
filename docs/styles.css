@@ -1692,7 +1692,15 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   border-radius: 12px;
 }
 .compact-selection-body { display: grid; gap: 3px; min-width: 0; }
-.compact-selection-body h3 { margin: 0; font-size: 15px; line-height: 1.35; }
+.compact-selection-body h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .compact-selection-body p {
   display: -webkit-box;
   overflow: hidden;
@@ -1738,6 +1746,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   .compact-selection-card > img { width: 68px; height: 68px; }
   .compact-selection-card .selection-meta { min-width: 70px; }
   .compact-selection-card.has-image .compact-selection-action { grid-column: 1 / -1; }
+  .compact-selection-body p { -webkit-line-clamp: 1; }
   .team-fortune-card { padding: 14px; }
   .team-fortune-visual { min-height: 130px; }
   .team-fortune-visual img { max-height: 150px; }
