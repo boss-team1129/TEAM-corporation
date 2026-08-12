@@ -573,6 +573,9 @@ const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_BY_CYCLE).
   return map;
 }, {});
 
+const teamFortuneSessionCache = new Map();
+const teamFortuneCompatibilitySessionCache = new Map();
+
 const adminUsers = {
   boss: { adminId: "boss", name: "村松 剛好", role: "admin", label: "管理者" },
   "staff-kanda": { adminId: "staff-kanda", name: "神田 加奈", role: "staff", label: "スタッフ" }
@@ -2047,15 +2050,23 @@ async function loadTeamFortune(birthDate) {
   if (!TEAM_LINK_FORTUNE_API_URL || !TEAM_LINK_FORTUNE_DB_ID) {
     throw createFortuneError("FORTUNE_API_NOT_CONFIGURED", "TEAM LINK Fortune DB APIが未設定です。");
   }
-  const result = await fortuneApiRequest("resolveTeamFortune", {
+  const cacheKey = `${birthDate}|${jstDateKey()}`;
+  if (teamFortuneSessionCache.has(cacheKey)) return teamFortuneSessionCache.get(cacheKey);
+  const request = fortuneApiRequest("resolveTeamFortune", {
     birthDate,
     targetDate: jstDateKey(),
     fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
-  }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
-  if (!result?.success) {
-    throw createFortuneError(result?.errorCode || "FORTUNE_API_ERROR", result?.message || "TEAM占いデータを取得できませんでした。", result?.data || result);
-  }
-  return result.data || result;
+  }, { apiUrl: TEAM_LINK_FORTUNE_API_URL }).then((result) => {
+    if (!result?.success) {
+      throw createFortuneError(result?.errorCode || "FORTUNE_API_ERROR", result?.message || "TEAM占いデータを取得できませんでした。", result?.data || result);
+    }
+    return result.data || result;
+  }).catch((error) => {
+    teamFortuneSessionCache.delete(cacheKey);
+    throw error;
+  });
+  teamFortuneSessionCache.set(cacheKey, request);
+  return request;
 }
 
 function createFortuneError(code, message, data = {}) {
@@ -2153,7 +2164,7 @@ function renderTeamFortuneResult(result) {
           <div class="team-fortune-overview-detail">
             <form id="fortuneCompatibilityForm" class="mini-form compatibility-input-form">
               <label class="field">お相手の名前<input name="nickname" autocomplete="name" placeholder="お名前" required></label>
-              <label class="field">お相手の生年月日<input type="date" name="partnerBirthDate" required></label>
+              ${renderCompatibilityBirthDateFields()}
               <label class="field">お相手の性別<select name="partnerGender" required><option value="">選択してください</option><option value="female">女性</option><option value="male">男性</option><option value="other">その他・回答しない</option></select></label>
               <button class="primary-button" type="submit">相性を見る</button>
             </form>
@@ -2181,6 +2192,50 @@ function renderFortuneOverviewItem(title, luck, detailHtml, open = false) {
       <div class="team-fortune-overview-detail">${detailHtml}</div>
     </details>
   `;
+}
+
+function renderCompatibilityBirthDateFields() {
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 101 }, (_, index) => currentYear - index);
+  const months = Array.from({ length: 12 }, (_, index) => index + 1);
+  const days = Array.from({ length: 31 }, (_, index) => index + 1);
+  const options = (values, suffix) => values.map((value) => `<option value="${value}">${value}${suffix}</option>`).join("");
+  return `
+    <fieldset class="compatibility-birth-fieldset">
+      <legend>お相手の生年月日</legend>
+      <div class="compatibility-birth-selects">
+        <label><span>年</span><select name="partnerBirthYear" required><option value="">年</option>${options(years, "年")}</select></label>
+        <label><span>月</span><select name="partnerBirthMonth" required><option value="">月</option>${options(months, "月")}</select></label>
+        <label><span>日</span><select name="partnerBirthDay" required><option value="">日</option>${options(days, "日")}</select></label>
+      </div>
+    </fieldset>
+  `;
+}
+
+function updateCompatibilityBirthDays(form) {
+  const yearSelect = form?.elements?.partnerBirthYear;
+  const monthSelect = form?.elements?.partnerBirthMonth;
+  const daySelect = form?.elements?.partnerBirthDay;
+  if (!yearSelect || !monthSelect || !daySelect) return;
+  const previousDay = Number(daySelect.value);
+  const year = Number(yearSelect.value) || 2000;
+  const month = Number(monthSelect.value) || 1;
+  const maxDay = new Date(year, month, 0).getDate();
+  daySelect.innerHTML = `<option value="">日</option>${Array.from({ length: maxDay }, (_, index) => {
+    const day = index + 1;
+    return `<option value="${day}">${day}日</option>`;
+  }).join("")}`;
+  if (previousDay && previousDay <= maxDay) daySelect.value = String(previousDay);
+}
+
+function getCompatibilityBirthDate(formData) {
+  const year = Number(formData.get("partnerBirthYear"));
+  const month = Number(formData.get("partnerBirthMonth"));
+  const day = Number(formData.get("partnerBirthDay"));
+  if (!year || !month || !day) return "";
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function fortuneMeter(label, value) {
@@ -2433,42 +2488,57 @@ function bindTeamFortuneActions(container) {
     localStorage.removeItem(STORAGE_KEYS.birthDate);
     renderApp();
   });
-  container.querySelector("#fortuneCompatibilityForm")?.addEventListener("submit", async (event) => {
+  const compatibilityForm = container.querySelector("#fortuneCompatibilityForm");
+  compatibilityForm?.elements?.partnerBirthYear?.addEventListener("change", () => updateCompatibilityBirthDays(compatibilityForm));
+  compatibilityForm?.elements?.partnerBirthMonth?.addEventListener("change", () => updateCompatibilityBirthDays(compatibilityForm));
+  compatibilityForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const resultBox = container.querySelector("#fortuneCompatibilityResult");
     const submitButton = form.querySelector("button[type='submit']");
     const formData = new FormData(form);
     const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
-    const partnerBirthDate = formData.get("partnerBirthDate");
+    const partnerBirthDate = getCompatibilityBirthDate(formData);
     if (!birthDate || !partnerBirthDate) {
-      showToast("生年月日を入力してください。");
+      showToast("年・月・日をすべて選択してください。");
       return;
     }
+    const partnerNickname = String(formData.get("nickname") || "").trim();
+    const partnerGender = String(formData.get("partnerGender") || "");
+    const cacheKey = [birthDate, partnerBirthDate, partnerNickname, partnerGender, jstDateKey()].join("|");
+    const startedAt = performance.now();
     if (submitButton) submitButton.disabled = true;
+    if (submitButton) submitButton.textContent = "占っています…";
     if (resultBox) {
-      resultBox.innerHTML = `<div class="team-fortune-compatibility-loading">ふたりのご縁を確認しています。</div>`;
+      resultBox.innerHTML = `<div class="team-fortune-compatibility-loading"><span class="compatibility-loading-dot" aria-hidden="true"></span>二人の相性を占っています…</div>`;
     }
     try {
-      const result = await fortuneApiRequest("calculateTeamFortuneCompatibility", {
-        birthDate,
-        partnerBirthDate,
-        partnerNickname: formData.get("nickname") || "",
-        partnerGender: formData.get("partnerGender") || "",
-        targetDate: jstDateKey(),
-        fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
-      }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
-      if (!result?.success) {
-        throw createFortuneError(result?.errorCode || "FORTUNE_COMPATIBILITY_ERROR", result?.message || "相性判定を取得できませんでした。", result?.data || result);
+      let data = teamFortuneCompatibilitySessionCache.get(cacheKey);
+      const cacheHit = Boolean(data);
+      if (!data) {
+        const result = await fortuneApiRequest("calculateTeamFortuneCompatibility", {
+          birthDate,
+          partnerBirthDate,
+          partnerNickname,
+          partnerGender,
+          fortuneSpreadsheetId: TEAM_LINK_FORTUNE_DB_ID
+        }, { apiUrl: TEAM_LINK_FORTUNE_API_URL });
+        if (!result?.success) {
+          throw createFortuneError(result?.errorCode || "FORTUNE_COMPATIBILITY_ERROR", result?.message || "相性判定を取得できませんでした。", result?.data || result);
+        }
+        data = result.data || result;
+        teamFortuneCompatibilitySessionCache.set(cacheKey, data);
       }
-      console.info("[TEAM Fortune Compatibility]", result.data || result);
-      if (resultBox) resultBox.innerHTML = renderFortuneCompatibilityResult(result.data || {});
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      console.info("[TEAM Fortune Compatibility]", { elapsedMs, cacheHit, data });
+      if (resultBox) resultBox.innerHTML = renderFortuneCompatibilityResult(data || {});
     } catch (error) {
       console.warn("[TEAM Fortune Compatibility] unavailable", error);
       if (resultBox) resultBox.innerHTML = renderFortuneCompatibilityError(error);
       showToast(error?.message || "相性判定を取得できませんでした。");
     } finally {
       if (submitButton) submitButton.disabled = false;
+      if (submitButton) submitButton.textContent = "相性を見る";
     }
   });
 }
@@ -2503,8 +2573,66 @@ function renderFortuneCompatibilityResult(data) {
         ${renderCompatibilitySymbol("心のつながり", humanLuck)}
         ${renderCompatibilitySymbol("ご縁の流れ", earthLuck)}
       </div>
+      <div class="team-fortune-compatibility-comments">
+        ${renderCompatibilityCommentCards(self, partner, compatibility)}
+      </div>
     </section>
   `;
+}
+
+function firstFortuneSentence(value) {
+  return String(value || "").trim().split(/(?<=[。！？])/u).filter(Boolean)[0] || "";
+}
+
+function firstFortuneItems(value, count = 2) {
+  return String(value || "").split(/[｜,]/).map((item) => item.trim()).filter(Boolean).slice(0, count);
+}
+
+function renderCompatibilityCommentCard(title, text) {
+  if (!text) return "";
+  return `<section><h4>${escapeHtml(title)}</h4><p>${escapeHtml(text)}</p></section>`;
+}
+
+function renderCompatibilityCommentCards(self, partner, compatibility) {
+  const selfName = self.teamLinkName || "あなたのタイプ";
+  const partnerName = partner.teamLinkName || "お相手のタイプ";
+  const selfProfile = self.profile || {};
+  const partnerProfile = partner.profile || {};
+  const humanLuck = compatibility.humanLuck || {};
+  const earthLuck = compatibility.earthLuck || {};
+  const totalScore = compatibility.totalScore || {};
+  const selfCautions = firstFortuneItems(selfProfile.cautions);
+  const partnerCautions = firstFortuneItems(partnerProfile.cautions);
+  const scoreExplanation = Number.isFinite(Number(totalScore.humanScore)) && Number.isFinite(Number(totalScore.earthScore))
+    ? `総合${totalScore.percentage}%は、心のつながり${humanLuck.symbol || "-"}（${totalScore.humanScore}点）を70％、ご縁の流れ${earthLuck.symbol || "-"}（${totalScore.earthScore}点）を30％として算出しています。`
+    : "";
+  const basic = [
+    `${selfName}は、${firstFortuneSentence(selfProfile.basicPersonality)}`,
+    `${partnerName}は、${firstFortuneSentence(partnerProfile.basicPersonality)}`,
+    `正式相性表では、心のつながりは${humanLuck.symbol || "-"}「${humanLuck.description || "判定資料なし"}」、ご縁の流れは${earthLuck.symbol || "-"}「${earthLuck.description || "判定資料なし"}」です。`,
+    scoreExplanation
+  ].filter((sentence) => sentence && !sentence.endsWith("は、")).join("");
+  const love = [
+    `${selfName}：${firstFortuneSentence(selfProfile.love)}`,
+    `${partnerName}：${firstFortuneSentence(partnerProfile.love)}`,
+    `${selfName}と${partnerName}は、二人が大切にする関わり方を言葉にすると、正式相性表の良さを活かしやすい組み合わせです。`
+  ].filter(Boolean).join("");
+  const caution = [
+    selfCautions.length ? `${selfName}は「${selfCautions.join("・")}」に気をつけたいタイプです。` : "",
+    partnerCautions.length ? `${partnerName}は「${partnerCautions.join("・")}」に気をつけたいタイプです。` : "",
+    `ご縁の流れは${earthLuck.symbol || "-"}「${earthLuck.description || "判定資料なし"}」なので、違いを急いで結論にせず確認し合うことが大切です。`
+  ].filter(Boolean).join("");
+  const hint = [
+    `${selfName}：${firstFortuneSentence(selfProfile.compatibilityTendency)}`,
+    `${partnerName}：${firstFortuneSentence(partnerProfile.compatibilityTendency)}`,
+    `二人の正式な相性傾向を活かし、互いが心地よい会話と距離感を具体的に伝え合うことが、もっと仲良くなるヒントです。`
+  ].filter((sentence) => sentence && !sentence.endsWith("：")).join("");
+  return [
+    renderCompatibilityCommentCard("二人の相性", basic),
+    renderCompatibilityCommentCard("恋愛での相性", love),
+    renderCompatibilityCommentCard("気をつけたいポイント", caution),
+    renderCompatibilityCommentCard("もっと仲良くなるヒント", hint)
+  ].join("");
 }
 
 function renderCompatibilitySymbol(label, judgement) {

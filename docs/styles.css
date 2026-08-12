@@ -1397,7 +1397,68 @@ p {
 }
 .team-fortune-overview-detail { display: grid; gap: 10px; padding: 0 10px 10px; }
 .team-fortune-overview-detail > .team-fortune-summary { border-radius: 14px; }
-.compatibility-input-form { display: grid; gap: 10px; }
+.compatibility-input-form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.compatibility-input-form .field,
+.compatibility-input-form input,
+.compatibility-input-form select {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.compatibility-birth-fieldset {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.compatibility-birth-fieldset legend {
+  margin-bottom: 7px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.compatibility-birth-selects {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.compatibility-birth-selects label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: rgba(255,250,239,.7);
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.compatibility-birth-selects select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 9px 22px 9px 8px;
+  border: 1px solid rgba(232,203,140,.24);
+  border-radius: 11px;
+  box-sizing: border-box;
+  color: #fff8e8;
+  background-color: rgba(12,10,8,.88);
+  font-size: 13px;
+}
 
 .team-fortune-placeholder {
   display: grid;
@@ -1468,8 +1529,31 @@ p {
 }
 
 .team-fortune-compatibility-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid rgba(232,203,140,.18);
+  border-radius: 13px;
+  background: rgba(232,203,140,.07);
   color: rgba(255,250,239,.78);
   font-size: 13px;
+}
+
+.compatibility-loading-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--gold-bright);
+  box-shadow: 0 0 0 0 rgba(232,203,140,.45);
+  animation: compatibility-loading-pulse 1s ease-out infinite;
+}
+
+@keyframes compatibility-loading-pulse {
+  70% { box-shadow: 0 0 0 8px rgba(232,203,140,0); }
+  100% { box-shadow: 0 0 0 0 rgba(232,203,140,0); }
 }
 
 .team-fortune-compatibility-card {
@@ -1542,6 +1626,36 @@ p {
 .team-fortune-compatibility-symbol small {
   color: rgba(255,250,239,.78);
   line-height: 1.55;
+}
+
+.team-fortune-compatibility-comments {
+  display: grid;
+  gap: 9px;
+}
+
+.team-fortune-compatibility-comments section {
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border: 1px solid rgba(232,203,140,.16);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(232,203,140,.08), rgba(255,255,255,.035)),
+    rgba(0,0,0,.16);
+}
+
+.team-fortune-compatibility-comments h4 {
+  margin: 0;
+  color: var(--gold-bright);
+  font-size: 13px;
+  letter-spacing: .03em;
+}
+
+.team-fortune-compatibility-comments p {
+  margin: 0;
+  color: rgba(255,250,239,.84);
+  font-size: 13px;
+  line-height: 1.75;
 }
 
 .team-fortune-summary strong {
@@ -1818,6 +1932,14 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   .team-fortune-overview-value { gap: 5px 9px; }
   .team-fortune-rating.is-compact { gap: 6px; }
   .team-fortune-rating.is-compact .team-fortune-stars { font-size: 14px; }
+  .compatibility-input-form { width: 100%; }
+  .compatibility-birth-selects { gap: 5px; }
+  .compatibility-birth-selects select {
+    min-height: 46px;
+    padding-right: 18px;
+    padding-left: 7px;
+    font-size: 12px;
+  }
   .team-fortune-luck-meta,
   .team-fortune-compatibility-pair,
   .team-fortune-compatibility-symbols { grid-template-columns: 1fr; }
