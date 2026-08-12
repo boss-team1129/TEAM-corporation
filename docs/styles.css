@@ -1331,6 +1331,70 @@ p {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.team-fortune-overview-value,
+.team-fortune-name-rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 7px 12px;
+  min-width: 0;
+}
+
+.team-fortune-overview-value {
+  align-items: center;
+}
+
+.team-fortune-rating {
+  display: inline-grid;
+  justify-items: start;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.team-fortune-stars {
+  display: inline-flex;
+  gap: 0;
+  white-space: nowrap;
+  font-size: 17px;
+  letter-spacing: .04em;
+}
+
+.team-fortune-stars b {
+  color: #e8cb8c;
+  font-weight: 900;
+  text-shadow: 0 0 10px rgba(232,203,140,.18);
+}
+
+.team-fortune-stars i {
+  color: rgba(202,198,188,.42);
+  font-style: normal;
+  font-weight: 700;
+  text-shadow: none;
+}
+
+.team-fortune-rating small,
+.team-fortune-summary .team-fortune-rating small {
+  color: rgba(255,250,239,.74);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .02em;
+}
+
+.team-fortune-rating.is-compact {
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.team-fortune-rating.is-compact .team-fortune-stars {
+  font-size: 15px;
+}
+
+.team-fortune-rating.is-compact small {
+  font-size: 11px;
+  white-space: nowrap;
+}
 .team-fortune-overview-detail { display: grid; gap: 10px; padding: 0 10px 10px; }
 .team-fortune-overview-detail > .team-fortune-summary { border-radius: 14px; }
 .compatibility-input-form { display: grid; gap: 10px; }
@@ -1750,6 +1814,10 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   .team-fortune-card { padding: 14px; }
   .team-fortune-visual { min-height: 130px; }
   .team-fortune-visual img { max-height: 150px; }
+  .team-fortune-overview-item > summary { padding-right: 36px; }
+  .team-fortune-overview-value { gap: 5px 9px; }
+  .team-fortune-rating.is-compact { gap: 6px; }
+  .team-fortune-rating.is-compact .team-fortune-stars { font-size: 14px; }
   .team-fortune-luck-meta,
   .team-fortune-compatibility-pair,
   .team-fortune-compatibility-symbols { grid-template-columns: 1fr; }

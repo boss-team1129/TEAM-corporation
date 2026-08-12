@@ -547,7 +547,28 @@ const TEAM_FORTUNE_LUCK_LABELS = {
   12: { internal: "減退", title: "夜明け前", theme: "長い夜を越え、次の始まりを迎える準備のとき", todayMessage: "まだ少し流れが重く感じても、出口は近づいています。今日は焦って動くより、不要なものを手放しながら次への準備を。小さな希望を大切にして。", monthMessage: "ひとつの流れが終わり、新しい始まりへ向かう準備の月。人間関係や習慣、考え方など、もう必要のないものを整理すると次の流れが入りやすくなります。", yearMessage: "古い流れを手放し、新しい12の流れへ向かう一年。すぐに答えが見えなくても、少しずつ夜は明けていきます。不要なものを整理しながら、次の「芽吹き」を迎える準備をしましょう。", recommendedAction: "手放す・整理する・振り返る・次の準備をする", caution: "終わったことに執着しすぎない" }
 };
 
-const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_LABELS).reduce((map, item) => {
+// LuckCycle.starRating に基づく表示専用評価。占い計算には使用しない。
+const TEAM_FORTUNE_RATING_BY_INTERNAL = Object.freeze({
+  "種子": { rating: 4, ratingLabel: "好調" },
+  "緑生": { rating: 4, ratingLabel: "好調" },
+  "立花": { rating: 5, ratingLabel: "絶好調" },
+  "健弱": { rating: 2, ratingLabel: "慎重" },
+  "達成": { rating: 5, ratingLabel: "絶好調" },
+  "乱気": { rating: 2, ratingLabel: "慎重" },
+  "再会": { rating: 4, ratingLabel: "好調" },
+  "財成": { rating: 5, ratingLabel: "絶好調" },
+  "安定": { rating: 5, ratingLabel: "絶好調" },
+  "陰影": { rating: 1, ratingLabel: "低調" },
+  "停止": { rating: 1, ratingLabel: "低調" },
+  "減退": { rating: 2, ratingLabel: "慎重" }
+});
+
+const TEAM_FORTUNE_LUCK_BY_CYCLE = Object.entries(TEAM_FORTUNE_LUCK_LABELS).reduce((map, [cycleIndex, item]) => {
+  map[cycleIndex] = { ...item, ...(TEAM_FORTUNE_RATING_BY_INTERNAL[item.internal] || {}) };
+  return map;
+}, {});
+
+const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_BY_CYCLE).reduce((map, item) => {
   map[item.internal] = item;
   return map;
 }, {});
@@ -2146,9 +2167,17 @@ function renderTeamFortuneResult(result) {
 }
 
 function renderFortuneOverviewItem(title, luck, detailHtml, open = false) {
+  const primaryLuck = luck?.main || luck;
+  const displayName = getTeamFortuneLuckDisplay(primaryLuck) || "詳しく見る";
   return `
     <details class="team-fortune-overview-item" ${open ? "open" : ""}>
-      <summary><span>${escapeHtml(title)}</span><strong>${escapeHtml(getTeamFortuneLuckDisplay(luck) || "詳しく見る")}</strong></summary>
+      <summary>
+        <span>${escapeHtml(title)}</span>
+        <div class="team-fortune-overview-value">
+          <strong>${escapeHtml(displayName)}</strong>
+          ${renderTeamFortuneRating(primaryLuck, true)}
+        </div>
+      </summary>
       <div class="team-fortune-overview-detail">${detailHtml}</div>
     </details>
   `;
@@ -2198,9 +2227,23 @@ function getFortuneLuckName(luck) {
 
 function getTeamFortuneLuckInfo(luck) {
   if (!luck || typeof luck !== "object") return null;
-  const byCycle = TEAM_FORTUNE_LUCK_LABELS[Number(luck.cycleIndex)];
+  const byCycle = TEAM_FORTUNE_LUCK_BY_CYCLE[Number(luck.cycleIndex)];
   if (byCycle) return byCycle;
   return TEAM_FORTUNE_LUCK_BY_INTERNAL[getFortuneLuckName(luck)] || null;
+}
+
+function renderTeamFortuneRating(luck, compact = false) {
+  const info = getTeamFortuneLuckInfo(luck);
+  const rating = Number(info?.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return "";
+  const filled = "★".repeat(rating);
+  const empty = "☆".repeat(5 - rating);
+  return `
+    <span class="team-fortune-rating${compact ? " is-compact" : ""}" aria-label="5段階中${rating}、${escapeHtml(info.ratingLabel)}">
+      <span class="team-fortune-stars" aria-hidden="true"><b>${filled}</b><i>${empty}</i></span>
+      <small>${escapeHtml(info.ratingLabel)}</small>
+    </span>
+  `;
 }
 
 function getTeamFortuneLuckDisplay(luck) {
@@ -2306,7 +2349,10 @@ function renderFortuneLuckLine(label, luck, profile, period = "", options = {}) 
   return `
     <div class="team-fortune-sub-luck">
       <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(name || "資料待ち")}</strong>
+      <div class="team-fortune-name-rating">
+        <strong>${escapeHtml(name || "資料待ち")}</strong>
+        ${renderTeamFortuneRating(luck)}
+      </div>
       ${info?.theme ? `<small>${escapeHtml(info.theme)}</small>` : ""}
       ${advice ? `<p>${escapeHtml(advice)}</p>` : ""}
       ${info ? `
@@ -2341,7 +2387,10 @@ function renderFortuneSummaryPanel(title, luck, subtitle = "", character = {}, c
           ${renderFortuneLuckLine("もうひとつの流れ", state.sub, profile, period, { isSubFlow: true })}
         </div>
       ` : `
-        <strong>${escapeHtml(getTeamFortuneLuckDisplay(state) || "資料待ち")}</strong>
+        <div class="team-fortune-name-rating">
+          <strong>${escapeHtml(getTeamFortuneLuckDisplay(state) || "資料待ち")}</strong>
+          ${renderTeamFortuneRating(state)}
+        </div>
         ${getFortuneLuckName(state) ? `<small>${escapeHtml(getTeamFortuneLuckInfo(state)?.theme || "TEAM LINKの12運気")}</small>` : `<small>${escapeHtml(renderStarText(state.starRating))}</small>`}
       `}
       <p>${escapeHtml(message || "正式APIの確定値を表示しています。")}</p>
