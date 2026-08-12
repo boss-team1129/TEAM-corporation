@@ -72,6 +72,8 @@ const appState = {
   memberChartTab: "basic",
   bookingMenuMode: "regular",
   bookingDraft: null,
+  bookingSubmitBusy: false,
+  bookingPendingRequestId: "",
   menuMasterSyncStatus: "pending",
   gachaCharacterEditId: "",
   gachaPreviewMode: "card",
@@ -103,7 +105,7 @@ const defaultProfile = {
   nickname: "お客様",
   lastVisitDate: "",
   nextReservation: null,
-  preferredStaff: "BOSS",
+  preferredStaff: "boss-muramatsu",
   rank: "PRIVATE"
 };
 
@@ -116,7 +118,7 @@ const defaultStoreSettings = {
   },
   closedWeekdays: [1],
   staff: [
-    { staffId: "boss-muramatsu", name: "BOSS 村松剛好", isReservable: true, sortOrder: 1 },
+    { staffId: "boss-muramatsu", name: "村松剛好", isReservable: true, sortOrder: 1 },
     { staffId: "kanda-kana", name: "神田加奈", isReservable: true, sortOrder: 2 },
     { staffId: "matsumoto-ai", name: "松本藍", isReservable: true, sortOrder: 3 },
     { staffId: "no-preference", name: "指名なし", isReservable: true, sortOrder: 90 },
@@ -607,6 +609,12 @@ function bindNavigation() {
     if (adminTabButton) {
       appState.adminTab = adminTabButton.dataset.adminTab;
       renderAdmin();
+      if (appState.adminTab === "bookings") {
+        syncProductionBookingRequests().catch((error) => {
+          console.error("[TEAM LINK BOOKING ADMIN SYNC FAILED]", error);
+          showToast("予約希望を取得できませんでした。");
+        });
+      }
       return;
     }
     if (adminActionButton) {
@@ -681,14 +689,20 @@ function bindForms() {
 
   document.getElementById("bookingForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (appState.bookingSubmitBusy) return;
+    const request = buildBookingRequestFromForm(event.currentTarget);
+    if (!request) return;
     const submitButton = event.currentTarget.querySelector("button[type='submit']");
+    appState.bookingSubmitBusy = true;
     setButtonLoading(submitButton, true, "送信中…");
     try {
-      const request = buildBookingRequestFromForm(event.currentTarget);
-      if (!request) return;
       if (isProductionApiMode()) {
-        await apiRequest("submitBookingRequest", request);
-        await markBookingCouponsAsPlanned(request);
+        const result = await apiRequest("submitBookingRequest", request);
+        request.requestId = result.data?.bookingRequestId || result.bookingRequestId || result.data?.requestId || result.requestId || request.requestId;
+        request.bookingRequestId = request.requestId;
+        await markBookingCouponsAsPlanned(request).catch((error) => {
+          console.warn("[TEAM LINK BOOKING COUPON PLAN FAILED]", error);
+        });
       } else {
         await markBookingCouponsAsPlanned(request);
       }
@@ -703,18 +717,21 @@ function bindForms() {
         ["第2希望", formatDateTime(request.secondDateTime)],
         ["施術時間", formatMinutes(request.totalMinutes)],
         ["参考金額", formatYen(request.referenceAmount)],
-        ["状態", request.status]
+        ["状態", normalizeBookingStatus(request.status)]
       ]);
       event.currentTarget.reset();
       appState.bookingMenuMode = "regular";
       appState.bookingDraft = null;
+      appState.bookingPendingRequestId = "";
       renderBookingFormOptions();
       renderApp();
       showView("bookingDone", { preserveBookingDraft: false });
     } catch (error) {
+      console.error("[TEAM LINK BOOKING SUBMIT FAILED]", error);
       showToast("通信に失敗しました。時間をおいてもう一度お試しください");
     } finally {
-      setButtonLoading(submitButton, false, "10. 送信する");
+      appState.bookingSubmitBusy = false;
+      setButtonLoading(submitButton, false, "予約希望を送信する");
     }
   });
 
@@ -753,6 +770,7 @@ function bindBookingFormInputs() {
   const form = document.getElementById("bookingForm");
   const modeSelect = document.getElementById("bookingMenuMode");
   const inputs = [
+    document.getElementById("bookingCustomerName"),
     document.getElementById("bookingFirstDateTime"),
     document.getElementById("bookingSecondDateTime"),
     document.getElementById("bookingStaffSelect"),
@@ -798,6 +816,11 @@ function applyStoreSettings() {
 
 function renderBookingFormOptions() {
   const settings = getStoreSettings();
+  const customerNameInput = document.getElementById("bookingCustomerName");
+  const profile = getProfile();
+  if (customerNameInput && !customerNameInput.value && !["お客様", "ゲスト"].includes(String(profile.nickname || ""))) {
+    customerNameInput.value = profile.nickname || "";
+  }
   const staffSelect = document.getElementById("bookingStaffSelect");
   if (staffSelect) {
     staffSelect.innerHTML = `
@@ -846,7 +869,7 @@ function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("men
 function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("couponIds")) {
   const container = document.getElementById("bookingCouponChoices");
   if (!container) return;
-  const coupons = getPublicLineCoupons(getBookingMenuContext());
+  const coupons = getBookableMyLineCoupons(getBookingMenuContext());
   const selected = new Set(selectedIds.map(String));
   container.innerHTML = coupons.length ? coupons.map((coupon) => `
     <label class="menu-choice-card">
@@ -880,7 +903,7 @@ function renderBookingMySelectionChoices() {
   const menuIds = new Set(getBookingDraftSelectionIds("menuIds"));
   const couponIds = new Set(getBookingDraftSelectionIds("couponIds"));
   const availableMenuIds = new Set(getPublicReservationMenus(getBookingMenuContext()).map((menu) => String(menu.menuId)));
-  const availableCouponIds = new Set(getPublicLineCoupons(getBookingMenuContext()).map((coupon) => String(coupon.couponId)));
+  const availableCouponIds = new Set(getBookableMyLineCoupons(getBookingMenuContext()).map((coupon) => String(coupon.couponId)));
   container.innerHTML = selections.map((item) => {
     const isCoupon = item.type === "coupon";
     const selected = (isCoupon ? couponIds : menuIds).has(String(item.itemId));
@@ -922,6 +945,7 @@ function captureBookingDraft() {
   if (!form) return;
   const data = new FormData(form);
   appState.bookingDraft = {
+    customerName: String(data.get("customerName") || ""),
     firstDateTime: String(data.get("firstDateTime") || ""),
     secondDateTime: String(data.get("secondDateTime") || ""),
     staff: String(data.get("staff") || ""),
@@ -941,6 +965,7 @@ function restoreBookingDraft() {
     return;
   }
   form.elements.firstDateTime.value = draft.firstDateTime || "";
+  form.elements.customerName.value = draft.customerName || "";
   form.elements.secondDateTime.value = draft.secondDateTime || "";
   form.elements.staff.value = draft.staff || "";
   form.elements.menuMode.value = draft.menuMode || "regular";
@@ -991,7 +1016,7 @@ function updateBookingConfirm() {
   const totalMinutes = selected.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
   const referenceAmount = selected.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
   confirm.innerHTML = `
-    <strong>9. 内容確認</strong>
+    <strong>10. 内容確認</strong>
     <div class="summary-list">
       ${summaryRows([
         ["第1希望", formatDateTime(formData.get("firstDateTime")) || "未入力"],
@@ -1010,6 +1035,7 @@ function updateBookingConfirm() {
 function buildBookingRequestFromForm(formElement) {
   const form = new FormData(formElement);
   const profile = getProfile();
+  const userKey = getCurrentUserKey();
   const validation = validateBookingForm(form);
   if (!validation.ok) {
     showToast(validation.message);
@@ -1025,13 +1051,16 @@ function buildBookingRequestFromForm(formElement) {
   const totalMinutes = selectedMenus.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
   const referenceAmount = selectedMenus.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
   const now = new Date().toISOString();
+  const bookingRequestId = appState.bookingPendingRequestId || createId("REQ");
+  appState.bookingPendingRequestId = bookingRequestId;
   return {
-    requestId: createId("REQ"),
+    bookingRequestId,
+    requestId: bookingRequestId,
     reservationId: createId("RSV"),
-    userId: profile.lineUserId || profile.memberId,
-    memberId: profile.memberId,
+    userId: userKey,
+    memberId: userKey,
     lineUserId: profile.lineUserId || "",
-    customerName: profile.nickname,
+    customerName: String(form.get("customerName") || "").trim(),
     reservationSource: "TEAM LINK相談",
     source: "TEAM LINK相談",
     requestType: "予約相談",
@@ -1041,6 +1070,8 @@ function buildBookingRequestFromForm(formElement) {
     staff: getStaffName(form.get("staff")),
     menuMode,
     menu: menuTitle,
+    customMenu,
+    consultation: customMenu || String(form.get("memo") || "").trim(),
     menuIds: selectedMenus.map((menu) => menu.menuId),
     couponIds: selectedCoupons.map((coupon) => coupon.couponId).filter(Boolean),
     selectedMenus: selectedMenus.map(toReservationMenuSnapshot),
@@ -1050,8 +1081,8 @@ function buildBookingRequestFromForm(formElement) {
     totalMinutes,
     totalDurationMinutes: totalMinutes,
     memo: String(form.get("memo") || "").trim(),
-    status: "予約希望",
-    currentStatus: "予約希望",
+    status: "pending",
+    currentStatus: "pending",
     createdAt: now,
     receivedAt: now,
     updatedAt: now
@@ -1059,14 +1090,18 @@ function buildBookingRequestFromForm(formElement) {
 }
 
 function validateBookingForm(form) {
+  const customerName = String(form.get("customerName") || "").trim();
   const first = String(form.get("firstDateTime") || "");
   const second = String(form.get("secondDateTime") || "");
-  if (!first || !second) return { ok: false, message: "第一希望日時と第二希望日時を入力してください。" };
-  if (first === second) return { ok: false, message: "第一希望と第二希望は別の日時を選んでください。" };
+  if (!customerName) return { ok: false, message: "お客様名を入力してください。" };
+  if (!first) return { ok: false, message: "第一希望日時を入力してください。" };
+  if (second && first === second) return { ok: false, message: "第一希望と第二希望は別の日時を選んでください。" };
   const firstCheck = validateReservableDateTime(first);
   if (!firstCheck.ok) return { ok: false, message: `第一希望：${firstCheck.message}` };
-  const secondCheck = validateReservableDateTime(second);
-  if (!secondCheck.ok) return { ok: false, message: `第二希望：${secondCheck.message}` };
+  if (second) {
+    const secondCheck = validateReservableDateTime(second);
+    if (!secondCheck.ok) return { ok: false, message: `第二希望：${secondCheck.message}` };
+  }
   if (!String(form.get("staff") || "")) return { ok: false, message: "希望担当者を選択してください。" };
   const mode = String(form.get("menuMode") || "regular");
   if (mode === "consult") {
@@ -1107,7 +1142,7 @@ function getSelectedBookingCoupons(form) {
     staffId: String(form.get("staff") || ""),
     dateTime: String(form.get("firstDateTime") || "")
   };
-  const coupons = getPublicLineCoupons(context);
+  const coupons = getBookableMyLineCoupons(context);
   return ids.map((id) => coupons.find((coupon) => coupon.couponId === id)).filter(Boolean);
 }
 
@@ -1160,6 +1195,16 @@ function getPublicLineCoupons(context = {}) {
     .filter(isLineCouponDefinition)
     .filter((coupon) => isCouponForStaff(coupon, context.staffId))
     .filter((coupon) => isSafeLineCouponUrl(coupon.lineCouponUrl));
+}
+
+function getBookableMyLineCoupons(context = {}) {
+  const selectedCouponIds = new Set(
+    getMySelections()
+      .filter((item) => item.type === "coupon")
+      .map((item) => String(item.itemId || ""))
+      .filter(Boolean)
+  );
+  return getPublicLineCoupons(context).filter((coupon) => selectedCouponIds.has(String(coupon.couponId || "")));
 }
 
 function isSafeLineCouponUrl(value) {
@@ -4976,7 +5021,7 @@ function memberCard(member) {
 function renderAdminBookings() {
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   const groups = [
-    { key: "needsAction", title: "要対応", statuses: ["予約希望", "確認待ち", "変更依頼", "キャンセル依頼"] },
+    { key: "needsAction", title: "予約希望・要対応", statuses: ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼"] },
     { key: "waitingCustomer", title: "お客様返答待ち", statuses: ["別日時提案中", "お客様返答待ち"] },
     { key: "confirmed", title: "予約確定", statuses: ["サロンボード入力済み", "予約確定"] },
     { key: "done", title: "完了／キャンセル", statuses: ["来店済み", "キャンセル", "対応完了"] }
@@ -5009,11 +5054,11 @@ function bookingCard(booking) {
   return `
     <article class="admin-mini-record">
       <strong>${escapeHtml(booking.customerName || "お客様")}</strong>
-      <small>${escapeHtml(booking.memberId || "")} / ${escapeHtml(booking.requestId || "")}</small>
+      <small>${escapeHtml(booking.userId || booking.memberId || "")} / ${escapeHtml(booking.bookingRequestId || booking.requestId || "")}</small>
       <div class="record-meta-grid">
         <span>第1希望 ${escapeHtml(formatDateTime(booking.firstDateTime))}</span>
-        <span>第2希望 ${escapeHtml(formatDateTime(booking.secondDateTime))}</span>
-        <span>担当 ${escapeHtml(booking.staff || "未定")}</span>
+        <span>第2希望 ${escapeHtml(formatDateTime(booking.secondDateTime) || "なし")}</span>
+        <span>担当 ${escapeHtml(formatStaffDisplayName(booking.staff) || "未定")}</span>
         <span>予約元 ${escapeHtml(booking.reservationSource || booking.source || "未設定")}</span>
         <span>状態 ${escapeHtml(status)}</span>
         <span>受付 ${escapeHtml(formatDateTime(booking.receivedAt || booking.createdAt))}</span>
@@ -5021,7 +5066,7 @@ function bookingCard(booking) {
       <p>メニュー：${escapeHtml(menuLabel || "相談")}</p>
       <p>クーポン：${escapeHtml(couponLabel)}</p>
       <p>参考金額 ${escapeHtml(formatYen(booking.referenceAmount))} / 施術時間 ${escapeHtml(formatMinutes(booking.totalMinutes || booking.totalDurationMinutes))}</p>
-      ${booking.memo ? `<p>備考：${escapeHtml(booking.memo)}</p>` : ""}
+      ${(booking.consultation || booking.customMenu || booking.memo) ? `<p>相談内容：${escapeHtml(booking.consultation || booking.customMenu || booking.memo)}</p>` : ""}
       <div class="admin-actions mini">
         <button type="button" data-admin-action="bookingDetail" data-id="${escapeHtml(booking.requestId)}">予約内容を見る</button>
         <button type="button" data-admin-action="bookingMemberChart" data-id="${escapeHtml(booking.memberId || "")}">会員カルテを見る</button>
@@ -6001,12 +6046,12 @@ function handleAdminAction(button) {
   if (action === "bookingMemberChart") return openMemberChart(id);
   if (action === "confirmFirstChoice") return confirmBookingChoice(id, "first");
   if (action === "confirmSecondChoice") return confirmBookingChoice(id, "second");
-  if (action === "proposeBooking") return updateBookingStatus(id, "別日時提案中");
+  if (action === "proposeBooking") return updateBookingStatus(id, "needs_change");
   if (action === "editBooking") return editBooking(id);
   if (action === "bookingWaiting") return updateBookingStatus(id, "お客様返答待ち");
   if (action === "bookingSalonBoard") return updateBookingStatus(id, "サロンボード入力済み");
   if (action === "bookingConfirmed") return confirmBookingAfterSalonBoard(id);
-  if (action === "processCancelBooking") return updateBookingStatus(id, "キャンセル");
+  if (action === "processCancelBooking") return updateBookingStatus(id, "cancelled");
   if (action === "bookingVisited") return updateBookingStatus(id, "来店済み");
   if (action === "createManualBooking") return createManualBooking();
   if (action === "replyBooking") return replyBooking(id);
@@ -6097,10 +6142,10 @@ function getAdminCounts() {
   const coupons = readJson(STORAGE_KEYS.myCoupons, []);
   const entries = getLoungeEntries();
   return {
-    dashboard: todayReceptions.filter((item) => item.status === "確認待ち").length + bookings.filter((booking) => ["予約希望", "確認待ち", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status))).length,
+    dashboard: todayReceptions.filter((item) => item.status === "確認待ち").length + bookings.filter((booking) => ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status))).length,
     visits: todayReceptions.filter((item) => item.status === "確認待ち").length,
     members: 0,
-    bookings: bookings.filter((booking) => ["予約希望", "確認待ち", "変更依頼", "キャンセル依頼", "別日時提案中", "お客様返答待ち"].includes(normalizeBookingStatus(booking.status))).length,
+    bookings: bookings.filter((booking) => ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼", "別日時提案中", "お客様返答待ち"].includes(normalizeBookingStatus(booking.status))).length,
     reservationMenus: getReservationMenus().filter((menu) => menu.isPublic === false).length,
     coupons: coupons.filter((coupon) => getCouponStatus(coupon) === "使用可能").length,
     gacha: getMembers().filter((member) => !getMemberGachaStatus(member).used).length,
@@ -6110,7 +6155,7 @@ function getAdminCounts() {
     settings: 0,
     visitCandidates: todayReceptions.filter((item) => item.status !== "通常メッセージ" && item.status !== "取り消し").length,
     unconfirmedVisits: todayReceptions.filter((item) => item.status === "確認待ち").length,
-    newBookings: bookings.filter((booking) => ["予約希望", "確認待ち", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status))).length,
+    newBookings: bookings.filter((booking) => ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status))).length,
     replyWaitingBookings: bookings.filter((booking) => ["別日時提案中", "お客様返答待ち"].includes(normalizeBookingStatus(booking.status))).length,
     todayConfirmedBookings: bookings.filter((booking) => ["サロンボード入力済み", "予約確定"].includes(normalizeBookingStatus(booking.status)) && isToday(booking.confirmedDateTime || booking.firstDateTime)).length,
     monthlyGachaUsers: draws.filter((draw) => draw.issueMonth === currentMonthKey()).length,
@@ -6132,7 +6177,7 @@ function buildOperationDashboard() {
   const year = currentYear();
   const monthCards = cards.filter((card) => card.issueMonth === month);
   const yearCards = cards.filter((card) => getGachaLifecycleState(card) === "used" && String(card.issueMonth || "").startsWith(String(year)));
-  const bookingNeedsAction = bookings.filter((booking) => ["予約希望", "確認待ち", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status)));
+  const bookingNeedsAction = bookings.filter((booking) => ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼"].includes(normalizeBookingStatus(booking.status)));
   const rewardStates = members.flatMap((member) => getCollectionRewardStates(member, getMemberCardHistory(member).filter((card) => getGachaLifecycleState(card) === "used")).map((reward) => ({ member, reward })));
   const expiringCards = cards.filter((card) => getGachaLifecycleState(card) === "available" && isExpiringSoon(card.validUntil || card.expires));
   const expiringCoupons = coupons.filter((coupon) => String(coupon.status || "未使用") === "未使用" && isExpiringSoon(coupon.expires || coupon.validUntil));
@@ -7210,7 +7255,7 @@ async function updateBookingStatus(requestId, status) {
   booking.currentStatus = status;
   booking.updatedAt = new Date().toISOString();
   if (status === "来店済み") booking.visitedAt = new Date().toISOString();
-  if (status === "キャンセル") {
+  if (normalizeBookingStatus(status) === "キャンセル") {
     booking.cancelledAt = new Date().toISOString();
     if (isProductionApiMode()) {
       try {
@@ -7272,8 +7317,8 @@ async function confirmBookingAfterSalonBoard(requestId) {
   if (!booking) return;
   const ok = window.confirm("サロンボードへ手動入力済みですか？\n確認後に予約確定へ変更します。");
   if (!ok) return;
-  booking.status = "予約確定";
-  booking.currentStatus = "予約確定";
+  booking.status = "confirmed";
+  booking.currentStatus = "confirmed";
   booking.confirmedDateTime = booking.confirmedDateTime || booking.firstDateTime;
   booking.confirmedAt = new Date().toISOString();
   booking.updatedAt = new Date().toISOString();
@@ -8030,10 +8075,15 @@ function getMemberGachaStatus(member) {
 }
 
 function getStoreSettings() {
-  return {
+  const settings = {
     ...defaultStoreSettings,
     ...readJson(STORAGE_KEYS.storeSettings, {})
   };
+  settings.staff = (Array.isArray(settings.staff) ? settings.staff : defaultStoreSettings.staff).map((staff) => ({
+    ...staff,
+    name: formatStaffDisplayName(staff.name)
+  }));
+  return settings;
 }
 
 function getReservationMenus() {
@@ -8363,7 +8413,11 @@ function issueCollectionRewardCoupon(memberId, reward) {
 }
 
 function getStaffName(staffId) {
-  return getStoreSettings().staff.find((staff) => String(staff.staffId) === String(staffId))?.name || "";
+  return formatStaffDisplayName(getStoreSettings().staff.find((staff) => String(staff.staffId) === String(staffId))?.name || "");
+}
+
+function formatStaffDisplayName(value) {
+  return String(value || "").replace(/^BOSS[\s　]*/i, "").trim();
 }
 
 function normalizeBookingSource(booking) {
@@ -8429,7 +8483,8 @@ function getMemberLogs(member) {
 
 function normalizeBookingStatus(status) {
   const value = String(status || "").trim();
-  if (["staff_checking", "スタッフ確認待ち", "返信待ち", "予約希望", "確認待ち", ""].includes(value)) return "予約希望";
+  if (["pending", "staff_checking", "スタッフ確認待ち", "返信待ち", "予約希望", "確認待ち", ""].includes(value)) return "予約希望";
+  if (["needs_change", "日時変更相談"].includes(value)) return "日時変更相談";
   if (["alternative_proposed", "別日時提案中"].includes(value)) return "別日時提案中";
   if (["waiting_customer", "お客様返答待ち"].includes(value)) return "お客様返答待ち";
   if (["salon_board_entered", "サロンボード入力済み"].includes(value)) return "サロンボード入力済み";
@@ -9526,31 +9581,65 @@ function parseServerJsonArray(value) {
   }
 }
 
+async function syncProductionBookingRequests(options = {}) {
+  if (!isProductionApiMode() || !getAdminSession()) return [];
+  const result = await apiRequest("listBookingRequests", {});
+  const serverBookings = result.bookings || result.data?.bookings;
+  if (!Array.isArray(serverBookings)) return [];
+  const bookings = serverBookings.map((booking) => ({
+    ...booking,
+    requestId: booking.requestId || booking.bookingRequestId,
+    bookingRequestId: booking.bookingRequestId || booking.requestId,
+    staff: formatStaffDisplayName(booking.staff || booking.staffDisplayName),
+    selectedMenus: parseServerJsonArray(booking.selectedMenus),
+    selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
+    menuIds: parseServerJsonArray(booking.menuIds),
+    couponIds: parseServerJsonArray(booking.couponIds)
+  }));
+  writeJson(STORAGE_KEYS.bookings, bookings);
+  if (options.render !== false) renderApp();
+  return bookings;
+}
+
 async function syncProductionAdminState(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return;
-  try {
-    const [result, gachaMasterResult, gachaHistoryResult] = await Promise.all([
-      apiRequest("listBookingRequests", {}),
-      apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() }),
-      apiRequest("listGachaUsageHistory", {})
-    ]);
+  const [bookingSync, gachaMasterSync, gachaHistorySync] = await Promise.allSettled([
+    apiRequest("listBookingRequests", {}),
+    apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() }),
+    apiRequest("listGachaUsageHistory", {})
+  ]);
+  if (bookingSync.status === "fulfilled") {
+    const result = bookingSync.value;
     const serverBookings = result.bookings || result.data?.bookings;
-    if (Array.isArray(serverBookings)) {
-      writeJson(STORAGE_KEYS.bookings, serverBookings.map((booking) => ({
-        ...booking,
-        selectedMenus: parseServerJsonArray(booking.selectedMenus),
-        selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
-        menuIds: parseServerJsonArray(booking.menuIds),
-        couponIds: parseServerJsonArray(booking.couponIds)
-      })));
-    }
+    if (Array.isArray(serverBookings)) writeJson(STORAGE_KEYS.bookings, serverBookings.map((booking) => ({
+      ...booking,
+      requestId: booking.requestId || booking.bookingRequestId,
+      bookingRequestId: booking.bookingRequestId || booking.requestId,
+      staff: formatStaffDisplayName(booking.staff || booking.staffDisplayName),
+      selectedMenus: parseServerJsonArray(booking.selectedMenus),
+      selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
+      menuIds: parseServerJsonArray(booking.menuIds),
+      couponIds: parseServerJsonArray(booking.couponIds)
+    })));
+  } else {
+    console.error("[TEAM LINK BOOKING ADMIN SYNC FAILED]", bookingSync.reason);
+  }
+  if (gachaMasterSync.status === "fulfilled") {
+    const gachaMasterResult = gachaMasterSync.value;
     const rewardMasters = gachaMasterResult.rewards || gachaMasterResult.data?.rewards;
     if (Array.isArray(rewardMasters)) writeJson(STORAGE_KEYS.gachaAdminRewards, rewardMasters.map(mapServerGachaRewardToLocal));
+  } else {
+    console.error("[TEAM LINK GACHA MASTER SYNC FAILED]", gachaMasterSync.reason);
+  }
+  if (gachaHistorySync.status === "fulfilled") {
+    const gachaHistoryResult = gachaHistorySync.value;
     const gachaHistory = gachaHistoryResult.history || gachaHistoryResult.data?.history;
     if (Array.isArray(gachaHistory)) mergeServerGachaCoupons(gachaHistory);
-    if (options.render !== false) renderApp();
-  } catch (error) {
-    console.error("[TEAM LINK ADMIN SYNC FAILED]", error);
+  } else {
+    console.error("[TEAM LINK GACHA HISTORY SYNC FAILED]", gachaHistorySync.reason);
+  }
+  if (options.render !== false) renderApp();
+  if (bookingSync.status === "rejected") {
     showToast("管理データの取得に失敗しました。");
   }
 }

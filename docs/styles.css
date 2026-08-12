@@ -1081,11 +1081,18 @@ p {
 
 .step-form {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 14px;
   padding: 18px;
+  overflow-x: clip;
 }
 .field {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   color: rgba(255,250,239,.78);
   font-size: 13px;
@@ -1094,7 +1101,11 @@ p {
 .field input,
 .field select,
 .field textarea {
+  display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 52px;
   border: 1px solid rgba(201, 155, 74, .30);
   border-radius: 17px;
@@ -1107,6 +1118,27 @@ p {
   min-height: 110px;
   padding: 13px 14px;
   resize: vertical;
+}
+
+.field input[type="datetime-local"] {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+@media (max-width: 390px) {
+  #bookingView .step-form {
+    padding: 14px;
+  }
+
+  #bookingView .booking-my-coupon-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #bookingView .booking-my-coupon-head button {
+    width: 100%;
+    white-space: normal;
+  }
 }
 
 .field .menu-choice-card input {
