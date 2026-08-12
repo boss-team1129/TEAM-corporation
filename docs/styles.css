@@ -2922,6 +2922,22 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   line-height: 1.55;
 }
 
+.gacha-card-binder-status,
+.binder-pending-note {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid rgba(228,199,126,.28);
+  border-radius: 12px;
+  background: rgba(196,150,66,.10);
+  color: var(--champagne) !important;
+  font-weight: 800;
+}
+
+.binder-pending-note {
+  margin: 0;
+  line-height: 1.55;
+}
+
 .collection-progress {
   display: grid;
   gap: 4px;

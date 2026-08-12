@@ -1712,6 +1712,14 @@ function renderApp() {
   renderAdmin();
 }
 
+function renderGachaCollectionViews() {
+  refreshGachaCardStates();
+  renderGacha();
+  renderMyCards();
+  renderCollectionRewardsPage();
+  renderGachaHistoryPage();
+}
+
 function renderHome() {
   const nextReservation = buildNextReservationCardData(getNextReservation());
   const coupons = [...getPublicLineCoupons(), ...getAvailableCoupons()];
@@ -2864,7 +2872,12 @@ function handleGachaAction(button) {
     return;
   }
   if (action === "closeRevealToCoupons") {
+    const wasTestMode = document.getElementById("gachaReveal")?.classList.contains("is-test-mode");
     closeGachaPreviewAnimation();
+    if (wasTestMode) {
+      renderAdmin();
+      return;
+    }
     renderGacha();
     document.getElementById("gachaStage")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
@@ -2997,7 +3010,12 @@ async function confirmGachaCardUse(cardId) {
         item.usedStore = confirmedCoupon.storeName || getStoreSettings().shopName;
         item.confirmationCode = confirmationCode;
       });
-      await refreshProductionGachaCoupons(userKey);
+      appState.gachaUseConfirmId = "";
+      renderGachaCollectionViews();
+      await refreshProductionGachaCoupons(userKey).catch((error) => {
+        console.warn("[TEAM LINK GACHA POST-USE REFRESH FAILED]", error);
+      });
+      renderGachaCollectionViews();
     } else {
       const usedAt = new Date().toISOString();
       const updated = updateGachaCardEverywhere(cardId, (item) => {
@@ -3012,6 +3030,7 @@ async function confirmGachaCardUse(cardId) {
       if (updated) syncLinkedCouponFromGacha(updated, "used");
     }
     appState.gachaUseConfirmId = "";
+    renderGachaCollectionViews();
     showToast("景品を使用済みにしました。");
   } catch (error) {
     console.error("[TEAM LINK GACHA CUSTOMER USE CONFIRM FAILED]", error);
@@ -4166,11 +4185,11 @@ function completeGachaReveal(card) {
 function getGachaRevealTiming(rarity = "N") {
   const key = String(rarity || "N").toUpperCase();
   const timings = {
-    N: { totalMs: 1200, flipMs: 420, imageWaitMs: 220 },
-    R: { totalMs: 1320, flipMs: 430, imageWaitMs: 240 },
-    SR: { totalMs: 1450, flipMs: 450, imageWaitMs: 280 },
-    SSR: { totalMs: 1800, flipMs: 470, imageWaitMs: 340 },
-    UR: { totalMs: 2300, flipMs: 500, imageWaitMs: 420 }
+    N: { totalMs: 650, flipMs: 300, imageWaitMs: 80 },
+    R: { totalMs: 680, flipMs: 310, imageWaitMs: 80 },
+    SR: { totalMs: 740, flipMs: 330, imageWaitMs: 100 },
+    SSR: { totalMs: 820, flipMs: 350, imageWaitMs: 120 },
+    UR: { totalMs: 900, flipMs: 380, imageWaitMs: 120 }
   };
   return timings[key] || timings.N;
 }
@@ -4312,7 +4331,10 @@ function renderMyCards() {
   const availableYears = getBinderYears(cards);
   const selectedYear = availableYears.includes(Number(appState.gachaBinderYear)) ? Number(appState.gachaBinderYear) : currentYear();
   appState.gachaBinderYear = selectedYear;
-  const collected = getBinderCards(cards, selectedYear);
+  const collected = getUsedCollectionCards(cards, selectedYear);
+  const confirmedBinderCards = collected.filter((card) => card.inBinder === true);
+  const pendingBinderCards = collected.filter((card) => card.inBinder !== true);
+  const pendingBinderCount = pendingBinderCards.length;
   const collection = buildCollectionSummary(collected, selectedYear);
   const characterCollection = buildCharacterCollection(collected);
   container.innerHTML = `
@@ -4321,9 +4343,12 @@ function renderMyCards() {
     </div>
     <article class="admin-preview">
       <p class="kicker">${selectedYear} collection</p>
-      <h3>${selectedYear}年カードバインダー</h3>
+      <h3>${selectedYear}年の取得状況</h3>
       <div class="collection-progress"><strong>${characterCollection.owned} / 30種類</strong><span>コンプリート率 ${characterCollection.rate}% / 次の年間特典まであと${collection.nextRemaining}枚</span></div>
+      ${selectedYear === currentYear() && pendingBinderCount > 0 ? `<p class="binder-pending-note">使用済み ${pendingBinderCount}枚は取得済みとして反映中です。翌月に正式バインダーへ確定します。</p>` : ""}
       <div class="mini-grid">
+        <span>正式バインダー ${confirmedBinderCards.length}枚</span>
+        ${selectedYear === currentYear() ? `<span>翌月確定予定 ${pendingBinderCount}枚</span>` : ""}
         <span>UR ${characterCollection.rarity.UR || 0}種</span>
         <span>SSR ${collection.rarity.SSR}枚</span>
         <span>SR ${collection.rarity.SR}枚</span>
@@ -4332,7 +4357,8 @@ function renderMyCards() {
       </div>
     </article>
     ${renderCollectionDex(characterCollection.items)}
-    ${renderCardShelf("取得済みカード", collected)}
+    ${selectedYear === currentYear() && pendingBinderCards.length ? renderCardShelf("今月取得（翌月バインダー確定予定）", pendingBinderCards) : ""}
+    ${renderCardShelf(`${selectedYear}年 正式バインダー`, confirmedBinderCards)}
   `;
 }
 
@@ -4340,7 +4366,7 @@ function renderCollectionRewardsPage() {
   const container = document.getElementById("collectionRewardsContent");
   if (!container) return;
   const profile = getProfile();
-  const cards = getBinderCards(getMemberCardHistory(profile), currentYear());
+  const cards = getUsedCollectionCards(getMemberCardHistory(profile), currentYear());
   const rewards = getCollectionRewardStates(profile, cards)
     .filter((reward) => reward.isPublic !== false && reward.active !== false)
     .sort((a, b) => Number(a.sortOrder || 999) - Number(b.sortOrder || 999));
@@ -4440,6 +4466,13 @@ function renderCardShelf(title, cards) {
 
 function gachaCardHtml(card, withActions = false) {
   const rarity = rarityMeta[card.rarity] || rarityMeta.R;
+  const binderStatus = getGachaLifecycleState(card) === "used"
+    ? card.inBinder === true
+      ? "バインダー保存済み"
+      : normalizeServerYearMonth(card.issueMonth || card.usedAt || card.obtainedAt) === currentMonthKey()
+        ? "今月取得 / 使用済み / 翌月バインダー確定予定"
+        : "使用済み / バインダー確定待ち"
+    : getCardUsageState(card);
   return `
     <article class="collection-card rarity-${escapeHtml(String(card.rarity || "R").toLowerCase())}">
       <span>${escapeHtml(rarity.icon)} ${escapeHtml(card.rarity)} ${escapeHtml(rarity.label)}</span>
@@ -4449,7 +4482,7 @@ function gachaCardHtml(card, withActions = false) {
       <small>効果：${escapeHtml(card.effectName || "")} ${escapeHtml(card.effectDescription || "")}</small>
       <strong>${escapeHtml(card.prizeName)}</strong>
       <p>${escapeHtml(card.prizeDescription || card.message || "")}</p>
-      <small>${escapeHtml(card.issueMonth || "")} / ${escapeHtml(getCardUsageState(card))} / 期限 ${escapeHtml(formatDateUntil(card.validUntil || card.expires))}</small>
+      <small class="gacha-card-binder-status">${escapeHtml(card.issueMonth || "")} / ${escapeHtml(binderStatus)} / 期限 ${escapeHtml(formatDateUntil(card.validUntil || card.expires))}</small>
       ${withActions ? `<div class="admin-actions mini"><button type="button" data-admin-action="chartUseGacha" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">カードを使用する</button><button type="button" data-admin-action="chartUndoGacha" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">使用取り消し</button><button type="button" data-admin-action="cardDetail" data-id="${escapeHtml(card.drawId || card.cardHistoryId)}">カード詳細</button></div>` : ""}
     </article>
   `;
@@ -5400,7 +5433,7 @@ function renderAdminGachaTest() {
     result[rarity] = testLog.filter((draw) => draw.rarity === rarity).length;
     return result;
   }, {});
-  const testBinder = testLog.filter((draw) => draw.testStatus === "used");
+  const testBinder = getUsedCollectionCards(testLog, currentYear());
   const uniqueCardCount = new Set(testBinder.map((draw) => String(draw.cardId || ""))).size;
   const isTestUseConfirming = Boolean(latest?.testId) && appState.gachaTestUseConfirmId === String(latest.testId);
   return `
@@ -5444,11 +5477,8 @@ function renderAdminGachaTest() {
     <section class="reservation-menu-group">
       <header><h4>テスト用コレクション進捗</h4><span>本番データとは完全分離</span></header>
       <div class="chart-list">${getCollectionRewards().map((reward) => {
-        const required = Number(reward.conditionValue || reward.requiredCount || 0);
-        const type = String(reward.conditionType || "total_count");
-        const rarity = String(reward.rarity || reward.targetRarity || "");
-        const current = type === "unique_count" ? uniqueCardCount : type === "rarity_count" ? testBinder.filter((draw) => draw.rarity === rarity).length : testBinder.length;
-        return `<article class="chart-row"><strong>${escapeHtml(reward.title || reward.rewardName || "コレクション特典")}</strong><span>現在 ${current} / ${required || "-"}${required && current >= required ? " / 達成" : ""}</span></article>`;
+        const progress = getCollectionRewardProgress(reward, testBinder);
+        return `<article class="chart-row"><strong>${escapeHtml(reward.title || reward.rewardName || "コレクション特典")}</strong><span>現在 ${progress.current} / ${progress.target}${progress.achieved ? " / 達成" : ""}</span></article>`;
       }).join("") || "<p>公開中のコレクション特典はありません。</p>"}</div>
     </section>
     <section class="reservation-menu-group">
@@ -9188,20 +9218,49 @@ function getBinderCards(cards, year) {
   ));
 }
 
+function getGachaCollectionIdentity(card) {
+  return String(
+    card.drawId ||
+    card.cardHistoryId ||
+    card.binderId ||
+    card.testId ||
+    `${card.memberId || card.userId || "unknown"}:${card.issueMonth || card.obtainedAt || "unknown"}:${card.cardId || card.characterId || "unknown"}`
+  );
+}
+
+function getUsedCollectionCards(cards, year) {
+  const targetYear = Number(year);
+  const unique = new Map();
+  (Array.isArray(cards) ? cards : []).forEach((card) => {
+    const isTestCard = card.dataMode === "TEST";
+    const isUsed = isTestCard
+      ? normalizeGachaState(card.testStatus) === "used"
+      : getGachaLifecycleState(card) === "used";
+    if (!isUsed || getGachaCardYear(card) !== targetYear) return;
+    const identity = getGachaCollectionIdentity(card);
+    const existing = unique.get(identity);
+    if (!existing || (card.inBinder === true && existing.inBinder !== true)) unique.set(identity, card);
+  });
+  return Array.from(unique.values()).sort((a, b) => (
+    String(b.usedAt || b.obtainedAt || b.drawnAt || "").localeCompare(String(a.usedAt || a.obtainedAt || a.drawnAt || ""))
+  ));
+}
+
 function getCardUsageState(card) {
   return getGachaStateLabel(card);
 }
 
 function buildCollectionSummary(cards, year) {
-  const yearly = cards.filter((card) => getGachaCardYear(card) === Number(year));
+  const yearly = getUsedCollectionCards(cards, year);
   const rarity = { UR: 0, SSR: 0, SR: 0, R: 0, N: 0 };
   yearly.forEach((card) => { rarity[card.rarity] = Number(rarity[card.rarity] || 0) + 1; });
   const rewards = getCollectionRewards().filter((reward) => Number(reward.year) === Number(year) && reward.isPublic !== false).sort((a, b) => Number(a.requiredCount) - Number(b.requiredCount));
-  const nextReward = rewards.find((reward) => yearly.length < Number(reward.requiredCount));
+  const nextReward = rewards.find((reward) => !getCollectionRewardProgress(reward, yearly).achieved);
+  const nextProgress = nextReward ? getCollectionRewardProgress(nextReward, yearly) : null;
   return {
     total: yearly.length,
     rarity,
-    nextRemaining: nextReward ? Math.max(0, Number(nextReward.requiredCount) - yearly.length) : 0
+    nextRemaining: nextProgress ? Math.max(0, Number(nextProgress.target) - Number(nextProgress.current)) : 0
   };
 }
 
@@ -9222,7 +9281,7 @@ function getCollectionRewardStates(member, cards) {
 }
 
 function getCollectionRewardProgress(reward, cards) {
-  const yearCards = cards.filter((card) => getGachaCardYear(card) === Number(reward.year || currentYear()));
+  const yearCards = getUsedCollectionCards(cards, Number(reward.year || currentYear()));
   const conditionType = String(reward.conditionType || (
     reward.requireAllRarities ? "all_rarities" :
       reward.requireCompleteCollection ? "unique_card_count" :
@@ -9234,7 +9293,7 @@ function getCollectionRewardProgress(reward, cards) {
   let target = conditionValue;
   if (conditionType === "rarity_count") {
     current = yearCards.filter((card) => String(card.rarity || "") === rarity).length;
-  } else if (conditionType === "unique_card_count") {
+  } else if (conditionType === "unique_card_count" || conditionType === "unique_count") {
     current = new Set(yearCards.map((card) => card.characterId || card.cardId).filter(Boolean)).size;
   } else if (conditionType === "specific_card") {
     current = yearCards.some((card) => String(card.characterId || card.cardId) === String(reward.targetCardId || "")) ? 1 : 0;
