@@ -2590,45 +2590,124 @@ function firstFortuneItems(value, count = 2) {
   return String(value || "").split(/[｜,]/).map((item) => item.trim()).filter(Boolean).slice(0, count);
 }
 
+function joinFortuneTraits(items) {
+  const values = (items || []).filter(Boolean);
+  if (values.length < 2) return `「${values[0] || "自然体の魅力"}」`;
+  return `「${values[0]}」「${values[1]}」`;
+}
+
+function getCompatibilityConclusion(percentage) {
+  const score = Number(percentage);
+  if (score >= 90) return "かなり相性のいい二人です。一緒にいるほど安心感が生まれやすく、長く付き合うほど良さが出てくる組み合わせです。";
+  if (score >= 80) return "とても相性のいい二人です。お互いの良さを自然に引き出し、心地よい関係を育てやすいでしょう。";
+  if (score >= 70) return "バランスのいい二人です。違いを楽しみながら歩幅を合わせると、居心地のよい関係になります。";
+  if (score >= 60) return "知るほど味わいが増す二人です。少しずつ気持ちを伝え合うことで、二人らしい関係を育てられます。";
+  if (score >= 40) return "惹かれ合う一方で、すれ違いにも気をつけたい二人です。相手の考えを決めつけず、丁寧に確かめることが大切です。";
+  return "違いがはっきり出やすい二人です。無理に同じになろうとせず、それぞれの心地よい距離を尊重しましょう。";
+}
+
+function getCompatibilityConnectionText(symbol) {
+  const messages = {
+    "◎": "気持ちのテンポが合いやすく、自然体でも分かり合える場面が多いでしょう。",
+    "○": "会話を重ねるほど気持ちが通じ、安心できる関係になりやすいでしょう。",
+    "△": "感じ方に違いはありますが、言葉で伝え合うほど理解が深まります。",
+    "▲": "気持ちが強く動く分、思い込みによるすれ違いには少し注意が必要です。",
+    "×": "気持ちの受け取り方が違いやすいので、結論を急がず確認し合うことが大切です。"
+  };
+  return messages[symbol] || "会話を大切にすると、二人らしいつながりが育ちます。";
+}
+
+function getCompatibilityFlowText(symbol) {
+  const messages = {
+    "◎": "日々を一緒に過ごすほど、二人の良さが自然に重なっていきます。",
+    "○": "無理のないペースで時間を重ねるほど、安定した関係を築けます。",
+    "△": "予定や過ごし方を相談して決めると、二人のペースが整います。",
+    "▲": "タイミングがずれやすいときは、少し間を置いて話すとうまくいきます。",
+    "×": "それぞれの時間も大切にすると、一緒にいる時間を心地よく保てます。"
+  };
+  return messages[symbol] || "二人に合うペースを見つけることが、心地よい関係につながります。";
+}
+
+function getCompatibilityCautionCategory(cautions) {
+  const text = (cautions || []).join("｜");
+  const rules = [
+    { key: "overcare", words: ["合わせ", "本音", "気を使", "我慢", "遠慮", "断りにく", "抱え込", "頼まれ"] },
+    { key: "overthink", words: ["考えすぎ", "迷い", "慎重", "疑い", "決断を先延ばし"] },
+    { key: "fastpace", words: ["急ぎ", "勢い", "気分", "予定を変え", "飽き"] },
+    { key: "stubborn", words: ["頑固", "こだわり", "完璧", "白黒", "融通"] },
+    { key: "closed", words: ["弱さを隠", "感情表現", "一人で完結", "孤立", "心を開"] }
+  ];
+  return rules.find((rule) => rule.words.some((word) => text.includes(word)))?.key || "differentPace";
+}
+
+function getCompatibilityCautionText(selfCategory, partnerCategory, partnerLabel) {
+  if (selfCategory === "overcare" && partnerCategory === "overcare") {
+    return `二人とも相手を思いやれる分、「本当はこうしてほしい」を我慢してしまうことがありそうです。気持ちをため込むと、優しさがすれ違いに変わってしまうことも。小さな希望ほど早めに言葉にしてみてください。`;
+  }
+  if (selfCategory === "overthink" || partnerCategory === "overthink") {
+    return `どちらかが考え込むと、もう一人も答えを待ちすぎてしまうことがありそうです。すぐに結論を出さなくても、「今はこう感じている」と途中の気持ちを伝えましょう。安心して考えられる時間をつくることが大切です。`;
+  }
+  if (selfCategory === "fastpace" || partnerCategory === "fastpace") {
+    return `行動の速さや気分の切り替え方に差が出ると、置いていかれたように感じることがありそうです。予定を決めるときは、二人が無理なく楽しめるペースを一度確認しましょう。急な変更にはひと言添えると安心です。`;
+  }
+  if (selfCategory === "stubborn" || partnerCategory === "stubborn") {
+    return `お互いに大切にしたい考えがある分、譲れないところがぶつかることもありそうです。正しさを決めるより、「なぜ大切なのか」を話してみてください。${partnerLabel}の考えを聞いてから自分の希望を伝えると、着地点を見つけやすくなります。`;
+  }
+  if (selfCategory === "closed" || partnerCategory === "closed") {
+    return `平気そうに見えても、どちらかが気持ちを内側にしまっていることがあります。答えを急かさず、落ち着いて話せる時間をつくりましょう。「聞いてほしいだけ」と最初に伝えるのもおすすめです。`;
+  }
+  return `心地よいペースが違うときに、相手も同じ気持ちだと思い込まないことが大切です。無理に合わせるより、その日の希望を短い言葉で伝えてみましょう。違いを知るほど、二人らしい付き合い方が見つかります。`;
+}
+
+function getCompatibilityLoveRole(profile) {
+  const strengths = String(profile?.strengths || "");
+  const love = String(profile?.love || "");
+  if (/[親しみ明る会話人気楽し笑自由軽やか]/.test(strengths)) return "関係に明るさや楽しさをつくる";
+  if (/[安心信頼安定誠実堅実支え責任]/.test(strengths)) return "関係に安心感と落ち着きをつくる";
+  const text = `${love}｜${strengths}`;
+  if (/[楽し笑会話自由直感軽やか明る]/.test(text)) return "関係に明るさや楽しさをつくる";
+  if (/[安心信頼安定誠実堅実支え]/.test(text)) return "関係に安心感と落ち着きをつくる";
+  if (/[尊重深い特別丁寧繊細]/.test(text)) return "心の深いつながりを育てる";
+  return "自分らしい魅力で関係をあたためる";
+}
+
 function renderCompatibilityCommentCard(title, text) {
   if (!text) return "";
   return `<section><h4>${escapeHtml(title)}</h4><p>${escapeHtml(text)}</p></section>`;
 }
 
 function renderCompatibilityCommentCards(self, partner, compatibility) {
-  const selfName = self.teamLinkName || "あなたのタイプ";
-  const partnerName = partner.teamLinkName || "お相手のタイプ";
+  const selfName = "あなた";
+  const partnerName = partner.nickname ? `${partner.nickname}さん` : "お相手";
   const selfProfile = self.profile || {};
   const partnerProfile = partner.profile || {};
   const humanLuck = compatibility.humanLuck || {};
   const earthLuck = compatibility.earthLuck || {};
   const totalScore = compatibility.totalScore || {};
-  const selfCautions = firstFortuneItems(selfProfile.cautions);
-  const partnerCautions = firstFortuneItems(partnerProfile.cautions);
-  const scoreExplanation = Number.isFinite(Number(totalScore.humanScore)) && Number.isFinite(Number(totalScore.earthScore))
-    ? `総合${totalScore.percentage}%は、心のつながり${humanLuck.symbol || "-"}（${totalScore.humanScore}点）を70％、ご縁の流れ${earthLuck.symbol || "-"}（${totalScore.earthScore}点）を30％として算出しています。`
-    : "";
+  const selfStrengths = firstFortuneItems(selfProfile.strengths);
+  const partnerStrengths = firstFortuneItems(partnerProfile.strengths);
+  const selfCautions = firstFortuneItems(selfProfile.cautions, 5);
+  const partnerCautions = firstFortuneItems(partnerProfile.cautions, 5);
+  const selfCautionCategory = getCompatibilityCautionCategory(selfCautions);
+  const partnerCautionCategory = getCompatibilityCautionCategory(partnerCautions);
+  const selfLove = firstFortuneSentence(selfProfile.love).replace(/^恋愛では/, "");
+  const partnerLove = firstFortuneSentence(partnerProfile.love).replace(/^恋愛では/, "");
   const basic = [
-    `${selfName}は、${firstFortuneSentence(selfProfile.basicPersonality)}`,
-    `${partnerName}は、${firstFortuneSentence(partnerProfile.basicPersonality)}`,
-    `正式相性表では、心のつながりは${humanLuck.symbol || "-"}「${humanLuck.description || "判定資料なし"}」、ご縁の流れは${earthLuck.symbol || "-"}「${earthLuck.description || "判定資料なし"}」です。`,
-    scoreExplanation
-  ].filter((sentence) => sentence && !sentence.endsWith("は、")).join("");
+    getCompatibilityConclusion(totalScore.percentage),
+    `${selfName}は${joinFortuneTraits(selfStrengths)}が魅力で、${partnerName}は${joinFortuneTraits(partnerStrengths)}が持ち味です。`,
+    getCompatibilityConnectionText(humanLuck.symbol),
+    getCompatibilityFlowText(earthLuck.symbol)
+  ].join("");
   const love = [
-    `${selfName}：${firstFortuneSentence(selfProfile.love)}`,
-    `${partnerName}：${firstFortuneSentence(partnerProfile.love)}`,
-    `${selfName}と${partnerName}は、二人が大切にする関わり方を言葉にすると、正式相性表の良さを活かしやすい組み合わせです。`
+    `「楽しい」と「安心」のバランスを育てやすい二人です。`,
+    selfLove ? `${selfName}は${selfLove}` : "",
+    partnerLove ? `${partnerName}は${partnerLove}` : "",
+    `${selfName}が${getCompatibilityLoveRole(selfProfile)}一方で、${partnerName}が${getCompatibilityLoveRole(partnerProfile)}関係になりやすいでしょう。`
   ].filter(Boolean).join("");
-  const caution = [
-    selfCautions.length ? `${selfName}は「${selfCautions.join("・")}」に気をつけたいタイプです。` : "",
-    partnerCautions.length ? `${partnerName}は「${partnerCautions.join("・")}」に気をつけたいタイプです。` : "",
-    `ご縁の流れは${earthLuck.symbol || "-"}「${earthLuck.description || "判定資料なし"}」なので、違いを急いで結論にせず確認し合うことが大切です。`
-  ].filter(Boolean).join("");
-  const hint = [
-    `${selfName}：${firstFortuneSentence(selfProfile.compatibilityTendency)}`,
-    `${partnerName}：${firstFortuneSentence(partnerProfile.compatibilityTendency)}`,
-    `二人の正式な相性傾向を活かし、互いが心地よい会話と距離感を具体的に伝え合うことが、もっと仲良くなるヒントです。`
-  ].filter((sentence) => sentence && !sentence.endsWith("：")).join("");
+  const caution = getCompatibilityCautionText(selfCautionCategory, partnerCautionCategory, partnerName);
+  const hint = totalScore.percentage >= 80
+    ? `この二人は、派手なサプライズより一緒に過ごす時間を積み重ねるほど関係が深まりやすい組み合わせです。食事やお出かけなど、二人だけの定番をつくるとさらに距離が縮まりそう。うれしかったことは、その日のうちに言葉で伝えてみてください。`
+    : `二人にとって心地よい連絡の頻度や過ごし方を、少しずつ見つけていきましょう。無理に相手へ合わせるより、「今日はこうしたい」を自然に伝えることが大切です。二人だけの小さな楽しみを増やすほど、関係が育っていきます。`;
   return [
     renderCompatibilityCommentCard("二人の相性", basic),
     renderCompatibilityCommentCard("恋愛での相性", love),
