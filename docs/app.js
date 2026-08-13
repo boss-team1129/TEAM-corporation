@@ -2021,27 +2021,94 @@ function buildFortunePreview() {
   };
 }
 
+function renderFortuneBirthDateFields() {
+  const years = Array.from({ length: currentYear() - 1919 }, (_, index) => currentYear() - index);
+  const months = Array.from({ length: 12 }, (_, index) => index + 1);
+  const days = Array.from({ length: 31 }, (_, index) => index + 1);
+  return `
+    <fieldset class="team-fortune-birth-fieldset">
+      <legend>生年月日</legend>
+      <small>年・月・日を選択してください</small>
+      <div class="team-fortune-birth-selects">
+        <select name="birthYear" required aria-label="生年月日の年">
+          <option value="">年</option>
+          ${years.map((year) => `<option value="${year}">${year}年</option>`).join("")}
+        </select>
+        <select name="birthMonth" required aria-label="生年月日の月">
+          <option value="">月</option>
+          ${months.map((month) => `<option value="${month}">${String(month).padStart(2, "0")}月</option>`).join("")}
+        </select>
+        <select name="birthDay" required aria-label="生年月日の日">
+          <option value="">日</option>
+          ${days.map((day) => `<option value="${day}">${String(day).padStart(2, "0")}日</option>`).join("")}
+        </select>
+      </div>
+      <p class="team-fortune-birth-error" id="birthDateError" role="alert" hidden>生年月日をすべて選択してください</p>
+    </fieldset>
+  `;
+}
+
+function updateFortuneBirthDays(form) {
+  const yearSelect = form?.elements?.birthYear;
+  const monthSelect = form?.elements?.birthMonth;
+  const daySelect = form?.elements?.birthDay;
+  if (!yearSelect || !monthSelect || !daySelect) return;
+  const previousDay = Number(daySelect.value);
+  const year = Number(yearSelect.value) || 2000;
+  const month = Number(monthSelect.value) || 1;
+  const maxDay = new Date(year, month, 0).getDate();
+  daySelect.innerHTML = `<option value="">日</option>${Array.from({ length: maxDay }, (_, index) => {
+    const day = index + 1;
+    return `<option value="${day}">${String(day).padStart(2, "0")}日</option>`;
+  }).join("")}`;
+  if (previousDay && previousDay <= maxDay) daySelect.value = String(previousDay);
+}
+
+function getFortuneBirthDate(form) {
+  const year = Number(form?.elements?.birthYear?.value);
+  const month = Number(form?.elements?.birthMonth?.value);
+  const day = Number(form?.elements?.birthDay?.value);
+  if (!year || !month || !day) return "";
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function renderFortune() {
   const container = document.getElementById("fortuneContent");
   const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
   if (!birthDate) {
     container.innerHTML = `
-      <form class="step-form team-fortune-onboarding" id="birthDateForm">
+      <form class="step-form team-fortune-onboarding" id="birthDateForm" novalidate>
         <p class="kicker">TEAM FORTUNE</p>
         <h3>あなたの守護どうぶつを見つけよう</h3>
         <p>生年月日から、あなたに寄り添うTEAM LINKタイプを確認します。</p>
-        <label class="field team-fortune-birth-field">
-          <span>生年月日</span>
-          <small>生年月日を選択してください</small>
-          <input class="team-fortune-birth-input" type="date" name="birthDate" required aria-label="生年月日を選択してください">
-        </label>
+        ${renderFortuneBirthDateFields()}
         <button class="primary-button" type="submit">守護どうぶつを見つける</button>
         <small>正式データだけを使い、未確認の結果は推測表示しません。</small>
       </form>
     `;
-    document.getElementById("birthDateForm").addEventListener("submit", (event) => {
+    const birthDateForm = document.getElementById("birthDateForm");
+    const birthDateError = document.getElementById("birthDateError");
+    const clearBirthDateError = () => { if (birthDateError) birthDateError.hidden = true; };
+    birthDateForm.elements.birthYear.addEventListener("change", () => {
+      updateFortuneBirthDays(birthDateForm);
+      clearBirthDateError();
+    });
+    birthDateForm.elements.birthMonth.addEventListener("change", () => {
+      updateFortuneBirthDays(birthDateForm);
+      clearBirthDateError();
+    });
+    birthDateForm.elements.birthDay.addEventListener("change", clearBirthDateError);
+    birthDateForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      localStorage.setItem(STORAGE_KEYS.birthDate, new FormData(event.currentTarget).get("birthDate"));
+      const selectedBirthDate = getFortuneBirthDate(event.currentTarget);
+      if (!selectedBirthDate) {
+        if (birthDateError) birthDateError.hidden = false;
+        showToast("生年月日をすべて選択してください");
+        return;
+      }
+      localStorage.setItem(STORAGE_KEYS.birthDate, selectedBirthDate);
       renderApp();
     });
     return;

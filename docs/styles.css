@@ -1268,7 +1268,8 @@ p {
 #fortuneView,
 #fortuneContent,
 .team-fortune-onboarding,
-.team-fortune-birth-field {
+.team-fortune-birth-fieldset,
+.team-fortune-birth-selects {
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -1285,37 +1286,48 @@ p {
   padding-inline: clamp(14px, 4.5vw, 20px);
 }
 
-.team-fortune-birth-field {
-  gap: 5px;
+.team-fortune-birth-fieldset {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.team-fortune-birth-field > span {
+.team-fortune-birth-fieldset legend {
+  padding: 0;
   color: rgba(255,250,239,.88);
   font-size: 14px;
   font-weight: 900;
 }
 
-.team-fortune-birth-field > small {
-  margin: -1px 0 4px;
+.team-fortune-birth-fieldset > small {
+  margin: -2px 0 4px;
   color: rgba(255,250,239,.58);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.45;
 }
 
-.field input.team-fortune-birth-input {
-  display: block;
+.team-fortune-birth-selects {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.team-fortune-birth-selects select {
   width: 100%;
   min-width: 0;
   max-width: 100%;
   min-inline-size: 0;
   max-inline-size: 100%;
-  height: 56px;
-  min-height: 56px;
+  box-sizing: border-box;
+  height: 52px;
+  min-height: 52px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 24px 0 8px;
   border: 1px solid rgba(219, 181, 103, .72);
-  border-radius: 16px;
+  border-radius: 14px;
   color: #4b321f;
   background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(255,249,236,.97));
   box-shadow:
@@ -1325,12 +1337,15 @@ p {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.2;
+  text-align: center;
+  text-align-last: center;
   color-scheme: light;
   -webkit-appearance: auto;
   appearance: auto;
 }
 
-.field input.team-fortune-birth-input:focus {
+.team-fortune-birth-selects select:focus {
+  outline: none;
   border-color: rgba(235, 201, 130, .96);
   box-shadow:
     0 0 0 3px rgba(228,199,126,.16),
@@ -1338,26 +1353,12 @@ p {
     0 10px 24px rgba(0,0,0,.16);
 }
 
-.team-fortune-birth-input::-webkit-date-and-time-value {
-  min-width: 0;
-  padding: 0;
-  color: #4b321f;
-  text-align: left;
-}
-
-.team-fortune-birth-input::-webkit-datetime-edit {
-  min-width: 0;
-  padding: 0;
-  color: #4b321f;
-}
-
-.team-fortune-birth-input::-webkit-calendar-picker-indicator {
-  min-width: 28px;
-  min-height: 28px;
-  margin-left: 8px;
-  padding: 4px;
-  opacity: .78;
-  cursor: pointer;
+.team-fortune-birth-error {
+  margin: 2px 0 0;
+  color: #ffd1c5;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 @media (max-width: 430px) {
@@ -1372,10 +1373,17 @@ p {
     border-radius: 22px;
   }
 
-  .field input.team-fortune-birth-input {
+  .team-fortune-birth-selects,
+  .team-fortune-birth-selects select {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+
+  .team-fortune-birth-selects select {
+    height: 50px;
+    min-height: 50px;
+    padding-inline: 6px 20px;
     font-size: 16px;
   }
 }
