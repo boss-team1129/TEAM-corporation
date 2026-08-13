@@ -5452,6 +5452,7 @@ body.is-home-view .app-shell {
 }
 
 .home-next-card strong {
+  max-width: 7.35em;
   color: #70401d;
   font-family: "Noto Serif JP", "Yu Mincho", serif;
   font-size: clamp(20px, 5.8vw, 27px);
