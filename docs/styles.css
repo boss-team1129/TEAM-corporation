@@ -4651,6 +4651,14 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   gap: 8px;
 }
 .admin-booking-row.is-pending { border-color: rgba(228,199,126,.42); }
+.admin-booking-row.is-deep-linked {
+  border-color: #f4d78f;
+  box-shadow: 0 0 0 2px rgba(244,215,143,.28), 0 16px 38px rgba(201,155,74,.24);
+  animation: admin-booking-highlight 1.1s ease-in-out 2;
+}
+@keyframes admin-booking-highlight {
+  50% { background: rgba(201,155,74,.20); }
+}
 .admin-record-details { border-top: 1px solid rgba(255,255,255,.08); padding-top: 8px; }
 .admin-record-details summary { color: var(--champagne); font-size: 12px; font-weight: 900; cursor: pointer; }
 .admin-record-details p { margin: 7px 0; color: rgba(255,250,239,.72); font-size: 12px; }

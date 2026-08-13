@@ -80,6 +80,7 @@ const appState = {
   bookingDraft: null,
   bookingSubmitBusy: false,
   bookingPendingRequestId: "",
+  adminFocusedBookingRequestId: "",
   menuMasterSyncStatus: "pending",
   couponMasterSyncStatus: "pending",
   memberCouponSyncStatus: "pending",
@@ -737,15 +738,16 @@ function bindForms() {
   document.getElementById("bookingForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     if (appState.bookingSubmitBusy) return;
-    const request = buildBookingRequestFromForm(event.currentTarget);
+    const bookingForm = event.currentTarget;
+    const request = buildBookingRequestFromForm(bookingForm);
     if (!request) return;
-    const submitButton = event.currentTarget.querySelector("button[type='submit']");
+    const submitButton = bookingForm.querySelector("button[type='submit']");
     appState.bookingSubmitBusy = true;
     setButtonLoading(submitButton, true, "送信中…");
     let result = null;
     try {
       if (isProductionApiMode()) {
-        result = await apiRequest("submitBookingRequest", request);
+        result = await submitBookingRequestSafely(request);
         request.requestId = result.data?.bookingRequestId || result.bookingRequestId || result.data?.requestId || result.requestId || request.requestId;
         request.bookingRequestId = request.requestId;
         await markBookingCouponsAsPlanned(request).catch((error) => {
@@ -767,7 +769,7 @@ function bindForms() {
         ["参考金額", formatYen(request.referenceAmount)],
         ["状態", normalizeBookingStatus(request.status)]
       ]);
-      event.currentTarget.reset();
+      bookingForm.reset();
       appState.bookingMenuMode = "regular";
       appState.bookingMenuCategory = "";
       appState.bookingSelectedMenuIds = null;
@@ -1191,9 +1193,8 @@ function updateBookingConfirm() {
   const mode = String(formData.get("menuMode") || "regular");
   const menuText = mode === "consult"
     ? String(formData.get("customMenu") || "相談して決めたい").trim()
-    : selected.map((menu) => menu.title).join("＋") || "未選択";
-  const totalMinutes = selected.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
-  const referenceAmount = selected.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
+    : selected.map((menu) => menu.title).join("＋") || (selectedCoupons.length ? `クーポンメニュー：${selectedCoupons.map((coupon) => coupon.title).join("＋")}` : "未選択");
+  const totals = calculateBookingTotals(selected, selectedCoupons);
   confirm.innerHTML = `
     <strong>10. 内容確認</strong>
     <div class="summary-list">
@@ -1203,8 +1204,8 @@ function updateBookingConfirm() {
         ["担当者", staff || "未選択"],
         ["メニュー", menuText],
         ["LINEクーポン", selectedCoupons.map((coupon) => coupon.title).join("、") || "利用しない"],
-        ["合計施術時間", totalMinutes ? formatMinutes(totalMinutes) : "店舗確認"],
-        ["参考金額", referenceAmount ? formatYen(referenceAmount) : "店舗確認"]
+        ["合計施術時間", totals.durationKnown ? formatMinutes(totals.totalMinutes) : "店舗確認"],
+        ["参考金額", totals.priceKnown ? formatYen(totals.referenceAmount) : "店舗確認"]
       ])}
     </div>
     <p class="soft-note">最終金額と予約可否は、店舗確認後に確定します。</p>
@@ -1222,14 +1223,13 @@ function buildBookingRequestFromForm(formElement) {
     return null;
   }
   const selectedMenus = getSelectedReservationMenus(form);
+  const selectedCoupons = getSelectedBookingCoupons(form);
   const menuMode = String(form.get("menuMode") || "regular");
   const customMenu = String(form.get("customMenu") || "").trim();
   const menuTitle = menuMode === "consult"
     ? customMenu
-    : selectedMenus.map((menu) => menu.title).join("＋");
-  const selectedCoupons = getSelectedBookingCoupons(form);
-  const totalMinutes = selectedMenus.reduce((sum, menu) => sum + Number(menu.durationMinutes || 0), 0);
-  const referenceAmount = selectedMenus.reduce((sum, menu) => sum + Number(getMenuPrice(menu) || 0), 0);
+    : selectedMenus.map((menu) => menu.title).join("＋") || selectedCoupons.map((coupon) => coupon.title).join("＋");
+  const totals = calculateBookingTotals(selectedMenus, selectedCoupons);
   const now = new Date().toISOString();
   const bookingRequestId = appState.bookingPendingRequestId || createId("REQ");
   appState.bookingPendingRequestId = bookingRequestId;
@@ -1257,9 +1257,11 @@ function buildBookingRequestFromForm(formElement) {
     selectedMenus: selectedMenus.map(toReservationMenuSnapshot),
     selectedCoupons: selectedCoupons.map(toReservationMenuSnapshot),
     couponTitle: selectedCoupons.map((coupon) => coupon.title).join("、"),
-    referenceAmount,
-    totalMinutes,
-    totalDurationMinutes: totalMinutes,
+    referenceAmount: totals.priceKnown ? totals.referenceAmount : "",
+    referenceAmountStatus: totals.priceKnown ? "calculated" : "store_confirmation",
+    totalMinutes: totals.durationKnown ? totals.totalMinutes : "",
+    totalDurationMinutes: totals.durationKnown ? totals.totalMinutes : "",
+    totalDurationStatus: totals.durationKnown ? "calculated" : "store_confirmation",
     memo: String(form.get("memo") || "").trim(),
     status: "pending",
     currentStatus: "pending",
@@ -1294,7 +1296,9 @@ function validateBookingForm(form) {
     if (!String(form.get("customMenu") || "").trim()) return { ok: false, message: "相談したい内容を入力してください。" };
     return { ok: true };
   }
-  if (!getSelectedReservationMenus(form).length) return { ok: false, message: "通常メニューを1つ以上選択してください。" };
+  const selectedMenus = getSelectedReservationMenus(form);
+  const selectedCoupons = getSelectedBookingCoupons(form);
+  if (!selectedMenus.length && !selectedCoupons.length) return { ok: false, message: "メニューまたはクーポンを1つ以上選択してください。" };
   return { ok: true };
 }
 
@@ -1337,10 +1341,14 @@ function toReservationMenuSnapshot(menu) {
     menuId: menu.menuId,
     couponId: menu.couponId || "",
     myCouponId: menu.myCouponId || "",
-    type: menu.type,
+    type: menu.type || (menu.lineCouponUrl ? "LINEクーポン" : ""),
     title: menu.title,
     price: getMenuPrice(menu),
+    priceKnown: isBookingPriceKnown(menu),
+    regularPrice: Number(menu.regularPrice || 0),
+    couponPrice: Number(menu.couponPrice || 0),
     durationMinutes: Number(menu.durationMinutes || 0),
+    durationKnown: isBookingDurationKnown(menu),
     source: menu.source || "",
     status: menu.status || "",
     lineCouponUrl: menu.lineCouponUrl || "",
@@ -1350,6 +1358,28 @@ function toReservationMenuSnapshot(menu) {
 
 function getMenuPrice(menu) {
   return Number(menu.couponPrice || menu.regularPrice || 0);
+}
+
+function isBookingPriceKnown(item) {
+  if (!item) return false;
+  if (item.type === "通常メニュー") return Number.isFinite(Number(getMenuPrice(item)));
+  return item.bookingPriceKnown === true || item.priceKnown === true || Number(item.couponPrice || 0) > 0;
+}
+
+function isBookingDurationKnown(item) {
+  if (!item) return false;
+  if (item.type === "通常メニュー") return Number(item.durationMinutes || 0) > 0;
+  return item.bookingDurationKnown === true || item.durationKnown === true || Number(item.durationMinutes || 0) > 0;
+}
+
+function calculateBookingTotals(menus = [], coupons = []) {
+  const allItems = [...menus, ...coupons];
+  return {
+    referenceAmount: allItems.reduce((sum, item) => sum + Number(getMenuPrice(item) || 0), 0),
+    totalMinutes: allItems.reduce((sum, item) => sum + Number(item.durationMinutes || 0), 0),
+    priceKnown: coupons.every(isBookingPriceKnown),
+    durationKnown: allItems.length > 0 && allItems.every(isBookingDurationKnown)
+  };
 }
 
 function getPublicCoupons(context = {}) {
@@ -1647,6 +1677,7 @@ async function releaseBookingPlannedCouponsRemote(reservationId) {
 function normalizeCouponDefinition(coupon) {
   return {
     couponId: coupon.couponId || createId("COUPON"),
+    type: coupon.type || (coupon.lineCouponUrl ? "LINEクーポン" : "クーポン"),
     title: coupon.title || coupon.name || "クーポン",
     description: coupon.description || coupon.desc || coupon.message || "",
     imageUrl: coupon.imageUrl || "",
@@ -1655,6 +1686,9 @@ function normalizeCouponDefinition(coupon) {
     category: coupon.category || "おすすめ",
     regularPrice: Number(coupon.regularPrice || 0),
     couponPrice: Number(coupon.couponPrice || 0),
+    durationMinutes: Number(coupon.durationMinutes || coupon.duration || 0),
+    bookingPriceKnown: coupon.bookingPriceKnown === true || Number(coupon.couponPrice || 0) > 0,
+    bookingDurationKnown: coupon.bookingDurationKnown === true || Number(coupon.durationMinutes || coupon.duration || 0) > 0,
     discountAmount: Number(coupon.discountAmount || 0),
     discountRate: Number(coupon.discountRate || 0),
     targetMenu: coupon.targetMenu || "全メニュー",
@@ -2068,6 +2102,10 @@ function getReservationCouponDisplayText(booking) {
 function openInitialView() {
   const params = new URLSearchParams(location.search);
   const view = params.get("view") || params.get("page") || "home";
+  if (view === "admin" && params.get("section") === "bookings") {
+    appState.adminTab = "bookings";
+    appState.adminFocusedBookingRequestId = String(params.get("requestId") || "").trim();
+  }
   showView(viewMap[view] ? view : "home", { replace: true });
 }
 
@@ -5134,6 +5172,20 @@ function renderAdminPanel() {
     settings: renderAdminSettings
   };
   panel.innerHTML = (renderers[appState.adminTab] || renderAdminDashboard)();
+  focusAdminBookingFromLink();
+}
+
+function focusAdminBookingFromLink() {
+  const requestId = appState.adminFocusedBookingRequestId;
+  if (appState.adminTab !== "bookings" || !requestId) return;
+  window.requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-booking-request-id="${CSS.escape(requestId)}"]`);
+    if (!row) return;
+    row.querySelector("details")?.setAttribute("open", "");
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    appState.adminFocusedBookingRequestId = "";
+    window.setTimeout(() => row.classList.remove("is-deep-linked"), 6000);
+  });
 }
 
 function renderAdminDashboard() {
@@ -5600,9 +5652,10 @@ function bookingCard(booking) {
   const menuLabel = selectedMenus.length ? selectedMenus.map((menu) => menu.title).join("、") : booking.menu || "";
   const couponLabel = selectedCoupons.length ? selectedCoupons.map((menu) => menu.title).join("、") : booking.couponTitle || "なし";
   const requestId = booking.requestId || booking.bookingRequestId || "";
+  const isDeepLinked = String(appState.adminFocusedBookingRequestId || "") === String(requestId);
   const canRespond = ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "別日時提案中", "お客様返答待ち"].includes(status);
   return `
-    <article class="admin-mini-record admin-booking-row ${canRespond ? "is-pending" : ""}">
+    <article class="admin-mini-record admin-booking-row ${canRespond ? "is-pending" : ""} ${isDeepLinked ? "is-deep-linked" : ""}" data-booking-request-id="${escapeHtml(requestId)}">
       <header><strong>${escapeHtml(booking.customerName || "お客様")}</strong><span class="badge status-${statusTone(status)}">${escapeHtml(status)}</span></header>
       <div class="record-meta-grid">
         <span>希望日時 ${escapeHtml(formatDateTime(booking.firstDateTime) || "未入力")}</span>
@@ -9988,6 +10041,20 @@ async function apiRequest(action, payload = {}, options = {}) {
   }
 }
 
+async function submitBookingRequestSafely(request) {
+  try {
+    return await apiRequest("submitBookingRequest", request);
+  } catch (error) {
+    if (error?.errorCode) throw error;
+    console.warn("[TEAM LINK BOOKING RESPONSE RECOVERY]", {
+      requestId: request.requestId,
+      message: String(error?.message || error)
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    return apiRequest("submitBookingRequest", request);
+  }
+}
+
 function getApiTimeoutMs(action) {
   const slowActions = new Set([
     "getAdminProductionData",
@@ -9995,6 +10062,7 @@ function getApiTimeoutMs(action) {
     "listCouponMasters",
     "listMenuMasters",
     "listMemberCoupons",
+    "submitBookingRequest",
     "drawMonthlyGacha",
     "getGachaConfig",
     "getPublishedRewards",
@@ -10445,6 +10513,7 @@ function mapServerMenuMasterToLocal(menu) {
 function mapServerCouponMasterToLocal(coupon) {
   const validFrom = normalizeApiDateKey(coupon.startDate || coupon.validFrom);
   const validUntil = normalizeApiDateKey(coupon.endDate || coupon.validUntil);
+  const bookingDetails = extractCouponBookingDetails(coupon);
   return normalizeCouponDefinition({
     couponId: coupon.couponId,
     title: coupon.couponName || coupon.title,
@@ -10452,6 +10521,12 @@ function mapServerCouponMasterToLocal(coupon) {
     imageUrl: coupon.imageUrl,
     lineCouponUrl: coupon.lineCouponUrl,
     couponType: coupon.couponType,
+    type: "LINEクーポン",
+    regularPrice: bookingDetails.regularPrice,
+    couponPrice: bookingDetails.couponPrice,
+    durationMinutes: bookingDetails.durationMinutes,
+    bookingPriceKnown: bookingDetails.priceKnown,
+    bookingDurationKnown: bookingDetails.durationKnown,
     discountAmount: coupon.discountAmount,
     discountRate: coupon.discountRate,
     targetMenu: coupon.targetMenu,
@@ -10469,6 +10544,24 @@ function mapServerCouponMasterToLocal(coupon) {
     createdAt: coupon.createdAt,
     updatedAt: coupon.updatedAt
   });
+}
+
+function extractCouponBookingDetails(coupon = {}) {
+  const text = [coupon.couponName, coupon.title, coupon.description].filter(Boolean).join(" ");
+  const arrowPrice = text.match(/[¥￥]\s*([\d,]+)\s*(?:円)?\s*(?:→|⇒|->)\s*[¥￥]\s*([\d,]+)/i);
+  const explicitRegularPrice = Number(coupon.regularPrice || coupon.originalPrice || 0);
+  const explicitCouponPrice = Number(coupon.couponPrice || coupon.discountedPrice || coupon.salePrice || coupon.price || 0);
+  const explicitDuration = Number(coupon.durationMinutes || coupon.duration || 0);
+  const minuteMatch = text.match(/(\d+)\s*分/);
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*時間/);
+  const parsedDuration = minuteMatch ? Number(minuteMatch[1]) : (hourMatch ? Math.round(Number(hourMatch[1]) * 60) : 0);
+  return {
+    regularPrice: explicitRegularPrice || (arrowPrice ? Number(arrowPrice[1].replace(/,/g, "")) : 0),
+    couponPrice: explicitCouponPrice || (arrowPrice ? Number(arrowPrice[2].replace(/,/g, "")) : 0),
+    durationMinutes: explicitDuration || parsedDuration,
+    priceKnown: Boolean(explicitCouponPrice || arrowPrice),
+    durationKnown: Boolean(explicitDuration || parsedDuration)
+  };
 }
 
 function normalizeApiDateKey(value) {
