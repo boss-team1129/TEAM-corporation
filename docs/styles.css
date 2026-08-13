@@ -1120,12 +1120,42 @@ p {
   resize: vertical;
 }
 
-.field input[type="datetime-local"] {
-  min-inline-size: 0;
-  max-inline-size: 100%;
+.booking-datetime-field,
+.booking-datetime-grid,
+.booking-datetime-part {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-@media (max-width: 390px) {
+.booking-datetime-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.booking-datetime-part {
+  display: grid;
+  gap: 6px;
+}
+
+.booking-datetime-part > span {
+  color: rgba(255,250,239,.62);
+  font-size: 12px;
+}
+
+.booking-datetime-part input,
+.booking-datetime-part select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 16px;
+  text-align: center;
+}
+
+@media (max-width: 430px) {
   #bookingView .step-form {
     padding: 14px;
   }
@@ -1138,6 +1168,10 @@ p {
   #bookingView .booking-my-coupon-head button {
     width: 100%;
     white-space: normal;
+  }
+
+  #bookingView .booking-datetime-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

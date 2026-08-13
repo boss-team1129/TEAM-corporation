@@ -79,6 +79,8 @@ const appState = {
   bookingSubmitBusy: false,
   bookingPendingRequestId: "",
   menuMasterSyncStatus: "pending",
+  couponMasterSyncStatus: "pending",
+  memberCouponSyncStatus: "pending",
   gachaCharacterEditId: "",
   gachaPreviewMode: "card",
   gachaTestRarity: "",
@@ -128,6 +130,7 @@ const defaultStoreSettings = {
     start: "09:00",
     end: "18:00"
   },
+  bookingTimeInterval: 30,
   closedWeekdays: [1],
   staff: [
     { staffId: "boss-muramatsu", name: "村松剛好", isReservable: true, sortOrder: 1 },
@@ -812,8 +815,10 @@ function bindBookingFormInputs() {
   const modeSelect = document.getElementById("bookingMenuMode");
   const inputs = [
     document.getElementById("bookingCustomerName"),
-    document.getElementById("bookingFirstDateTime"),
-    document.getElementById("bookingSecondDateTime"),
+    document.getElementById("bookingFirstDate"),
+    document.getElementById("bookingFirstTime"),
+    document.getElementById("bookingSecondDate"),
+    document.getElementById("bookingSecondTime"),
     document.getElementById("bookingStaffSelect"),
     modeSelect,
     document.querySelector("#bookingForm textarea[name='customMenu']"),
@@ -832,8 +837,9 @@ function bindBookingFormInputs() {
       syncMySelectionCheckboxToBooking(event.target);
       return;
     }
+    if (event.target.matches("#bookingFirstDate, #bookingFirstTime, #bookingSecondDate, #bookingSecondTime")) syncBookingDateTimeFields();
     if (event.target.matches("input, select, textarea")) captureBookingDraft();
-    if (event.target.matches("#bookingFirstDateTime, #bookingStaffSelect")) {
+    if (event.target.matches("#bookingFirstDate, #bookingFirstTime, #bookingStaffSelect")) {
       renderBookingMenuChoices();
       renderBookingCouponChoices();
     }
@@ -842,6 +848,7 @@ function bindBookingFormInputs() {
   });
   form?.addEventListener("input", (event) => {
     if (event.target.matches("input, textarea")) {
+      if (event.target.matches("#bookingFirstDate, #bookingSecondDate")) syncBookingDateTimeFields();
       captureBookingDraft();
       updateBookingConfirm();
     }
@@ -855,8 +862,52 @@ function applyStoreSettings() {
   if (hotpepperLink) hotpepperLink.href = settings.hotpepperReservationUrl || "#";
 }
 
+function minutesFromTimeValue(value) {
+  const [hours, minutes] = String(value || "00:00").split(":").map(Number);
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+}
+
+function timeValueFromMinutes(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function renderBookingTimeOptions() {
+  const settings = getStoreSettings();
+  const interval = Math.max(5, Number(settings.bookingTimeInterval || 30));
+  const start = minutesFromTimeValue(settings.businessHours?.start || "09:00");
+  const end = minutesFromTimeValue(settings.businessHours?.end || "18:00");
+  const options = [];
+  for (let minutes = start; minutes <= end; minutes += interval) options.push(timeValueFromMinutes(minutes));
+  ["bookingFirstTime", "bookingSecondTime"].forEach((id) => {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const selected = select.value;
+    select.innerHTML = `<option value="">時間を選択</option>${options.map((time) => `<option value="${time}">${time}</option>`).join("")}`;
+    if (options.includes(selected)) select.value = selected;
+  });
+}
+
+function combineBookingDateTime(date, time) {
+  return date && time ? `${date}T${time}` : "";
+}
+
+function splitBookingDateTime(value) {
+  const match = String(value || "").match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+  return match ? { date: match[1], time: match[2] } : { date: "", time: "" };
+}
+
+function syncBookingDateTimeFields() {
+  const firstHidden = document.getElementById("bookingFirstDateTime");
+  const secondHidden = document.getElementById("bookingSecondDateTime");
+  if (firstHidden) firstHidden.value = combineBookingDateTime(document.getElementById("bookingFirstDate")?.value, document.getElementById("bookingFirstTime")?.value);
+  if (secondHidden) secondHidden.value = combineBookingDateTime(document.getElementById("bookingSecondDate")?.value, document.getElementById("bookingSecondTime")?.value);
+}
+
 function renderBookingFormOptions() {
   const settings = getStoreSettings();
+  renderBookingTimeOptions();
   const customerNameInput = document.getElementById("bookingCustomerName");
   const profile = getProfile();
   if (customerNameInput && !customerNameInput.value && !["お客様", "ゲスト"].includes(String(profile.nickname || ""))) {
@@ -892,6 +943,10 @@ function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("men
     container.innerHTML = `<p class="soft-note">メニューが決まっていない場合は、下の欄に希望や髪のお悩みをご記入ください。</p>`;
     return;
   }
+  if (isProductionApiMode() && appState.menuMasterSyncStatus !== "synced") {
+    container.innerHTML = `<p class="soft-note">${appState.menuMasterSyncStatus === "unavailable" ? "メニュー情報を取得できませんでした。" : "通常メニューを取得しています…"}</p>`;
+    return;
+  }
   const context = getBookingMenuContext();
   const menus = getPublicReservationMenus(context).filter((menu) => menu.type === "通常メニュー");
   const selected = new Set(selectedIds.map(String));
@@ -904,12 +959,16 @@ function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("men
         <em>${escapeHtml(formatMinutes(menu.durationMinutes))} / ${escapeHtml(formatYen(getMenuPrice(menu)))}${menu.isOwnedCoupon ? " / 保有クーポン" : ""}</em>
       </span>
     </label>
-  `).join("") || `<p class="soft-note">現在公開中の通常メニューはありません。</p>`;
+  `).join("") || `<p class="soft-note">現在利用できるメニューはありません。</p>`;
 }
 
 function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("couponIds")) {
   const container = document.getElementById("bookingCouponChoices");
   if (!container) return;
+  if (isProductionApiMode() && appState.couponMasterSyncStatus !== "synced") {
+    container.innerHTML = `<p class="soft-note">${appState.couponMasterSyncStatus === "unavailable" ? "クーポン情報を取得できませんでした。" : "クーポン情報を取得しています…"}</p>`;
+    return;
+  }
   const coupons = getBookableMyLineCoupons(getBookingMenuContext());
   const selected = new Set(selectedIds.map(String));
   container.innerHTML = coupons.length ? coupons.map((coupon) => `
@@ -922,7 +981,7 @@ function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("c
         <em>期限 ${escapeHtml(formatDateUntil(coupon.validUntil || coupon.endDate))}</em>
       </span>
     </label>
-  `).join("") : `<p class="soft-note">現在予約時に選べるLINEクーポンはありません。</p>`;
+  `).join("") : `<p class="soft-note">利用できるクーポンはありません。</p>`;
 }
 
 function getBookingDraftSelectionIds(name) {
@@ -938,7 +997,7 @@ function renderBookingMySelectionChoices() {
   if (!container) return;
   const selections = getMySelections();
   if (!selections.length) {
-    container.innerHTML = `<p class="soft-note">マイクーポンはまだ空です。「マイクーポンを見る」から追加できます。</p>`;
+    container.innerHTML = `<p class="soft-note">マイクーポンに追加した項目はありません。「マイクーポンを見る」から追加できます。</p>`;
     return;
   }
   const menuIds = new Set(getBookingDraftSelectionIds("menuIds"));
@@ -984,6 +1043,7 @@ function syncMySelectionCheckboxToBooking(checkbox) {
 function captureBookingDraft() {
   const form = document.getElementById("bookingForm");
   if (!form) return;
+  syncBookingDateTimeFields();
   const data = new FormData(form);
   appState.bookingDraft = {
     customerName: String(data.get("customerName") || ""),
@@ -1005,6 +1065,12 @@ function restoreBookingDraft() {
     renderBookingFormOptions();
     return;
   }
+  const first = splitBookingDateTime(draft.firstDateTime);
+  const second = splitBookingDateTime(draft.secondDateTime);
+  document.getElementById("bookingFirstDate").value = first.date;
+  document.getElementById("bookingFirstTime").value = first.time;
+  document.getElementById("bookingSecondDate").value = second.date;
+  document.getElementById("bookingSecondTime").value = second.time;
   form.elements.firstDateTime.value = draft.firstDateTime || "";
   form.elements.customerName.value = draft.customerName || "";
   form.elements.secondDateTime.value = draft.secondDateTime || "";
@@ -1035,8 +1101,8 @@ function startBookingFromMySelections() {
 }
 
 function updateBookingDateConstraints() {
-  const min = toDatetimeLocalValue(new Date(Date.now() + 60 * 60 * 1000));
-  ["bookingFirstDateTime", "bookingSecondDateTime"].forEach((id) => {
+  const min = jstDateKey();
+  ["bookingFirstDate", "bookingSecondDate"].forEach((id) => {
     const input = document.getElementById(id);
     if (input) input.min = min;
   });
@@ -1074,6 +1140,7 @@ function updateBookingConfirm() {
 }
 
 function buildBookingRequestFromForm(formElement) {
+  syncBookingDateTimeFields();
   const form = new FormData(formElement);
   const profile = getProfile();
   const userKey = getCurrentUserKey();
@@ -1134,7 +1201,13 @@ function validateBookingForm(form) {
   const customerName = String(form.get("customerName") || "").trim();
   const first = String(form.get("firstDateTime") || "");
   const second = String(form.get("secondDateTime") || "");
+  const firstDate = String(form.get("firstDate") || "");
+  const firstTime = String(form.get("firstTime") || "");
+  const secondDate = String(form.get("secondDate") || "");
+  const secondTime = String(form.get("secondTime") || "");
   if (!customerName) return { ok: false, message: "お客様名を入力してください。" };
+  if (!firstDate || !firstTime) return { ok: false, message: "第一希望の日付と時間を選択してください。" };
+  if ((secondDate && !secondTime) || (!secondDate && secondTime)) return { ok: false, message: "第二希望は日付と時間の両方を選択してください。" };
   if (!first) return { ok: false, message: "第一希望日時を入力してください。" };
   if (second && first === second) return { ok: false, message: "第一希望と第二希望は別の日時を選んでください。" };
   const firstCheck = validateReservableDateTime(first);
@@ -1239,13 +1312,7 @@ function getPublicLineCoupons(context = {}) {
 }
 
 function getBookableMyLineCoupons(context = {}) {
-  const selectedCouponIds = new Set(
-    getMySelections()
-      .filter((item) => item.type === "coupon")
-      .map((item) => String(item.itemId || ""))
-      .filter(Boolean)
-  );
-  return getPublicLineCoupons(context).filter((coupon) => selectedCouponIds.has(String(coupon.couponId || "")));
+  return getPublicLineCoupons(context);
 }
 
 function isSafeLineCouponUrl(value) {
@@ -2937,10 +3004,18 @@ function renderCoupons() {
   const selected = appState.couponCategory;
   const couponList = document.getElementById("couponList");
   if (selected === "クーポン") {
+    if (isProductionApiMode() && appState.couponMasterSyncStatus !== "synced") {
+      couponList.innerHTML = `<p class="soft-note">${appState.couponMasterSyncStatus === "unavailable" ? "クーポン情報を取得できませんでした。" : "クーポン情報を取得しています…"}</p>`;
+      return;
+    }
     couponList.innerHTML = lineCoupons.map(lineCouponSelectionCardHtml).join("") || "<p class=\"soft-note\">現在表示できるクーポンはありません。</p>";
     return;
   }
   if (selected === "通常メニュー") {
+    if (isProductionApiMode() && appState.menuMasterSyncStatus !== "synced") {
+      couponList.innerHTML = `<p class="soft-note">${appState.menuMasterSyncStatus === "unavailable" ? "メニュー情報を取得できませんでした。" : "通常メニューを取得しています…"}</p>`;
+      return;
+    }
     couponList.innerHTML = menus.map(menuSelectionCardHtml).join("") || "<p class=\"soft-note\">現在表示できる通常メニューはありません。</p>";
     return;
   }
@@ -9844,6 +9919,10 @@ async function apiRequest(action, payload = {}, options = {}) {
 function getApiTimeoutMs(action) {
   const slowActions = new Set([
     "getAdminProductionData",
+    "getBookingCatalog",
+    "listCouponMasters",
+    "listMenuMasters",
+    "listMemberCoupons",
     "drawMonthlyGacha",
     "getGachaConfig",
     "getPublishedRewards",
@@ -9894,10 +9973,39 @@ async function syncProductionState() {
   try {
     const profile = getProfile();
     const userKey = getCurrentUserKey();
+    appState.menuMasterSyncStatus = "loading";
+    appState.couponMasterSyncStatus = "loading";
+    appState.memberCouponSyncStatus = "loading";
+    try {
+      const catalogResult = await apiRequest("getBookingCatalog", { memberId: userKey });
+      const coupons = catalogResult.coupons || catalogResult.data?.coupons;
+      const serverMenus = catalogResult.menus || catalogResult.data?.menus;
+      const memberCoupons = catalogResult.memberCoupons || catalogResult.data?.memberCoupons;
+      if (!Array.isArray(coupons)) throw new Error("クーポンマスタの形式が正しくありません。");
+      if (!Array.isArray(serverMenus)) throw new Error("MenuMasterの形式が正しくありません。");
+      if (!Array.isArray(memberCoupons)) throw new Error("会員クーポンの形式が正しくありません。");
+      writeJson(STORAGE_KEYS.adminCoupons, coupons.map(mapServerCouponMasterToLocal));
+      writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
+      writeJson(STORAGE_KEYS.myCoupons, memberCoupons.map(mapServerMemberCouponToLocal));
+      appState.couponMasterSyncStatus = "synced";
+      appState.menuMasterSyncStatus = "synced";
+      appState.memberCouponSyncStatus = "synced";
+    } catch (error) {
+      writeJson(STORAGE_KEYS.adminCoupons, []);
+      writeJson(STORAGE_KEYS.reservationMenus, []);
+      writeJson(STORAGE_KEYS.myCoupons, []);
+      appState.couponMasterSyncStatus = "unavailable";
+      appState.menuMasterSyncStatus = "unavailable";
+      appState.memberCouponSyncStatus = "unavailable";
+      console.warn("[TEAM LINK BOOKING CATALOG SYNC FAILED]", error);
+    }
+    renderBookingMenuChoices();
+    renderBookingCouponChoices();
+    renderBookingMySelectionChoices();
+    updateBookingConfirm();
+    renderApp();
+
     const results = await Promise.allSettled([
-      apiRequest("listCouponMasters", {}),
-      apiRequest("listMenuMasters", {}),
-      apiRequest("listMemberCoupons", { memberId: userKey }),
       apiRequest("getGachaConfig", {}),
       apiRequest("getPublishedRewards", {}),
       apiRequest("getUserCoupons", { userId: userKey }),
@@ -9906,20 +10014,11 @@ async function syncProductionState() {
       apiRequest("getPastBinderHistory", { userId: userKey, currentYear: String(currentYear()) }),
       apiRequest("getCollectionRewards", { userId: userKey, targetYear: String(currentYear()) })
     ]);
-    const [masters, menuMasters, memberCoupons, gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, pastBinders, collectionRewards] = results.map((result, index) => {
+    const [gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, pastBinders, collectionRewards] = results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
       console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", { index, reason: result.reason });
       return {};
     });
-    if (masters.coupons) writeJson(STORAGE_KEYS.adminCoupons, masters.coupons.map(mapServerCouponMasterToLocal));
-    const serverMenus = menuMasters.menus || menuMasters.data?.menus;
-    if (Array.isArray(serverMenus)) {
-      writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
-      appState.menuMasterSyncStatus = "synced";
-    } else {
-      appState.menuMasterSyncStatus = "unavailable";
-    }
-    if (memberCoupons.coupons) writeJson(STORAGE_KEYS.myCoupons, memberCoupons.coupons.map(mapServerMemberCouponToLocal));
     if (gachaRewards.data?.rewards) mergeServerGachaRewards(gachaRewards.data.rewards);
     if (gachaCoupons.data?.coupons) replaceServerGachaCoupons(gachaCoupons.data.coupons, userKey);
     if (drawStatus.data?.canDraw === true && drawStatus.data?.alreadyDrawn === false) {
@@ -9936,7 +10035,7 @@ async function syncProductionState() {
         writeGachaSettings([{ issueMonth: gachaConfig.data.config.currentYearMonth, title: "本番ガチャ", status: "公開" }, ...settings]);
       }
     }
-    await syncProductionAdminState({ render: false });
+    if (appState.currentView === "adminView" && getAdminSession()) await syncProductionAdminState({ render: false });
     renderApp();
   } catch (error) {
     showToast("通信に失敗しました。時間をおいてもう一度お試しください");

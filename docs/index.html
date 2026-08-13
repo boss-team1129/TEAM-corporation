@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&amp;family=Noto+Serif+JP:wght@500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 64'%3E%3Crect width='96' height='64' rx='18' fill='%23130f0b'/%3E%3Ctext x='48' y='38' text-anchor='middle' font-size='12' font-family='Georgia, serif' letter-spacing='3' fill='%23d9b46c'%3ETEAM LINK%3C/text%3E%3C/svg%3E">
   <title>TEAM LINK | TEAM hair お客様専用アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260813-fortune-loading-1">
+  <link rel="stylesheet" href="styles.css?v=20260813-booking-mobile-2">
 </head>
 <body>
   <div class="splash-screen" id="splashScreen" aria-hidden="true">
@@ -128,8 +128,22 @@
         </div>
         <form class="step-form" id="bookingForm">
           <label class="field">1. お客様名<input id="bookingCustomerName" name="customerName" type="text" autocomplete="name" maxlength="80" required></label>
-          <label class="field">2. 第一希望日時<input id="bookingFirstDateTime" name="firstDateTime" type="datetime-local" required></label>
-          <label class="field">3. 第二希望日時（任意）<input id="bookingSecondDateTime" name="secondDateTime" type="datetime-local"></label>
+          <div class="field booking-datetime-field">
+            <span>2. 第一希望日時</span>
+            <div class="booking-datetime-grid">
+              <label class="booking-datetime-part"><span>日付</span><input id="bookingFirstDate" name="firstDate" type="date" required></label>
+              <label class="booking-datetime-part"><span>時間</span><select id="bookingFirstTime" name="firstTime" required></select></label>
+            </div>
+            <input id="bookingFirstDateTime" name="firstDateTime" type="hidden">
+          </div>
+          <div class="field booking-datetime-field">
+            <span>3. 第二希望日時（任意）</span>
+            <div class="booking-datetime-grid">
+              <label class="booking-datetime-part"><span>日付</span><input id="bookingSecondDate" name="secondDate" type="date"></label>
+              <label class="booking-datetime-part"><span>時間</span><select id="bookingSecondTime" name="secondTime"></select></label>
+            </div>
+            <input id="bookingSecondDateTime" name="secondDateTime" type="hidden">
+          </div>
           <label class="field">4. 希望担当者
             <select id="bookingStaffSelect" name="staff" required></select>
           </label>
@@ -370,6 +384,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="gacha-reveal" id="gachaReveal" hidden aria-live="polite"></div>
-  <script src="app.js?v=20260813-production-data-3"></script>
+  <script src="app.js?v=20260813-booking-mobile-5"></script>
 </body>
 </html>
