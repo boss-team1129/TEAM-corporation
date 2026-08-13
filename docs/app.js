@@ -625,7 +625,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderApp();
   openInitialView();
   if (appState.currentView === "adminView" && getAdminSession()) {
-    syncProductionAdminState();
+    syncProductionAdminSection();
   } else {
     syncProductionState();
   }
@@ -653,7 +653,7 @@ function bindNavigation() {
       appState.adminTab = adminTabButton.dataset.adminTab;
       renderAdmin();
       if (isProductionApiMode() && ["bookings", "visits", "coupons", "gacha", "members"].includes(appState.adminTab) && appState.adminDataStatus[appState.adminTab] !== "ready") {
-        syncProductionAdminState().catch((error) => {
+        syncProductionAdminSection().catch((error) => {
           console.error("[TEAM LINK ADMIN SYNC FAILED]", error);
           showToast("管理データを取得できませんでした。");
         });
@@ -725,7 +725,7 @@ function bindForms() {
     addAdminLog("login", "管理画面にログイン", admin.name);
     event.currentTarget.reset();
     renderAdmin();
-    await syncProductionAdminState();
+    await syncProductionAdminSection();
   });
 
   document.getElementById("adminLogoutButton").addEventListener("click", () => {
@@ -10062,6 +10062,7 @@ function getApiTimeoutMs(action) {
     "listCouponMasters",
     "listMenuMasters",
     "listMemberCoupons",
+    "listBookingRequests",
     "submitBookingRequest",
     "drawMonthlyGacha",
     "getGachaConfig",
@@ -10249,6 +10250,11 @@ async function syncProductionVisitReceptions(options = {}) {
     if (options.render !== false) renderApp();
     throw error;
   }
+}
+
+async function syncProductionAdminSection(options = {}) {
+  if (appState.adminTab === "bookings") return syncProductionBookingRequests(options);
+  return syncProductionAdminState(options);
 }
 
 async function syncProductionAdminState(options = {}) {
