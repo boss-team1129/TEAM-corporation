@@ -65,6 +65,7 @@ const appState = {
   couponCategory: "クーポン",
   adminCouponFilter: "LINEクーポン",
   todayFortune: null,
+  fortuneLoading: false,
   adminTab: "dashboard",
   adminMemberFilter: "all",
   adminMemberQuery: "",
@@ -577,6 +578,7 @@ const TEAM_FORTUNE_LUCK_BY_INTERNAL = Object.values(TEAM_FORTUNE_LUCK_BY_CYCLE).
 
 const teamFortuneSessionCache = new Map();
 const teamFortuneCompatibilitySessionCache = new Map();
+let teamFortuneLoadingTimer = null;
 
 const adminUsers = {
   boss: { adminId: "boss", name: "村松 剛好", role: "admin", label: "管理者" },
@@ -1841,11 +1843,19 @@ function renderHome() {
   if (fortuneBadge) {
     fortuneBadge.textContent = appState.todayFortune?.summary || "今日の運勢をチェック";
   }
+  const savedBirthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
+  if (savedBirthDate) warmTeamFortuneCache(savedBirthDate);
 
   const loungeCard = document.getElementById("homeLoungeCard");
   const loungeBadge = document.getElementById("homeLoungeBadge");
   if (loungeCard) loungeCard.classList.toggle("is-coming-soon", !isLoungeOpen());
   if (loungeBadge) loungeBadge.textContent = isLoungeOpen() ? "OPEN" : "10月スタート予定";
+}
+
+function warmTeamFortuneCache(birthDate) {
+  loadTeamFortune(birthDate).catch((error) => {
+    console.info("[TEAM Fortune Preload] unavailable", { errorCode: error?.code || error?.errorCode || "" });
+  });
 }
 
 function renderReservationStatus() {
@@ -1999,13 +2009,11 @@ function buildFortunePreview() {
   const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
   const latest = readJson(STORAGE_KEYS.fortuneHistory, [])[0];
   if (birthDate && latest?.type) {
-    const latestLuck = getTeamFortuneLuckDisplay({ luckName: latest.todayLuck });
-    const latestHint = latest.todayHint ? ` / ${latest.todayHint}` : "";
     return {
       type: latest.type,
-      beauty: latestLuck || "詳しく見る",
+      beauty: getTeamFortuneLuckDisplay({ luckName: latest.todayLuck }) || "詳しく見る",
       color: latest.imagePath || "",
-      summary: `${latest.type} / 今日：${latestLuck || "詳しく見る"}${latestHint}`
+      summary: latest.type
     };
   }
   return {
@@ -2072,7 +2080,9 @@ function getFortuneBirthDate(form) {
 function renderFortune() {
   const container = document.getElementById("fortuneContent");
   const birthDate = localStorage.getItem(STORAGE_KEYS.birthDate);
+  stopTeamFortuneLoadingMessages();
   if (!birthDate) {
+    appState.fortuneLoading = false;
     container.innerHTML = `
       <form class="step-form team-fortune-onboarding" id="birthDateForm" novalidate>
         <p class="kicker">TEAM FORTUNE</p>
@@ -2097,35 +2107,79 @@ function renderFortune() {
     birthDateForm.elements.birthDay.addEventListener("change", clearBirthDateError);
     birthDateForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      if (appState.fortuneLoading) return;
       const selectedBirthDate = getFortuneBirthDate(event.currentTarget);
       if (!selectedBirthDate) {
         if (birthDateError) birthDateError.hidden = false;
         showToast("生年月日をすべて選択してください");
         return;
       }
+      const submitButton = event.currentTarget.querySelector("button[type='submit']");
+      appState.fortuneLoading = true;
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "確認しています…";
+      }
       localStorage.setItem(STORAGE_KEYS.birthDate, selectedBirthDate);
-      renderApp();
+      appState.todayFortune = buildFortunePreview();
+      renderHome();
+      renderFortune();
     });
     return;
   }
 
+  appState.fortuneLoading = true;
+  const startedAt = performance.now();
   container.innerHTML = `
     <article class="fortune-card team-fortune-loading">
       <span class="badge">TEAM占い</span>
-      <h3>守護どうぶつを確認しています</h3>
-      <p>正確なデータだけを使って、あなたのタイプと今日の流れを確認しています。</p>
+      <h3 id="teamFortuneLoadingMessage">守護どうぶつを確認しています</h3>
+      <div class="team-fortune-loading-lights" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     </article>
   `;
+  startTeamFortuneLoadingMessages(container);
   loadTeamFortune(birthDate)
     .then((result) => {
+      stopTeamFortuneLoadingMessages();
+      appState.fortuneLoading = false;
       container.innerHTML = renderTeamFortuneResult(result);
       bindTeamFortuneActions(container);
+      appState.todayFortune = buildFortunePreview();
+      renderHome();
+      console.info("[TEAM Fortune Load]", { elapsedMs: Math.round(performance.now() - startedAt), cache: teamFortuneSessionCache.has(`${birthDate}|${jstDateKey()}`) });
     })
     .catch((error) => {
+      stopTeamFortuneLoadingMessages();
+      appState.fortuneLoading = false;
       console.warn("[TEAM Fortune] result unavailable", error);
       container.innerHTML = renderTeamFortuneDataWaiting(error, birthDate);
       bindTeamFortuneActions(container);
     });
+}
+
+function startTeamFortuneLoadingMessages(container) {
+  stopTeamFortuneLoadingMessages();
+  const messages = [
+    "守護どうぶつを確認しています",
+    "運気の流れを確認しています",
+    "あなたの結果を準備しています"
+  ];
+  let index = 0;
+  teamFortuneLoadingTimer = window.setInterval(() => {
+    const target = container.querySelector("#teamFortuneLoadingMessage");
+    if (!target) {
+      stopTeamFortuneLoadingMessages();
+      return;
+    }
+    index = (index + 1) % messages.length;
+    target.textContent = messages[index];
+  }, 700);
+}
+
+function stopTeamFortuneLoadingMessages() {
+  if (!teamFortuneLoadingTimer) return;
+  window.clearInterval(teamFortuneLoadingTimer);
+  teamFortuneLoadingTimer = null;
 }
 
 async function loadTeamFortune(birthDate) {
@@ -2134,6 +2188,12 @@ async function loadTeamFortune(birthDate) {
   }
   const cacheKey = `${birthDate}|${jstDateKey()}`;
   if (teamFortuneSessionCache.has(cacheKey)) return teamFortuneSessionCache.get(cacheKey);
+  const stored = readTeamFortuneSessionResult(cacheKey);
+  if (stored) {
+    const cachedRequest = Promise.resolve(stored);
+    teamFortuneSessionCache.set(cacheKey, cachedRequest);
+    return cachedRequest;
+  }
   const request = fortuneApiRequest("resolveTeamFortune", {
     birthDate,
     targetDate: jstDateKey(),
@@ -2142,13 +2202,32 @@ async function loadTeamFortune(birthDate) {
     if (!result?.success) {
       throw createFortuneError(result?.errorCode || "FORTUNE_API_ERROR", result?.message || "TEAM占いデータを取得できませんでした。", result?.data || result);
     }
-    return result.data || result;
+    const data = result.data || result;
+    writeTeamFortuneSessionResult(cacheKey, data);
+    return data;
   }).catch((error) => {
     teamFortuneSessionCache.delete(cacheKey);
     throw error;
   });
   teamFortuneSessionCache.set(cacheKey, request);
   return request;
+}
+
+function readTeamFortuneSessionResult(cacheKey) {
+  try {
+    const record = JSON.parse(sessionStorage.getItem(`teamFortuneResult:${cacheKey}`) || "null");
+    return record?.date === jstDateKey() ? record.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTeamFortuneSessionResult(cacheKey, data) {
+  try {
+    sessionStorage.setItem(`teamFortuneResult:${cacheKey}`, JSON.stringify({ date: jstDateKey(), data }));
+  } catch {
+    // セッションキャッシュが使用できない環境でも占い結果の表示は継続する。
+  }
 }
 
 function createFortuneError(code, message, data = {}) {
@@ -2169,8 +2248,10 @@ async function fortuneApiRequest(action, payload = {}) {
   url.searchParams.set("_", String(Date.now()));
   let response;
   let text = "";
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
   try {
-    response = await fetch(url.toString(), { method: "GET", redirect: "follow", cache: "no-store" });
+    response = await fetch(url.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: controller.signal });
     text = await response.text();
     const contentType = response.headers.get("content-type") || "";
     console.info("[TEAM FORTUNE API RESPONSE]", {
@@ -2202,7 +2283,12 @@ async function fortuneApiRequest(action, payload = {}) {
       error: error?.message || String(error),
       errorCode: error?.code || error?.errorCode || ""
     });
+    if (error?.name === "AbortError") {
+      throw createFortuneError("FORTUNE_TIMEOUT", "占いデータの取得がタイムアウトしました。");
+    }
     throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 
