@@ -1265,6 +1265,121 @@ p {
   line-height: 1.7;
 }
 
+#fortuneView,
+#fortuneContent,
+.team-fortune-onboarding,
+.team-fortune-birth-field {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#fortuneView,
+#fortuneContent {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+.team-fortune-onboarding {
+  padding-inline: clamp(14px, 4.5vw, 20px);
+}
+
+.team-fortune-birth-field {
+  gap: 5px;
+}
+
+.team-fortune-birth-field > span {
+  color: rgba(255,250,239,.88);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.team-fortune-birth-field > small {
+  margin: -1px 0 4px;
+  color: rgba(255,250,239,.58);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.field input.team-fortune-birth-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  height: 56px;
+  min-height: 56px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid rgba(219, 181, 103, .72);
+  border-radius: 16px;
+  color: #4b321f;
+  background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(255,249,236,.97));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,1),
+    inset 0 -1px 0 rgba(190,134,57,.08),
+    0 8px 20px rgba(0,0,0,.12);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  color-scheme: light;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+
+.field input.team-fortune-birth-input:focus {
+  border-color: rgba(235, 201, 130, .96);
+  box-shadow:
+    0 0 0 3px rgba(228,199,126,.16),
+    inset 0 1px 0 rgba(255,255,255,1),
+    0 10px 24px rgba(0,0,0,.16);
+}
+
+.team-fortune-birth-input::-webkit-date-and-time-value {
+  min-width: 0;
+  padding: 0;
+  color: #4b321f;
+  text-align: left;
+}
+
+.team-fortune-birth-input::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+  color: #4b321f;
+}
+
+.team-fortune-birth-input::-webkit-calendar-picker-indicator {
+  min-width: 28px;
+  min-height: 28px;
+  margin-left: 8px;
+  padding: 4px;
+  opacity: .78;
+  cursor: pointer;
+}
+
+@media (max-width: 430px) {
+  #fortuneView {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .team-fortune-onboarding {
+    padding: 16px 14px;
+    border-radius: 22px;
+  }
+
+  .field input.team-fortune-birth-input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
+  }
+}
+
 .team-fortune-visual {
   display: grid;
   place-items: center;

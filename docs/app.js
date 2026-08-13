@@ -2030,7 +2030,11 @@ function renderFortune() {
         <p class="kicker">TEAM FORTUNE</p>
         <h3>あなたの守護どうぶつを見つけよう</h3>
         <p>生年月日から、あなたに寄り添うTEAM LINKタイプを確認します。</p>
-        <label class="field">生年月日<input type="date" name="birthDate" required></label>
+        <label class="field team-fortune-birth-field">
+          <span>生年月日</span>
+          <small>生年月日を選択してください</small>
+          <input class="team-fortune-birth-input" type="date" name="birthDate" required aria-label="生年月日を選択してください">
+        </label>
         <button class="primary-button" type="submit">守護どうぶつを見つける</button>
         <small>正式データだけを使い、未確認の結果は推測表示しません。</small>
       </form>
