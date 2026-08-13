@@ -75,6 +75,8 @@ const appState = {
   adminMemberDetailId: "",
   memberChartTab: "basic",
   bookingMenuMode: "regular",
+  bookingMenuCategory: "",
+  bookingSelectedMenuIds: null,
   bookingDraft: null,
   bookingSubmitBusy: false,
   bookingPendingRequestId: "",
@@ -643,6 +645,7 @@ function bindNavigation() {
     const adminTabButton = event.target.closest("[data-admin-tab]");
     const adminActionButton = event.target.closest("[data-admin-action]");
     const bookingActionButton = event.target.closest("[data-booking-action]");
+    const bookingMenuCategoryButton = event.target.closest("[data-booking-menu-category]");
     const gachaActionButton = event.target.closest("[data-gacha-action]");
     const couponActionButton = event.target.closest("[data-coupon-action]");
     if (adminTabButton) {
@@ -662,6 +665,11 @@ function bindNavigation() {
     }
     if (bookingActionButton) {
       handleBookingAction(bookingActionButton);
+      return;
+    }
+    if (bookingMenuCategoryButton) {
+      appState.bookingMenuCategory = String(bookingMenuCategoryButton.dataset.bookingMenuCategory || "");
+      renderBookingMenuChoices();
       return;
     }
     if (gachaActionButton) {
@@ -734,9 +742,10 @@ function bindForms() {
     const submitButton = event.currentTarget.querySelector("button[type='submit']");
     appState.bookingSubmitBusy = true;
     setButtonLoading(submitButton, true, "送信中…");
+    let result = null;
     try {
       if (isProductionApiMode()) {
-        const result = await apiRequest("submitBookingRequest", request);
+        result = await apiRequest("submitBookingRequest", request);
         request.requestId = result.data?.bookingRequestId || result.bookingRequestId || result.data?.requestId || result.requestId || request.requestId;
         request.bookingRequestId = request.requestId;
         await markBookingCouponsAsPlanned(request).catch((error) => {
@@ -760,14 +769,24 @@ function bindForms() {
       ]);
       event.currentTarget.reset();
       appState.bookingMenuMode = "regular";
+      appState.bookingMenuCategory = "";
+      appState.bookingSelectedMenuIds = null;
       appState.bookingDraft = null;
       appState.bookingPendingRequestId = "";
       renderBookingFormOptions();
       renderApp();
       showView("bookingDone", { preserveBookingDraft: false });
+      const notification = result?.data?.notification || result?.notification;
+      if (notification?.status === "failed") {
+        console.error("[TEAM LINK BOOKING EMAIL FAILED]", notification);
+        showToast("予約は受け付けましたが、通知メールの送信に失敗しました");
+      } else {
+        showToast("予約希望を送信しました");
+      }
     } catch (error) {
       console.error("[TEAM LINK BOOKING SUBMIT FAILED]", error);
-      showToast("通信に失敗しました。時間をおいてもう一度お試しください");
+      const isSaveFailure = ["SERVER_ERROR", "BOOKING_SAVE_FAILED", "VALIDATION_ERROR"].includes(String(error?.errorCode || ""));
+      showToast(isSaveFailure ? "予約希望を保存できませんでした" : "予約サーバーに接続できませんでした");
     } finally {
       appState.bookingSubmitBusy = false;
       setButtonLoading(submitButton, false, "予約希望を送信する");
@@ -833,6 +852,10 @@ function bindBookingFormInputs() {
     updateBookingConfirm();
   });
   form?.addEventListener("change", (event) => {
+    if (event.target.matches("input[name='menuIds']")) {
+      updateBookingMenuSelection(event.target.value, event.target.checked);
+      renderBookingMenuChoices();
+    }
     if (event.target.matches("[data-my-booking-selection]")) {
       syncMySelectionCheckboxToBooking(event.target);
       return;
@@ -933,7 +956,7 @@ function renderBookingFormOptions() {
   updateBookingConfirm();
 }
 
-function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("menuIds")) {
+function renderBookingMenuChoices(selectedIds = null) {
   const container = document.getElementById("bookingMenuChoices");
   const customField = document.getElementById("bookingCustomMenuField");
   if (!container) return;
@@ -949,17 +972,44 @@ function renderBookingMenuChoices(selectedIds = getBookingDraftSelectionIds("men
   }
   const context = getBookingMenuContext();
   const menus = getPublicReservationMenus(context).filter((menu) => menu.type === "通常メニュー");
-  const selected = new Set(selectedIds.map(String));
-  container.innerHTML = menus.map((menu) => `
-    <label class="menu-choice-card">
-      <input type="checkbox" name="menuIds" value="${escapeHtml(menu.menuId)}" ${selected.has(String(menu.menuId)) ? "checked" : ""}>
-      <span>
-        <strong>${escapeHtml(menu.title)}</strong>
-        <small>${escapeHtml(menu.description || "")}</small>
-        <em>${escapeHtml(formatMinutes(menu.durationMinutes))} / ${escapeHtml(formatYen(getMenuPrice(menu)))}${menu.isOwnedCoupon ? " / 保有クーポン" : ""}</em>
-      </span>
-    </label>
-  `).join("") || `<p class="soft-note">現在利用できるメニューはありません。</p>`;
+  if (!menus.length) {
+    container.innerHTML = `<p class="soft-note">現在利用できるメニューはありません。</p>`;
+    return;
+  }
+  if (Array.isArray(selectedIds)) appState.bookingSelectedMenuIds = [...new Set(selectedIds.map(String))];
+  if (!Array.isArray(appState.bookingSelectedMenuIds)) {
+    appState.bookingSelectedMenuIds = getBookingDraftSelectionIds("menuIds");
+  }
+  const selected = new Set(appState.bookingSelectedMenuIds.map(String));
+  const categories = [...new Set(menus.map((menu) => String(menu.category || "未分類").trim() || "未分類"))];
+  if (appState.bookingMenuCategory && !categories.includes(appState.bookingMenuCategory)) appState.bookingMenuCategory = "";
+  const activeCategory = appState.bookingMenuCategory;
+  const visibleMenus = activeCategory
+    ? menus.filter((menu) => (String(menu.category || "未分類").trim() || "未分類") === activeCategory)
+    : [];
+  container.innerHTML = `
+    <div class="booking-menu-category-panel">
+      <div class="booking-menu-category-chips" role="group" aria-label="通常メニューのカテゴリー">
+        ${categories.map((category) => {
+          const count = menus.filter((menu) => (String(menu.category || "未分類").trim() || "未分類") === category).length;
+          return `<button type="button" class="booking-menu-category-chip ${activeCategory === category ? "is-active" : ""}" data-booking-menu-category="${escapeHtml(category)}" aria-pressed="${activeCategory === category}">${escapeHtml(category)} <small>${count}</small></button>`;
+        }).join("")}
+      </div>
+      <p class="booking-menu-selection-count">選択中 <strong>${selected.size}</strong>件</p>
+    </div>
+    <div class="booking-menu-category-list">
+      ${activeCategory ? visibleMenus.map((menu) => `
+        <label class="menu-choice-card ${selected.has(String(menu.menuId)) ? "is-selected" : ""}">
+          <input type="checkbox" name="menuIds" value="${escapeHtml(menu.menuId)}" ${selected.has(String(menu.menuId)) ? "checked" : ""}>
+          <span>
+            <strong>${escapeHtml(menu.title)}</strong>
+            <small>${escapeHtml(menu.description || "")}</small>
+            <em>${escapeHtml(formatMinutes(menu.durationMinutes))} / ${escapeHtml(formatYen(getMenuPrice(menu)))}</em>
+          </span>
+        </label>
+      `).join("") : `<p class="soft-note booking-menu-category-prompt">カテゴリーを選んでください。</p>`}
+    </div>
+  `;
 }
 
 function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("couponIds")) {
@@ -985,11 +1035,22 @@ function renderBookingCouponChoices(selectedIds = getBookingDraftSelectionIds("c
 }
 
 function getBookingDraftSelectionIds(name) {
+  if (name === "menuIds" && Array.isArray(appState.bookingSelectedMenuIds)) {
+    return appState.bookingSelectedMenuIds.map(String);
+  }
   const form = document.getElementById("bookingForm");
   const checked = form ? [...form.querySelectorAll(`input[name="${name}"]:checked`)].map((input) => input.value) : [];
   if (checked.length) return checked;
   const draft = appState.bookingDraft;
   return Array.isArray(draft?.[name]) ? draft[name].map(String) : [];
+}
+
+function updateBookingMenuSelection(menuId, checked) {
+  const selected = new Set(getBookingDraftSelectionIds("menuIds"));
+  if (checked) selected.add(String(menuId));
+  else selected.delete(String(menuId));
+  appState.bookingSelectedMenuIds = [...selected];
+  if (appState.bookingDraft) appState.bookingDraft.menuIds = [...selected];
 }
 
 function renderBookingMySelectionChoices() {
@@ -1028,6 +1089,14 @@ function syncMySelectionCheckboxToBooking(checkbox) {
   const name = checkbox.dataset.itemType === "coupon" ? "couponIds" : "menuIds";
   const itemId = String(checkbox.dataset.itemId || "");
   const form = document.getElementById("bookingForm");
+  if (name === "menuIds") {
+    updateBookingMenuSelection(itemId, checkbox.checked);
+    renderBookingMenuChoices();
+    captureBookingDraft();
+    renderBookingMySelectionChoices();
+    updateBookingConfirm();
+    return;
+  }
   const sourceInput = [...form.querySelectorAll(`input[name="${name}"]`)].find((input) => String(input.value) === itemId);
   if (!sourceInput) {
     checkbox.checked = false;
@@ -1053,7 +1122,7 @@ function captureBookingDraft() {
     menuMode: String(data.get("menuMode") || "regular"),
     customMenu: String(data.get("customMenu") || ""),
     memo: String(data.get("memo") || ""),
-    menuIds: [...new Set(data.getAll("menuIds").map(String))],
+    menuIds: [...new Set(getBookingDraftSelectionIds("menuIds"))],
     couponIds: [...new Set(data.getAll("couponIds").map(String))]
   };
 }
@@ -1079,6 +1148,7 @@ function restoreBookingDraft() {
   form.elements.customMenu.value = draft.customMenu || "";
   form.elements.memo.value = draft.memo || "";
   appState.bookingMenuMode = draft.menuMode || "regular";
+  appState.bookingSelectedMenuIds = [...new Set((draft.menuIds || []).map(String))];
   renderBookingMenuChoices(draft.menuIds || []);
   renderBookingCouponChoices(draft.couponIds || []);
   renderBookingMySelectionChoices();
@@ -1096,6 +1166,8 @@ function startBookingFromMySelections() {
     menuIds: selections.filter((item) => item.type === "menu").map((item) => String(item.itemId)),
     couponIds: selections.filter((item) => item.type === "coupon").map((item) => String(item.itemId))
   };
+  appState.bookingSelectedMenuIds = [...appState.bookingDraft.menuIds];
+  appState.bookingMenuCategory = "";
   appState.bookingMenuMode = "regular";
   showView("booking");
 }
@@ -1241,7 +1313,7 @@ function validateReservableDateTime(value) {
 }
 
 function getSelectedReservationMenus(form) {
-  const ids = form.getAll("menuIds").map(String);
+  const ids = getBookingDraftSelectionIds("menuIds");
   const context = {
     staffId: String(form.get("staff") || ""),
     dateTime: String(form.get("firstDateTime") || "")

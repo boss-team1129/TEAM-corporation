@@ -974,6 +974,81 @@ p {
 .menu-choice-grid {
   display: grid;
   gap: 10px;
+  min-width: 0;
+}
+
+.booking-menu-category-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.booking-menu-category-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.booking-menu-category-chip {
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 8px;
+  border: 1px solid rgba(228, 199, 126, .28);
+  border-radius: 14px;
+  color: rgba(255, 250, 239, .82);
+  background: rgba(255, 255, 255, .065);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.booking-menu-category-chip small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 21px;
+  height: 21px;
+  margin-left: 3px;
+  border-radius: 999px;
+  color: var(--cream);
+  background: rgba(255, 255, 255, .1);
+  font-size: 11px;
+}
+
+.booking-menu-category-chip.is-active {
+  border-color: rgba(240, 206, 125, .88);
+  color: #fff8e6;
+  background: linear-gradient(145deg, rgba(207, 158, 67, .34), rgba(255, 255, 255, .08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 8px 20px rgba(0, 0, 0, .18);
+}
+
+.booking-menu-selection-count {
+  margin: 0;
+  color: rgba(255, 250, 239, .68);
+  font-size: 13px;
+  text-align: right;
+}
+
+.booking-menu-selection-count strong {
+  color: var(--gold-light);
+  font-size: 16px;
+}
+
+.booking-menu-category-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.booking-menu-category-prompt {
+  margin: 2px 0 0;
+  padding: 14px;
+  border: 1px dashed rgba(228, 199, 126, .22);
+  border-radius: 14px;
+  text-align: center;
 }
 
 .menu-choice-card {
@@ -987,6 +1062,13 @@ p {
   border-radius: 18px;
   color: var(--cream);
   background: rgba(255,255,255,.075);
+}
+
+.menu-choice-card.is-selected,
+.menu-choice-card:has(input:checked) {
+  border-color: rgba(240, 206, 125, .9);
+  background: linear-gradient(145deg, rgba(207, 158, 67, .24), rgba(255, 255, 255, .075));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 8px 18px rgba(0, 0, 0, .14);
 }
 
 .menu-choice-card input {
