@@ -1,5 +1,6 @@
-const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkApiUrl") : "") || "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
-const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkDataMode") : "") || (TEAM_LINK_API_URL ? "production" : "development");
+const TEAM_LINK_PRODUCTION_API_URL = "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
+const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || TEAM_LINK_PRODUCTION_API_URL;
+const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
@@ -36,6 +37,7 @@ const STORAGE_KEYS = {
   visitReceptions: "teamLinkVisitReceptions",
   adminNotices: "teamLinkAdminNotices",
   adminCoupons: "teamLinkAdminCoupons",
+  adminCouponUsageHistory: "teamLinkAdminCouponUsageHistory",
   adminFortunes: "teamLinkAdminFortunes",
   adminLogs: "teamLinkAdminAuditLogs",
   storeSettings: "teamLinkStoreSettings",
@@ -85,7 +87,14 @@ const appState = {
   gachaUseConfirmId: "",
   gachaUseConfirmBusy: false,
   gachaTestUseConfirmId: "",
-  gachaBinderYear: null
+  gachaBinderYear: null,
+  adminDataStatus: {
+    members: "pending",
+    bookings: "pending",
+    visits: "pending",
+    coupons: "pending",
+    gacha: "pending"
+  }
 };
 
 const memberChartTabs = [
@@ -609,7 +618,11 @@ document.addEventListener("DOMContentLoaded", () => {
   bindHomeCarousel();
   renderApp();
   openInitialView();
-  syncProductionState();
+  if (appState.currentView === "adminView" && getAdminSession()) {
+    syncProductionAdminState();
+  } else {
+    syncProductionState();
+  }
 });
 
 function bindNavigation() {
@@ -632,10 +645,10 @@ function bindNavigation() {
     if (adminTabButton) {
       appState.adminTab = adminTabButton.dataset.adminTab;
       renderAdmin();
-      if (appState.adminTab === "bookings") {
-        syncProductionBookingRequests().catch((error) => {
-          console.error("[TEAM LINK BOOKING ADMIN SYNC FAILED]", error);
-          showToast("予約希望を取得できませんでした。");
+      if (isProductionApiMode() && ["bookings", "visits", "coupons", "gacha", "members"].includes(appState.adminTab) && appState.adminDataStatus[appState.adminTab] !== "ready") {
+        syncProductionAdminState().catch((error) => {
+          console.error("[TEAM LINK ADMIN SYNC FAILED]", error);
+          showToast("管理データを取得できませんでした。");
         });
       }
       return;
@@ -5034,6 +5047,9 @@ function dashboardMetricSection(title, cards) {
 }
 
 function renderAdminVisits() {
+  if (isProductionApiMode() && appState.adminDataStatus.visits !== "ready") {
+    return renderAdminDataState("来店確認", appState.adminDataStatus.visits, "来店確認データを取得できませんでした。");
+  }
   const allReceptions = getVisitReceptions();
   const receptions = appState.adminVisitShowHistory ? allReceptions : allReceptions.filter((item) => isToday(item.receivedAt));
   const unconfirmed = receptions.filter((item) => item.status === "未確認" || item.status === "確認待ち");
@@ -5356,6 +5372,9 @@ function renderMemberLogsTab(member, logs) {
 }
 
 function renderAdminMembers() {
+  if (isProductionApiMode() && appState.adminDataStatus.members !== "ready") {
+    return renderAdminDataState("会員管理", appState.adminDataStatus.members, "会員データを取得できませんでした。");
+  }
   const members = filterMembers(getMembers());
   return `
     <section class="admin-section-head">
@@ -5380,7 +5399,7 @@ function renderAdminMembers() {
       <button class="secondary-button compact" type="button" data-admin-action="applyMemberFilter">検索</button>
     </div>
     <div class="admin-list">
-      ${members.map((member) => memberCard(member)).join("") || emptyAdminState("条件に合う会員はいません")}
+      ${members.map((member) => memberCard(member)).join("") || emptyAdminState("本番会員マスターに登録された会員はいません")}
     </div>
   `;
 }
@@ -5409,6 +5428,9 @@ function memberCard(member) {
 }
 
 function renderAdminBookings() {
+  if (isProductionApiMode() && appState.adminDataStatus.bookings !== "ready") {
+    return renderAdminDataState("予約管理", appState.adminDataStatus.bookings, "予約希望データを取得できませんでした。");
+  }
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   const sorted = bookings.slice().sort((a, b) => new Date(b.receivedAt || b.createdAt || 0) - new Date(a.receivedAt || a.createdAt || 0));
   return `
@@ -5523,9 +5545,12 @@ function reservationMenuCard(menu) {
 }
 
 function renderAdminCoupons() {
-  const usageHistory = readJson(STORAGE_KEYS.myCoupons, [])
-    .filter((coupon) => getCouponStatus(coupon) === "使用済み" || coupon.usedAt)
+  if (isProductionApiMode() && appState.adminDataStatus.coupons !== "ready") {
+    return renderAdminDataState("クーポン", appState.adminDataStatus.coupons, "クーポン使用履歴を取得できませんでした。");
+  }
+  const usageHistory = readJson(STORAGE_KEYS.adminCouponUsageHistory, [])
     .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
+  const gachaRewards = readJson(STORAGE_KEYS.gachaAdminRewards, []);
   return `
     <section class="admin-section-head">
       <div>
@@ -5536,7 +5561,11 @@ function renderAdminCoupons() {
     <div class="admin-list admin-coupon-usage-list">
       ${usageHistory.map((coupon) => {
         const member = findMember(coupon.memberId || coupon.userId);
-        return `<article class="admin-mini-record admin-coupon-usage-row"><time>${escapeHtml(formatDateTime(coupon.usedAt) || "日時不明")}</time><strong>${escapeHtml(member?.realName || coupon.memberName || coupon.userName || coupon.memberId || "会員")}</strong><span>${escapeHtml(coupon.title || coupon.couponName || coupon.prizeName || "クーポン")}</span><span class="badge status-success">使用済み</span></article>`;
+        const gachaReward = coupon.sourceType === "gacha"
+          ? gachaRewards.find((reward) => String(reward.cardId || reward.prizeId) === String(coupon.couponId || coupon.cardId))
+          : null;
+        const couponName = gachaReward?.prizeName || coupon.title || coupon.couponName || coupon.prizeName || "クーポン";
+        return `<article class="admin-mini-record admin-coupon-usage-row"><time>${escapeHtml(formatDateTime(coupon.usedAt) || "日時不明")}</time><strong>${escapeHtml(member?.realName || coupon.memberName || coupon.userName || coupon.memberId || "会員")}</strong><span>${escapeHtml(couponName)}</span><span class="badge status-success">使用済み</span></article>`;
       }).join("") || emptyAdminState("クーポンの使用履歴はありません")}
     </div>
     <p class="soft-note">クーポンの正本データとLINE側の利用処理は変更していません。</p>
@@ -5588,8 +5617,11 @@ function couponDashboardCards(coupons, myCoupons) {
 }
 
 function renderAdminGacha() {
+  if (isProductionApiMode() && appState.adminDataStatus.gacha !== "ready") {
+    return renderAdminDataState("ガチャ管理", appState.adminDataStatus.gacha, "本番ガチャマスターを取得できませんでした。");
+  }
   const setting = getCurrentGachaSetting();
-  const cards = readJson(STORAGE_KEYS.gachaAdminRewards, getGachaCards(setting));
+  const cards = readJson(STORAGE_KEYS.gachaAdminRewards, []);
   const oddsTotal = getGachaOddsTotal(setting);
   const rarityTotal = getRarityOddsTotal(setting);
   const draws = readJson(STORAGE_KEYS.monthlyGachaDraws, []);
@@ -8899,6 +8931,14 @@ function emptyAdminState(message) {
   return `<article class="admin-empty"><p>${escapeHtml(message)}</p></article>`;
 }
 
+function renderAdminDataState(title, status, errorMessage) {
+  const loading = status === "pending" || status === "loading";
+  return `
+    <section class="admin-section-head"><div><h3>${escapeHtml(title)}</h3></div></section>
+    ${emptyAdminState(loading ? "本番データを取得しています…" : errorMessage)}
+  `;
+}
+
 function normalizeSearchText(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -8960,6 +9000,25 @@ function removeRetiredDevelopmentGachaCache() {
   if (filteredSelections.length !== selections.length) writeJson(STORAGE_KEYS.mySelections, filteredSelections);
 }
 
+function removeProductionDemoCaches() {
+  if (!isProductionApiMode()) return;
+  const isDemoMember = (member) => (
+    String(member?.lineUserId || "").startsWith("U-demo-") ||
+    ["山田 花子", "佐藤 美咲", "鈴木 玲奈"].includes(String(member?.realName || "")) ||
+    String(member?.phone || "").startsWith("090-0000-")
+  );
+  const members = readJson(STORAGE_KEYS.members, []);
+  const productionMembers = members.filter((member) => !isDemoMember(member));
+  if (productionMembers.length !== members.length) writeJson(STORAGE_KEYS.members, productionMembers);
+
+  const receptions = readJson(STORAGE_KEYS.visitReceptions, []);
+  const productionReceptions = receptions.filter((item) => (
+    !String(item?.receptionId || "").startsWith("VISIT-DEMO-") &&
+    !String(item?.lineUserId || "").startsWith("U-demo-")
+  ));
+  if (productionReceptions.length !== receptions.length) writeJson(STORAGE_KEYS.visitReceptions, productionReceptions);
+}
+
 function resolveCurrentUserKey(profile = {}, guestId = getOrCreateGuestId()) {
   const linkedMemberId = String(profile.linkedMemberId || "").trim();
   if (linkedMemberId) return linkedMemberId;
@@ -9011,6 +9070,7 @@ function daysBetween(fromDate, toDate) {
 
 function ensureDemoState() {
   removeRetiredDevelopmentGachaCache();
+  removeProductionDemoCaches();
   const migratedProfile = migrateLegacyFixedProfileToGuest(readJson(STORAGE_KEYS.profile, {}));
   const guestId = String(migratedProfile.guestId || getOrCreateGuestId()).trim();
   const storedProfile = migratedProfile;
@@ -9062,7 +9122,11 @@ function ensureDemoState() {
   } else {
     ensureDefaultCollectionRewards();
   }
-  if (!localStorage.getItem(STORAGE_KEYS.adminCoupons)) {
+  if (isProductionApiMode()) {
+    writeJson(STORAGE_KEYS.adminCoupons, []);
+    writeJson(STORAGE_KEYS.gachaAdminRewards, []);
+    writeJson(STORAGE_KEYS.adminCouponUsageHistory, []);
+  } else if (!localStorage.getItem(STORAGE_KEYS.adminCoupons)) {
     writeJson(STORAGE_KEYS.adminCoupons, defaultManagedCoupons);
   } else {
     ensureDefaultAdminCoupons();
@@ -9074,7 +9138,7 @@ function ensureDemoState() {
     writeJson(STORAGE_KEYS.gachaTestLog, []);
   }
   refreshGachaCardStates();
-  if (!localStorage.getItem(STORAGE_KEYS.members)) {
+  if (!isProductionApiMode() && !localStorage.getItem(STORAGE_KEYS.members)) {
     writeJson(STORAGE_KEYS.members, [
       {
         memberId: "TL-000001",
@@ -9127,7 +9191,7 @@ function ensureDemoState() {
       }
     ]);
   }
-  if (!localStorage.getItem(STORAGE_KEYS.visitReceptions)) {
+  if (!isProductionApiMode() && !localStorage.getItem(STORAGE_KEYS.visitReceptions)) {
     writeJson(STORAGE_KEYS.visitReceptions, [
       {
         receptionId: "VISIT-DEMO-1",
@@ -9727,102 +9791,59 @@ function endOfMonthLabel() {
 
 async function apiRequest(action, payload = {}, options = {}) {
   const apiUrl = options.apiUrl || TEAM_LINK_API_URL;
-  if (!apiUrl) return { success: true, demo: true, action, payload };
-  const requestPayload = { action, payload, sessionToken: getApiSessionToken() };
+  if (!apiUrl) throw new Error("TEAM LINK APIが設定されていません。");
+  const requestPayload = { action, payload: payload || {}, sessionToken: getApiSessionToken() };
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), getApiTimeoutMs(action));
   try {
-    return await apiRequestJsonp(action, payload, requestPayload, apiUrl);
-  } catch (jsonpError) {
-    logApiFailure({ action, url: apiUrl, error: jsonpError, transport: "JSONP" });
-    if (jsonpError.fromJsonpResponse) throw jsonpError;
-    try {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(requestPayload),
-        redirect: "follow"
+        redirect: "follow",
+        cache: "no-store",
+        signal: controller.signal
       });
       const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseError) {
-        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text, error: parseError, transport: "POST" });
-        throw parseError;
+      const contentType = String(response.headers.get("content-type") || "");
+      if (!response.ok || !contentType.includes("application/json")) {
+        const retryableDeploymentResponse = response.status === 404 || /text\/html/i.test(contentType) || /^\s*<!doctype html/i.test(text);
+        if (retryableDeploymentResponse && attempt < 3) {
+          console.warn("[TEAM LINK API RETRY]", { action, attempt, status: response.status, url: response.url || apiUrl });
+          await new Promise((resolve) => window.setTimeout(resolve, 350 * attempt));
+          continue;
+        }
+        const error = new Error(response.status === 404 ? "TEAM LINK APIが見つかりません。" : "TEAM LINK APIからJSONを取得できませんでした。");
+        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text.slice(0, 500), error, transport: "POST" });
+        throw error;
       }
+      const data = JSON.parse(text);
       if (!data.success) {
         const error = new Error(data.message || "処理に失敗しました。");
         error.errorCode = data.errorCode || "";
-        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text, error, transport: "POST" });
+        logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text.slice(0, 500), error, transport: "POST" });
         throw error;
       }
       return data;
-    } catch (postError) {
-      logApiFailure({ action, url: apiUrl, error: postError, transport: "POST", cors: isFetchCorsLikeError(postError) });
-      throw postError;
     }
+    throw new Error("TEAM LINK APIへ接続できませんでした。");
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      const timeoutError = new Error("TEAM LINK APIの応答がタイムアウトしました。");
+      logApiFailure({ action, url: apiUrl, error: timeoutError, transport: "POST" });
+      throw timeoutError;
+    }
+    if (!error?.errorCode) logApiFailure({ action, url: apiUrl, error, transport: "POST", cors: isFetchCorsLikeError(error) });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
   }
-}
-
-function apiRequestJsonp(action, payload, requestPayload, apiUrl = TEAM_LINK_API_URL) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `teamLinkJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const url = new URL(apiUrl);
-    url.searchParams.set("action", action);
-    url.searchParams.set("callback", callbackName);
-    url.searchParams.set("payload", JSON.stringify(payload || {}));
-    url.searchParams.set("sessionToken", requestPayload.sessionToken || "");
-    Object.entries(payload || {}).forEach(([key, value]) => {
-      if (value === undefined || value === null || typeof value === "object") return;
-      url.searchParams.set(key, String(value));
-    });
-    url.searchParams.set("_", String(Date.now()));
-    let settled = false;
-    const cleanup = () => {
-      delete window[callbackName];
-      script.remove();
-    };
-    const timeoutMs = getApiTimeoutMs(action);
-    const timer = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      const error = new Error("JSONP request timed out");
-      error.requestUrl = url.toString();
-      reject(error);
-    }, timeoutMs);
-    window[callbackName] = (data) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      cleanup();
-      if (!data?.success) {
-        const error = new Error(data?.message || "処理に失敗しました。");
-        error.errorCode = data?.errorCode || "";
-        error.responseBody = JSON.stringify(data || {});
-        error.requestUrl = url.toString();
-        error.fromJsonpResponse = true;
-        reject(error);
-        return;
-      }
-      resolve(data);
-    };
-    script.onerror = () => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      cleanup();
-      const error = new Error("JSONP script load failed");
-      error.requestUrl = url.toString();
-      reject(error);
-    };
-    script.src = url.toString();
-    document.head.appendChild(script);
-  });
 }
 
 function getApiTimeoutMs(action) {
   const slowActions = new Set([
+    "getAdminProductionData",
     "drawMonthlyGacha",
     "getGachaConfig",
     "getPublishedRewards",
@@ -9935,10 +9956,25 @@ function parseServerJsonArray(value) {
 
 async function syncProductionBookingRequests(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return [];
-  const result = await apiRequest("listBookingRequests", {});
-  const serverBookings = result.bookings || result.data?.bookings;
-  if (!Array.isArray(serverBookings)) return [];
-  const bookings = serverBookings.map((booking) => ({
+  appState.adminDataStatus.bookings = "loading";
+  try {
+    const result = await apiRequest("listBookingRequests", {});
+    const serverBookings = result.bookings || result.data?.bookings;
+    if (!Array.isArray(serverBookings)) throw new Error("予約一覧の形式が正しくありません。");
+    const bookings = serverBookings.map(mapServerBookingToLocal);
+    writeJson(STORAGE_KEYS.bookings, bookings);
+    appState.adminDataStatus.bookings = "ready";
+    if (options.render !== false) renderApp();
+    return bookings;
+  } catch (error) {
+    appState.adminDataStatus.bookings = "error";
+    if (options.render !== false) renderApp();
+    throw error;
+  }
+}
+
+function mapServerBookingToLocal(booking) {
+  return {
     ...booking,
     requestId: booking.requestId || booking.bookingRequestId,
     bookingRequestId: booking.bookingRequestId || booking.requestId,
@@ -9947,10 +9983,7 @@ async function syncProductionBookingRequests(options = {}) {
     selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
     menuIds: parseServerJsonArray(booking.menuIds),
     couponIds: parseServerJsonArray(booking.couponIds)
-  }));
-  writeJson(STORAGE_KEYS.bookings, bookings);
-  if (options.render !== false) renderApp();
-  return bookings;
+  };
 }
 
 function normalizeVisitReceptionStatus(status) {
@@ -9962,62 +9995,55 @@ function normalizeVisitReceptionStatus(status) {
 
 async function syncProductionVisitReceptions(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return [];
-  const result = await apiRequest("listVisitReceptions", { date: jstDateKey(), includeHistory: appState.adminVisitShowHistory });
-  const rows = result.receptions || result.data?.receptions;
-  if (!Array.isArray(rows)) return [];
-  const receptions = rows.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) }));
-  writeJson(STORAGE_KEYS.visitReceptions, receptions);
-  if (options.render !== false) renderApp();
-  return receptions;
+  appState.adminDataStatus.visits = "loading";
+  try {
+    const result = await apiRequest("listVisitReceptions", { date: jstDateKey(), includeHistory: appState.adminVisitShowHistory });
+    const rows = result.receptions || result.data?.receptions;
+    if (!Array.isArray(rows)) throw new Error("来店一覧の形式が正しくありません。");
+    const receptions = rows.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) }));
+    writeJson(STORAGE_KEYS.visitReceptions, receptions);
+    appState.adminDataStatus.visits = "ready";
+    if (options.render !== false) renderApp();
+    return receptions;
+  } catch (error) {
+    appState.adminDataStatus.visits = "error";
+    if (options.render !== false) renderApp();
+    throw error;
+  }
 }
 
 async function syncProductionAdminState(options = {}) {
   if (!isProductionApiMode() || !getAdminSession()) return;
-  const [bookingSync, visitSync, gachaMasterSync, gachaHistorySync] = await Promise.allSettled([
-    apiRequest("listBookingRequests", {}),
-    apiRequest("listVisitReceptions", { date: jstDateKey(), includeHistory: appState.adminVisitShowHistory }),
-    apiRequest("listGachaRewardMasters", { targetYearMonth: currentMonthKey() }),
-    apiRequest("listGachaUsageHistory", {})
-  ]);
-  if (bookingSync.status === "fulfilled") {
-    const result = bookingSync.value;
-    const serverBookings = result.bookings || result.data?.bookings;
-    if (Array.isArray(serverBookings)) writeJson(STORAGE_KEYS.bookings, serverBookings.map((booking) => ({
-      ...booking,
-      requestId: booking.requestId || booking.bookingRequestId,
-      bookingRequestId: booking.bookingRequestId || booking.requestId,
-      staff: formatStaffDisplayName(booking.staff || booking.staffDisplayName),
-      selectedMenus: parseServerJsonArray(booking.selectedMenus),
-      selectedCoupons: parseServerJsonArray(booking.selectedCoupons),
-      menuIds: parseServerJsonArray(booking.menuIds),
-      couponIds: parseServerJsonArray(booking.couponIds)
-    })));
-  } else {
-    console.error("[TEAM LINK BOOKING ADMIN SYNC FAILED]", bookingSync.reason);
-  }
-  if (visitSync.status === "fulfilled") {
-    const rows = visitSync.value.receptions || visitSync.value.data?.receptions;
-    if (Array.isArray(rows)) writeJson(STORAGE_KEYS.visitReceptions, rows.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) })));
-  } else {
-    console.error("[TEAM LINK VISIT ADMIN SYNC FAILED]", visitSync.reason);
-  }
-  if (gachaMasterSync.status === "fulfilled") {
-    const gachaMasterResult = gachaMasterSync.value;
-    const rewardMasters = gachaMasterResult.rewards || gachaMasterResult.data?.rewards;
-    if (Array.isArray(rewardMasters)) writeJson(STORAGE_KEYS.gachaAdminRewards, rewardMasters.map(mapServerGachaRewardToLocal));
-  } else {
-    console.error("[TEAM LINK GACHA MASTER SYNC FAILED]", gachaMasterSync.reason);
-  }
-  if (gachaHistorySync.status === "fulfilled") {
-    const gachaHistoryResult = gachaHistorySync.value;
-    const gachaHistory = gachaHistoryResult.history || gachaHistoryResult.data?.history;
-    if (Array.isArray(gachaHistory)) mergeServerGachaCoupons(gachaHistory);
-  } else {
-    console.error("[TEAM LINK GACHA HISTORY SYNC FAILED]", gachaHistorySync.reason);
-  }
-  if (options.render !== false) renderApp();
-  if (bookingSync.status === "rejected") {
+  Object.keys(appState.adminDataStatus).forEach((key) => { appState.adminDataStatus[key] = "loading"; });
+  try {
+    const result = await apiRequest("getAdminProductionData", {
+      date: jstDateKey(),
+      includeHistory: appState.adminVisitShowHistory,
+      targetYearMonth: currentMonthKey()
+    });
+    const data = result.data || result;
+    const members = data.members;
+    const bookings = data.bookings;
+    const receptions = data.receptions;
+    const couponUsageHistory = data.couponUsageHistory;
+    const gachaRewards = data.gachaRewards || data.rewards;
+    const gachaUsageHistory = data.gachaUsageHistory || data.gachaHistory;
+    if (![members, bookings, receptions, couponUsageHistory, gachaRewards].every(Array.isArray)) {
+      throw new Error("管理データの形式が正しくありません。");
+    }
+    writeJson(STORAGE_KEYS.members, members);
+    writeJson(STORAGE_KEYS.bookings, bookings.map(mapServerBookingToLocal));
+    writeJson(STORAGE_KEYS.visitReceptions, receptions.map((item) => ({ ...item, status: normalizeVisitReceptionStatus(item.status) })));
+    writeJson(STORAGE_KEYS.adminCouponUsageHistory, couponUsageHistory);
+    writeJson(STORAGE_KEYS.gachaAdminRewards, gachaRewards.map((reward) => mapServerGachaRewardToLocal(reward)));
+    if (Array.isArray(gachaUsageHistory)) mergeServerGachaCoupons(gachaUsageHistory);
+    Object.keys(appState.adminDataStatus).forEach((key) => { appState.adminDataStatus[key] = "ready"; });
+  } catch (error) {
+    Object.keys(appState.adminDataStatus).forEach((key) => { appState.adminDataStatus[key] = "error"; });
+    console.error("[TEAM LINK PRODUCTION ADMIN SYNC FAILED]", error);
     showToast("管理データの取得に失敗しました。");
+  } finally {
+    if (options.render !== false) renderApp();
   }
 }
 
@@ -10043,6 +10069,10 @@ function mapServerGachaRewardToLocal(reward, existing = {}) {
       ...existing,
       prizeId: reward.cardId,
       cardId: reward.cardId,
+      cardNo: String(reward.cardNumber || existing.cardNo || "").padStart(2, "0"),
+      characterName: reward.characterName || existing.characterName || existing.cardName || "",
+      cardName: reward.characterName || existing.cardName || existing.characterName || "",
+      rarity: reward.rarity || existing.rarity || "N",
       prizeName: reward.rewardName,
       prizeDescription: reward.rewardDetail,
       targetMenu: reward.targetMenu,
@@ -10050,8 +10080,11 @@ function mapServerGachaRewardToLocal(reward, existing = {}) {
       validUntil: reward.expiryDate,
       usageCondition: reward.notes || reward.usageCondition || reward.rewardDetail || "",
       animationPreset: reward.animation || reward.animationPreset || "",
-      effectName: reward.effectName || byId.get(String(reward.cardId))?.effectName || "",
-      description: reward.description || byId.get(String(reward.cardId))?.description || "",
+      effectName: reward.effectName || existing.effectName || "",
+      description: reward.description || existing.description || "",
+      probability: Number(reward.probability || existing.probability || 0),
+      weight: Number(reward.weight || existing.weight || reward.probability || 0),
+      remainingStock: reward.remainingStock,
       canCombine: reward.canCombine === true || String(reward.canCombine).toUpperCase() === "TRUE",
       isPublic: reward.isPublished === true || String(reward.isPublished).toUpperCase() === "TRUE",
       sortOrder: Number(reward.cardNumber || reward.sortOrder || 999),
