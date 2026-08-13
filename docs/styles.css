@@ -4336,8 +4336,9 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .admin-tabs {
   display: flex;
+  align-items: center;
   gap: 9px;
-  overflow-x: auto;
+  overflow: hidden;
   padding: 2px 1px 10px;
   scrollbar-width: none;
 }
@@ -4377,6 +4378,25 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   font-style: normal;
 }
 
+.admin-current-page {
+  min-width: 0;
+  color: rgba(255,250,239,.68);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.admin-current-page em {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  border-radius: 999px;
+  color: #fff;
+  background: #d94a4a;
+  font-style: normal;
+}
+
 .admin-panel {
   display: grid;
   gap: 14px;
@@ -4388,6 +4408,121 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   display: grid;
   gap: 12px;
 }
+
+.admin-today-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-today-item {
+  position: relative;
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(228,199,126,.18);
+  border-radius: 18px;
+  color: var(--cream);
+  text-align: left;
+  background: rgba(255,255,255,.05);
+}
+
+.admin-today-item span { font-size: 14px; font-weight: 900; }
+.admin-today-item strong { color: rgba(255,250,239,.72); font-size: 26px; }
+.admin-today-item strong small { margin-left: 2px; font-size: 11px; }
+.admin-today-item i { color: var(--champagne); font-size: 24px; font-style: normal; }
+.admin-today-item.has-count { border-color: rgba(228,199,126,.46); background: rgba(201,155,74,.12); }
+.admin-today-item.has-count strong { color: #f4d78f; }
+
+.admin-menu-section { display: grid; gap: 12px; margin-top: 6px; }
+.admin-menu-section > header p { margin: 4px 0 0; color: rgba(255,250,239,.58); font-size: 12px; }
+.admin-main-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-menu-button {
+  min-width: 0;
+  min-height: 108px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(228,199,126,.20);
+  border-radius: 22px;
+  color: var(--cream);
+  text-align: left;
+  background: linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.035));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+}
+.admin-menu-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(228,199,126,.32);
+  border-radius: 13px;
+  color: #17110a;
+  background: linear-gradient(135deg, #c99b4a, #f0dfb8);
+  font-size: 11px;
+  font-weight: 950;
+}
+.admin-menu-copy { min-width: 0; display: grid; gap: 4px; }
+.admin-menu-copy strong { color: #fff; font-size: 15px; }
+.admin-menu-copy small { color: rgba(255,250,239,.58); font-size: 11px; line-height: 1.45; }
+.admin-menu-copy em { color: #f0cb79; font-size: 10px; font-style: normal; }
+.admin-menu-button > i { color: var(--champagne); font-size: 22px; font-style: normal; }
+
+.admin-booking-row header,
+.admin-coupon-usage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.admin-booking-row.is-pending { border-color: rgba(228,199,126,.42); }
+.admin-record-details { border-top: 1px solid rgba(255,255,255,.08); padding-top: 8px; }
+.admin-record-details summary { color: var(--champagne); font-size: 12px; font-weight: 900; cursor: pointer; }
+.admin-record-details p { margin: 7px 0; color: rgba(255,250,239,.72); font-size: 12px; }
+.admin-booking-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-booking-actions button { min-height: 46px; }
+.admin-coupon-usage-row { grid-template-columns: minmax(105px, .75fr) minmax(80px, .8fr) minmax(120px, 1.3fr) auto; }
+.admin-coupon-usage-row time,
+.admin-coupon-usage-row span { color: rgba(255,250,239,.70); font-size: 12px; }
+
+.admin-gacha-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-gacha-shortcuts a,
+.admin-gacha-shortcuts button {
+  min-width: 0;
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 11px;
+  border: 1px solid rgba(228,199,126,.22);
+  border-radius: 18px;
+  color: #fff;
+  text-align: left;
+  text-decoration: none;
+  background: rgba(255,255,255,.06);
+}
+.admin-gacha-shortcuts strong { font-size: 13px; }
+.admin-gacha-shortcuts small { color: rgba(255,250,239,.55); font-size: 10px; line-height: 1.35; }
+
+.admin-coming-soon {
+  min-height: 210px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  border: 1px solid rgba(228,199,126,.22);
+  border-radius: 24px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 0, rgba(228,199,126,.14), transparent 55%), rgba(255,255,255,.04);
+}
+.admin-coming-soon span { color: var(--champagne); font-size: 11px; font-weight: 950; letter-spacing: .16em; }
+.admin-coming-soon strong { color: #fff; font-size: 24px; }
+.admin-coming-soon p { margin: 0; color: rgba(255,250,239,.64); font-size: 12px; }
 
 .admin-dashboard-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6829,4 +6964,35 @@ body.is-home-view .app-shell {
 .gacha-test-result-card .gacha-completed-card,
 .gacha-test-result-card .gacha-card-shell {
   width: 100%;
+}
+
+@media (max-width: 430px) {
+  .admin-cockpit,
+  .admin-panel,
+  .admin-section-head,
+  .admin-record,
+  .admin-mini-record,
+  .admin-main-menu,
+  .admin-menu-button,
+  .admin-gacha-shortcuts {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .admin-panel { padding: 12px; border-radius: 22px; }
+  .admin-section-head { padding: 14px; border-radius: 20px; }
+  .admin-main-menu { grid-template-columns: 1fr; }
+  .admin-menu-button { min-height: 84px; }
+  .admin-gacha-shortcuts { grid-template-columns: 1fr; }
+  .admin-gacha-shortcuts a,
+  .admin-gacha-shortcuts button { min-height: 64px; }
+  .admin-booking-row .record-meta-grid,
+  .admin-visit-row .admin-record-grid,
+  .admin-member-row .admin-record-grid { grid-template-columns: 1fr; }
+  .admin-coupon-usage-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-coupon-usage-row strong,
+  .admin-coupon-usage-row > span:not(.badge) { grid-column: 1 / -1; }
+  .visit-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .priority-actions { grid-template-columns: 1fr; }
 }

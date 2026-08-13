@@ -584,18 +584,13 @@ const adminUsers = {
 };
 
 const adminTabs = [
-  { key: "dashboard", label: "ダッシュボード" },
-  { key: "visits", label: "来店確認" },
-  { key: "members", label: "会員管理" },
+  { key: "dashboard", label: "管理トップ" },
   { key: "bookings", label: "予約管理" },
-  { key: "reservationMenus", label: "予約メニュー管理" },
-  { key: "coupons", label: "クーポン管理" },
+  { key: "visits", label: "来店確認" },
+  { key: "coupons", label: "クーポン" },
   { key: "gacha", label: "ガチャ管理" },
-  { key: "gachaTest", label: "テストガチャ" },
-  { key: "fortune", label: "占い管理" },
-  { key: "lounge", label: "ご縁ラウンジ管理" },
-  { key: "notices", label: "お知らせ管理" },
-  { key: "settings", label: "設定" }
+  { key: "members", label: "会員管理" },
+  { key: "lounge", label: "ご縁ラウンジ" }
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -4864,17 +4859,15 @@ function renderAdmin() {
 function renderAdminTabs() {
   const counts = getAdminCounts();
   const session = getAdminSession();
-  const visibleTabs = adminTabs.filter((tab) => tab.key !== "gachaTest" || session?.role === "admin");
   if (appState.adminTab === "gachaTest" && session?.role !== "admin") appState.adminTab = "dashboard";
-  document.getElementById("adminTabs").innerHTML = visibleTabs.map((tab) => {
-    const count = counts[tab.key] || 0;
-    return `
-      <button type="button" class="${appState.adminTab === tab.key ? "is-active" : ""}" data-admin-tab="${tab.key}">
-        <span>${escapeHtml(tab.label)}</span>
-        ${count ? `<em>${count}</em>` : ""}
-      </button>
-    `;
-  }).join("");
+  const current = adminTabs.find((tab) => tab.key === appState.adminTab);
+  document.getElementById("adminTabs").innerHTML = `
+    <button type="button" class="${appState.adminTab === "dashboard" ? "is-active" : ""}" data-admin-tab="dashboard">
+      <span>${appState.adminTab === "dashboard" ? "管理トップ" : "← 管理トップへ戻る"}</span>
+    </button>
+    ${current && current.key !== "dashboard" ? `<span class="admin-current-page">${escapeHtml(current.label)}${counts[current.key] ? ` <em>${escapeHtml(counts[current.key])}</em>` : ""}</span>` : ""}
+    ${appState.adminTab === "gachaTest" ? `<span class="admin-current-page">ガチャ管理 / TEST</span>` : ""}
+  `;
 }
 
 function renderAdminPanel() {
@@ -4898,63 +4891,48 @@ function renderAdminPanel() {
 }
 
 function renderAdminDashboard() {
-  const counts = getAdminCounts();
   const dashboard = buildOperationDashboard();
   const todos = [
-    ["visits", "来店未確認", dashboard.todo.unconfirmedVisits, "最優先で確認"],
-    ["bookings", "予約要対応", dashboard.todo.bookingNeedsAction, "相談・確認待ち"],
-    ["bookings", "変更・キャンセル依頼", dashboard.todo.changeCancelRequests, "自動変更しない"],
-    ["gacha", "カード特典達成者", dashboard.todo.rewardAchievers, "付与・受取確認"],
-    ["gacha", "期限間近カード", dashboard.todo.expiringCards, "利用案内"],
-    ["coupons", "期限間近クーポン", dashboard.todo.expiringCoupons, "利用案内"],
-    ["coupons", "本日使用予定クーポン", dashboard.todo.plannedCouponsToday, "来店時確認"],
-    ["notices", "未処理のお知らせ", dashboard.todo.pendingNotices, "下書き確認"]
+    ["bookings", "予約対応待ち", dashboard.todo.bookingNeedsAction],
+    ["visits", "来店確認待ち", dashboard.todo.unconfirmedVisits],
+    ["coupons", "本日のクーポン使用", dashboard.today.usedCoupons]
   ];
-  const todayCards = [
-    ["visits", "本日の来店受付数", dashboard.today.visitReceptions, "受付候補"],
-    ["visits", "未確認来店数", dashboard.today.unconfirmedVisits, "確認待ち"],
-    ["bookings", "本日の予約数", dashboard.today.confirmedBookings, "確定/入力済み"],
-    ["bookings", "予約相談数", dashboard.today.bookingRequests, "本日受付"],
-    ["gacha", "本日のカード使用数", dashboard.today.cardUses, "スタッフ確認済み"],
-    ["coupons", "本日使用予定クーポン", dashboard.today.plannedCoupons, "予約選択中"],
-    ["coupons", "本日使用済みクーポン", dashboard.today.usedCoupons, "スタッフ確認済み"]
-  ];
-  const monthCards = [
-    ["gacha", "ガチャ利用人数", dashboard.month.gachaUsers, "今月"],
-    ["gacha", "ガチャ未利用人数", dashboard.month.gachaUnused, "案内対象"],
-    ["gacha", "UR / SSR / SR / R / N", dashboard.month.rarityText, "レア度別"],
-    ["coupons", "クーポン利用数", dashboard.month.couponUses, "今月使用"],
-    ["coupons", "未使用クーポン数", dashboard.month.unusedCoupons, "利用可能"],
-    ["coupons", "ガチャ当選クーポン数", dashboard.month.gachaCoupons, "自動発行"],
-    ["coupons", "年間特典クーポン未受取数", dashboard.month.collectionCoupons, "年間特典"],
-    ["members", "新規会員数", dashboard.month.newMembers, "今月登録"],
-    ["bookings", "予約相談件数", dashboard.month.bookingRequests, "今月受付"]
-  ];
-  const yearCards = [
-    ["gacha", "年間カード獲得総数", dashboard.year.cards, "今年"],
-    ["gacha", "特典達成人数", dashboard.year.rewardAchievers, "コレクション"],
-    ["gacha", "特典未受取人数", dashboard.year.rewardUnreceived, "要確認"],
-    ["gacha", "SSR獲得人数", dashboard.year.ssrMembers, "今年"]
+  const menus = [
+    ["bookings", "予約", "予約管理", "予約希望の確認・対応"],
+    ["visits", "来店", "来店確認", "本日の来店を確認"],
+    ["coupons", "券", "クーポン", "使用履歴を確認"],
+    ["gacha", "G", "ガチャ管理", "カード・景品・テスト"],
+    ["members", "会員", "会員管理", "会員情報を確認"],
+    ["lounge", "縁", "ご縁ラウンジ", "有料会員管理"]
   ];
   return `
     <section class="admin-section-head">
       <div>
         <h3>今日やること</h3>
-        <p>営業中に確認すべき未処理項目を優先順で表示します。</p>
+        <p>営業中に対応する項目だけをまとめています。</p>
       </div>
     </section>
-    <section class="admin-dashboard-grid priority-dashboard">
-      ${todos.map(([tab, title, value, desc]) => `
-        <button type="button" class="admin-metric ${Number(value) > 0 ? "has-count" : ""}" data-admin-tab="${tab}">
+    <section class="admin-today-grid">
+      ${todos.map(([tab, title, value]) => `
+        <button type="button" class="admin-today-item ${Number(value) > 0 ? "has-count" : ""}" data-admin-tab="${tab}">
           <span>${escapeHtml(title)}</span>
-          <strong>${escapeHtml(value)}</strong>
-          <small>${escapeHtml(desc)}</small>
+          <strong>${escapeHtml(value)}<small>件</small></strong>
+          <i aria-hidden="true">›</i>
         </button>
       `).join("")}
     </section>
-    ${dashboardMetricSection("本日", todayCards)}
-    ${dashboardMetricSection("今月", monthCards)}
-    ${dashboardMetricSection("年間", yearCards)}
+    <section class="admin-menu-section">
+      <header><h3>管理メニュー</h3><p>行いたい業務を選んでください。</p></header>
+      <div class="admin-main-menu">
+        ${menus.map(([tab, icon, title, description]) => `
+          <button type="button" class="admin-menu-button" data-admin-tab="${tab}">
+            <span class="admin-menu-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+            <span class="admin-menu-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small>${tab === "lounge" ? `<em>2026年10月開始予定・準備中</em>` : ""}</span>
+            <i aria-hidden="true">›</i>
+          </button>
+        `).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -5022,47 +5000,29 @@ function visitGroup(title, tone, items, emptyMessage) {
 
 function visitReceptionCard(item, tone = "") {
   const member = findMember(item.memberId);
-  const gacha = getMemberGachaStatus(member);
-  const coupons = getMemberCoupons(member);
-  const lastVisitDays = member?.lastVisitDate ? `${daysSince(member.lastVisitDate)}日` : "-";
   const time = formatReceptionTime(item.receivedAt);
+  const todayBooking = readJson(STORAGE_KEYS.bookings, []).find((booking) => (
+    String(booking.memberId || booking.userId || "") === String(item.memberId || "") &&
+    isToday(booking.confirmedDateTime || booking.firstDateTime)
+  ));
+  const pending = item.status === "未確認" || item.status === "確認待ち";
   return `
-    <article class="admin-record visit-card ${item.status === "未確認" || item.status === "確認待ち" ? "is-pending" : ""} ${tone}">
+    <article class="admin-record visit-card admin-visit-row ${pending ? "is-pending" : ""} ${tone}">
       <header>
         <span class="badge status-${statusTone(item.status)}">${escapeHtml(item.status)}</span>
-        <strong>${escapeHtml(item.lineDisplayName || item.sentName || "LINEユーザー")}</strong>
-        <small>受付 ${escapeHtml(time)}</small>
+        <strong>${escapeHtml(member?.realName || item.sentName || item.lineDisplayName || "LINEユーザー")}</strong>
+        <small>${todayBooking ? `予約 ${escapeHtml(formatReceptionTime(todayBooking.confirmedDateTime || todayBooking.firstDateTime))}` : `受付 ${escapeHtml(time)}`}</small>
       </header>
       <div class="admin-record-grid">
         ${summaryRows([
           ["LINE表示名", item.lineDisplayName || "未取得"],
-          ["送られてきた本文", item.messageText || item.sentName || "-"],
-          ["登録氏名", member?.realName || "未登録"],
-          ["会員ID", item.memberId],
-          ["新規／既存", item.receptionType],
-          ["前回来店", member?.lastVisitDate || "未登録"],
-          ["経過日数", lastVisitDays],
-          ["来店回数", `${member?.visitCount || 0}回`],
-          ["今月ガチャ", gacha.used ? `利用済み ${gacha.draw.title}` : "未利用"],
-          ["保有クーポン", `${coupons.filter((coupon) => coupon.status === "未使用").length}枚`],
-          ["受付時刻", time]
+          ["メッセージ", item.messageText || item.sentName || "-"],
+          ["来店状態", item.status]
         ])}
       </div>
-      <small class="line-id-chip">LINE ID: ${escapeHtml(item.lineUserId)}</small>
       <div class="admin-actions priority-actions">
-        ${(item.status === "未確認" || item.status === "確認待ち") ? `<button type="button" data-admin-action="confirmVisit" data-id="${escapeHtml(item.receptionId)}">来店確認</button><button type="button" class="secondary-button" data-admin-action="markMessage" data-id="${escapeHtml(item.receptionId)}">対象外</button>` : ""}
-        ${item.memberId ? `<button type="button" data-admin-action="memberDetail" data-id="${escapeHtml(item.memberId)}">会員詳細</button>` : ""}
+        ${pending ? `<button type="button" data-admin-action="confirmVisit" data-id="${escapeHtml(item.receptionId)}">来店確認</button>` : ""}
       </div>
-      <details class="more-actions">
-        <summary>その他</summary>
-        <div class="admin-actions">
-          <button type="button" data-admin-action="memberBooking" data-id="${escapeHtml(item.memberId)}">予約</button>
-          <button type="button" data-admin-action="renameVisit" data-id="${escapeHtml(item.receptionId)}">氏名修正</button>
-          <button type="button" data-admin-action="markMessage" data-id="${escapeHtml(item.receptionId)}">対象外として扱う</button>
-          <button type="button" data-admin-action="mergeMember" data-id="${escapeHtml(item.receptionId)}">別会員と統合</button>
-          <button type="button" data-admin-action="cancelVisit" data-id="${escapeHtml(item.receptionId)}">受付取り消し</button>
-        </div>
-      </details>
     </article>
   `;
 }
@@ -5315,7 +5275,7 @@ function renderAdminMembers() {
     <section class="admin-section-head">
       <div>
         <h3>会員管理</h3>
-        <p>会員IDとLINEユーザーIDを基準に、予約・来店・ガチャ・クーポン・ご縁ラウンジを横断確認します。</p>
+        <p>会員情報とLINE連携・来店状況を確認します。</p>
       </div>
     </section>
     <div class="admin-filterbar">
@@ -5340,37 +5300,23 @@ function renderAdminMembers() {
 }
 
 function memberCard(member) {
-  const gacha = getMemberGachaStatus(member);
-  const coupons = getMemberCoupons(member);
-  const lounge = getLoungeEntries().some((entry) => entry.lineUserId === member.lineUserId || entry.memberId === member.memberId);
+  const linked = Boolean(member.lineUserId);
   return `
-    <article class="admin-record">
+    <article class="admin-record admin-member-row">
       <header>
-        <span class="badge">${escapeHtml(member.memberStatus)}</span>
+        <span class="badge status-${linked ? "success" : "muted"}">${linked ? "LINE連携済み" : "LINE未連携"}</span>
         <strong>${escapeHtml(member.realName || member.nickname)}</strong>
         <small>${escapeHtml(member.memberId)}</small>
       </header>
       <div class="admin-record-grid">
         ${summaryRows([
-          ["LINE表示名", member.lineDisplayName],
-          ["電話番号", member.phone || "-"],
-          ["登録日", member.createdAt],
           ["前回来店日", member.lastVisitDate || "-"],
-          ["来店回数", `${member.visitCount || 0}回`],
-          ["予約履歴", `${getMemberBookings(member).length}件`],
-          ["ガチャ", gacha.used ? `利用済み ${gacha.draw.title}` : "未利用"],
-          ["保有クーポン", `${coupons.filter((coupon) => coupon.status === "未使用").length}枚`],
-          ["ご縁ラウンジ", lounge ? "事前登録あり" : "未登録"],
-          ["状態", member.status || "有効"]
+          ["累計来店", `${member.visitCount || 0}回`],
+          ["会員状態", member.status || "有効"]
         ])}
       </div>
-      <div class="timeline">
-        ${buildMemberTimeline(member).map((row) => `<div><small>${escapeHtml(row.date)}</small><span>${escapeHtml(row.text)}</span></div>`).join("")}
-      </div>
       <div class="admin-actions">
-        <button type="button" data-admin-action="memberDetail" data-id="${escapeHtml(member.memberId)}">会員詳細</button>
-        <button type="button" data-admin-action="addMemo" data-id="${escapeHtml(member.memberId)}">管理メモ</button>
-        <button type="button" data-admin-action="toggleMemberStatus" data-id="${escapeHtml(member.memberId)}">${member.status === "停止" ? "有効に戻す" : "停止"}</button>
+        <button type="button" data-admin-action="memberDetail" data-id="${escapeHtml(member.memberId)}">詳細を見る</button>
       </div>
     </article>
   `;
@@ -5378,27 +5324,16 @@ function memberCard(member) {
 
 function renderAdminBookings() {
   const bookings = readJson(STORAGE_KEYS.bookings, []);
-  const groups = [
-    { key: "needsAction", title: "予約希望・要対応", statuses: ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "キャンセル依頼"] },
-    { key: "waitingCustomer", title: "お客様返答待ち", statuses: ["別日時提案中", "お客様返答待ち"] },
-    { key: "confirmed", title: "予約確定", statuses: ["サロンボード入力済み", "予約確定"] },
-    { key: "done", title: "完了／キャンセル", statuses: ["来店済み", "キャンセル", "対応完了"] }
-  ];
+  const sorted = bookings.slice().sort((a, b) => new Date(b.receivedAt || b.createdAt || 0) - new Date(a.receivedAt || a.createdAt || 0));
   return `
     <section class="admin-section-head">
       <div>
         <h3>予約管理</h3>
-        <p>ホットペッパーの空き確認と、TEAM LINK相談を分けて管理します。予約確定前にサロンボードへの手動入力を確認します。</p>
+        <p>予約希望を確認し、「受付承諾」または「別日の案内」で対応します。</p>
       </div>
-      <button class="secondary-button compact" type="button" data-admin-action="createManualBooking">手動予約を作成</button>
     </section>
-    <div class="admin-kanban">
-      ${groups.map((group) => `
-        <section>
-          <h4>${group.title}</h4>
-          ${bookings.filter((booking) => group.statuses.includes(normalizeBookingStatus(booking.status))).map((booking) => bookingCard(booking)).join("") || "<p>該当なし</p>"}
-        </section>
-      `).join("")}
+    <div class="admin-list admin-booking-list">
+      ${sorted.map((booking) => bookingCard(booking)).join("") || emptyAdminState("予約希望はありません")}
     </div>
   `;
 }
@@ -5409,34 +5344,25 @@ function bookingCard(booking) {
   const status = normalizeBookingStatus(booking.status);
   const menuLabel = selectedMenus.length ? selectedMenus.map((menu) => menu.title).join("、") : booking.menu || "";
   const couponLabel = selectedCoupons.length ? selectedCoupons.map((menu) => menu.title).join("、") : booking.couponTitle || "なし";
+  const requestId = booking.requestId || booking.bookingRequestId || "";
+  const canRespond = ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "別日時提案中", "お客様返答待ち"].includes(status);
   return `
-    <article class="admin-mini-record">
-      <strong>${escapeHtml(booking.customerName || "お客様")}</strong>
-      <small>${escapeHtml(booking.userId || booking.memberId || "")} / ${escapeHtml(booking.bookingRequestId || booking.requestId || "")}</small>
+    <article class="admin-mini-record admin-booking-row ${canRespond ? "is-pending" : ""}">
+      <header><strong>${escapeHtml(booking.customerName || "お客様")}</strong><span class="badge status-${statusTone(status)}">${escapeHtml(status)}</span></header>
       <div class="record-meta-grid">
-        <span>第1希望 ${escapeHtml(formatDateTime(booking.firstDateTime))}</span>
-        <span>第2希望 ${escapeHtml(formatDateTime(booking.secondDateTime) || "なし")}</span>
-        <span>担当 ${escapeHtml(formatStaffDisplayName(booking.staff) || "未定")}</span>
-        <span>予約元 ${escapeHtml(booking.reservationSource || booking.source || "未設定")}</span>
-        <span>状態 ${escapeHtml(status)}</span>
-        <span>受付 ${escapeHtml(formatDateTime(booking.receivedAt || booking.createdAt))}</span>
+        <span>希望日時 ${escapeHtml(formatDateTime(booking.firstDateTime) || "未入力")}</span>
+        <span>希望メニュー ${escapeHtml(menuLabel || "相談")}</span>
       </div>
-      <p>メニュー：${escapeHtml(menuLabel || "相談")}</p>
-      <p>クーポン：${escapeHtml(couponLabel)}</p>
-      <p>参考金額 ${escapeHtml(formatYen(booking.referenceAmount))} / 施術時間 ${escapeHtml(formatMinutes(booking.totalMinutes || booking.totalDurationMinutes))}</p>
-      ${(booking.consultation || booking.customMenu || booking.memo) ? `<p>相談内容：${escapeHtml(booking.consultation || booking.customMenu || booking.memo)}</p>` : ""}
-      <div class="admin-actions mini">
-        <button type="button" data-admin-action="bookingDetail" data-id="${escapeHtml(booking.requestId)}">予約内容を見る</button>
-        <button type="button" data-admin-action="bookingMemberChart" data-id="${escapeHtml(booking.memberId || "")}">会員カルテを見る</button>
-        <button type="button" data-admin-action="confirmFirstChoice" data-id="${escapeHtml(booking.requestId)}">第一希望で確定</button>
-        <button type="button" data-admin-action="confirmSecondChoice" data-id="${escapeHtml(booking.requestId)}">第二希望で確定</button>
-        <button type="button" data-admin-action="proposeBooking" data-id="${escapeHtml(booking.requestId)}">別日時を提案</button>
-        <button type="button" data-admin-action="editBooking" data-id="${escapeHtml(booking.requestId)}">内容を修正</button>
-        <button type="button" data-admin-action="bookingWaiting" data-id="${escapeHtml(booking.requestId)}">お客様返答待ち</button>
-        <button type="button" data-admin-action="bookingSalonBoard" data-id="${escapeHtml(booking.requestId)}">サロンボード入力済み</button>
-        <button type="button" data-admin-action="bookingConfirmed" data-id="${escapeHtml(booking.requestId)}">予約確定にする</button>
-        <button type="button" data-admin-action="processCancelBooking" data-id="${escapeHtml(booking.requestId)}">キャンセル処理</button>
-        <button type="button" data-admin-action="bookingVisited" data-id="${escapeHtml(booking.requestId)}">来店済み</button>
+      <details class="admin-record-details">
+        <summary>予約内容を見る</summary>
+        <p>第二希望：${escapeHtml(formatDateTime(booking.secondDateTime) || "なし")}</p>
+        <p>担当：${escapeHtml(formatStaffDisplayName(booking.staff) || "未定")}</p>
+        <p>クーポン：${escapeHtml(couponLabel)}</p>
+        ${(booking.consultation || booking.customMenu || booking.memo) ? `<p>相談内容：${escapeHtml(booking.consultation || booking.customMenu || booking.memo)}</p>` : ""}
+        <small>${escapeHtml(booking.userId || booking.memberId || "")} / 受付 ${escapeHtml(formatDateTime(booking.receivedAt || booking.createdAt))}</small>
+      </details>
+      <div class="admin-actions admin-booking-actions">
+        ${canRespond ? `<button type="button" data-admin-action="confirmFirstChoice" data-id="${escapeHtml(requestId)}">受付承諾</button><button type="button" class="secondary-button" data-admin-action="proposeBooking" data-id="${escapeHtml(requestId)}">別日の案内</button>` : ""}
       </div>
     </article>
   `;
@@ -5511,38 +5437,23 @@ function reservationMenuCard(menu) {
 }
 
 function renderAdminCoupons() {
-  const coupons = getAdminCoupons();
-  const myCoupons = readJson(STORAGE_KEYS.myCoupons, []);
-  const filters = ["LINEクーポン", "公開予定", "終了", "非公開", "ガチャ連動", "年間特典連動"];
-  const current = filters.includes(appState.adminCouponFilter) ? appState.adminCouponFilter : "LINEクーポン";
-  const visibleCoupons = coupons.filter((coupon) => couponMatchesAdminFilter(coupon, current));
+  const usageHistory = readJson(STORAGE_KEYS.myCoupons, [])
+    .filter((coupon) => getCouponStatus(coupon) === "使用済み" || coupon.usedAt)
+    .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
   return `
     <section class="admin-section-head">
       <div>
-        <h3>クーポン管理</h3>
-        <p>LINE公式アカウントで作成済みのクーポンURLを登録します。利用判定はLINE側が正本です。</p>
-      </div>
-      <div class="admin-head-actions">
-        <button class="secondary-button compact" type="button" data-admin-action="addCoupon">LINEクーポンを登録</button>
-        <button class="secondary-button compact" type="button" data-admin-action="grantCouponToMember">会員へ付与</button>
+        <h3>クーポン</h3>
+        <p>誰が、いつ、どのクーポンを使用したかを確認します。</p>
       </div>
     </section>
-    <div class="segmented admin-coupon-filter">
-      ${filters.map((filter) => `<button type="button" class="${current === filter ? "is-active" : ""}" data-admin-action="filterCoupons" data-id="${escapeHtml(filter)}">${escapeHtml(filter)} ${coupons.filter((coupon) => couponMatchesAdminFilter(coupon, filter)).length}</button>`).join("")}
+    <div class="admin-list admin-coupon-usage-list">
+      ${usageHistory.map((coupon) => {
+        const member = findMember(coupon.memberId || coupon.userId);
+        return `<article class="admin-mini-record admin-coupon-usage-row"><time>${escapeHtml(formatDateTime(coupon.usedAt) || "日時不明")}</time><strong>${escapeHtml(member?.realName || coupon.memberName || coupon.userName || coupon.memberId || "会員")}</strong><span>${escapeHtml(coupon.title || coupon.couponName || coupon.prizeName || "クーポン")}</span><span class="badge status-success">使用済み</span></article>`;
+      }).join("") || emptyAdminState("クーポンの使用履歴はありません")}
     </div>
-    <div class="admin-grid coupon-admin-grid">
-      ${couponDashboardCards(coupons, myCoupons)}
-    </div>
-    ${renderAdminCouponGroup(current, visibleCoupons, myCoupons)}
-    <article class="admin-preview">
-      <h3>お客様ごとのマイクーポン</h3>
-      <div class="summary-list">${summaryRows([
-        ["使用可能", `${myCoupons.filter((coupon) => getCouponStatus(coupon) === "使用可能").length}枚`],
-        ["予約で使用予定", `${myCoupons.filter((coupon) => getCouponStatus(coupon) === "予約で使用予定").length}枚`],
-        ["使用済み", `${myCoupons.filter((coupon) => getCouponStatus(coupon) === "使用済み").length}枚`],
-        ["期限切れ", `${myCoupons.filter((coupon) => getCouponStatus(coupon) === "期限切れ").length}枚`]
-      ])}</div>
-    </article>
+    <p class="soft-note">クーポンの正本データとLINE側の利用処理は変更していません。</p>
   `;
 }
 
@@ -5612,15 +5523,17 @@ function renderAdminGacha() {
     <section class="admin-section-head">
       <div>
         <h3>ガチャ管理</h3>
-        <p>30種類のキャラクターカードを、毎月1枚ずつ集めるコレクション型ガチャです。</p>
+        <p>カード編集・テストガチャ・獲得履歴をこのページで管理します。</p>
       </div>
       <div class="admin-head-actions">
-        <button class="secondary-button compact" type="button" data-admin-action="editRarityRates">排出率設定</button>
-        <button class="secondary-button compact" type="button" data-admin-action="resetMonthlyGachaTest">テスト用 再付与</button>
-        <button class="secondary-button compact" type="button" data-admin-action="createGachaMonth">新しい月を作成</button>
-        <button class="secondary-button compact" type="button" data-admin-action="duplicateGachaMonth">前月設定を複製</button>
+        <button class="primary-button compact" type="button" data-admin-tab="gachaTest">テストガチャ</button>
       </div>
     </section>
+    <nav class="admin-gacha-shortcuts" aria-label="ガチャ管理メニュー">
+      <a href="#adminGachaCards"><strong>カード編集</strong><small>30種類の設定</small></a>
+      <button type="button" data-admin-tab="gachaTest"><strong>テストガチャ</strong><small>本番データと完全分離</small></button>
+      <a href="#adminGachaHistory"><strong>獲得履歴</strong><small>利用状態を確認</small></a>
+    </nav>
     <div class="admin-grid">
       <article class="admin-card"><span>対象年月</span><strong>${escapeHtml(formatMonthLabel(month))}</strong><small>${escapeHtml(setting.status)} / ${escapeHtml(setting.startAt)}〜${escapeHtml(setting.endAt)}</small></article>
       <article class="admin-card"><span>カード抽選ウェイト</span><strong>${oddsTotal}</strong><small>本番APIが登録値の比率で抽選します</small></article>
@@ -5628,7 +5541,7 @@ function renderAdminGacha() {
       <article class="admin-card"><span>今月利用</span><strong>${monthDraws.length}名</strong><small>未利用 ${Math.max(0, members.length - monthDraws.length)}名</small></article>
       <article class="admin-card"><span>キャラクター</span><strong>${characters.length}種類</strong><small>景品 ${prizes.length}件 / 上限到達 ${cards.filter((card) => hasReachedMonthlyLimit(card, month)).length}件</small></article>
     </div>
-    <section class="reservation-menu-group">
+    <section class="reservation-menu-group" id="adminGachaCards">
       <header><h4>排出率設定</h4><span>UR / SSR / SR / R / N</span></header>
       <div class="record-meta-grid gacha-rate-grid">
         ${Object.keys(rarityMeta).map((rarity) => `<span>${escapeHtml(rarity)} ${escapeHtml(rarityMeta[rarity].label)}：${escapeHtml(setting.rarityRates?.[rarity] ?? defaultGachaRarityRates[rarity] ?? 0)}%</span>`).join("")}
@@ -5696,7 +5609,7 @@ function renderAdminGacha() {
         `).join("")}
       </div>
     </section>
-    <article class="admin-preview">
+    <article class="admin-preview" id="adminGachaHistory">
       <h3>景品利用履歴</h3>
       <div class="chart-list">${usageHistory.slice(0, 50).map((card) => {
         const state = getGachaLifecycleState(card);
@@ -5831,18 +5744,9 @@ async function runAdminGachaTest(button) {
     const pool = getGachaCards(setting).filter((item) => item.rarity === rarity && item.isPublic !== false && item.isDrawable !== false);
     card = pool[Math.floor(Math.random() * pool.length)] || getGachaCards(setting).find((item) => item.rarity === rarity);
   } else {
-    if (isProductionApiMode()) {
-      try {
-        const result = await apiRequest("testDrawGacha", { targetYearMonth: setting.issueMonth });
-        const reward = result.reward || result.data?.reward;
-        card = reward ? mapServerGachaRewardToLocal(reward, getOfficialGachaCard(reward.cardId, setting.issueMonth) || {}) : null;
-      } catch (error) {
-        showToast("テスト抽選に失敗しました。");
-        return;
-      }
-    } else {
-      card = drawPrize(setting.issueMonth);
-    }
+    // 本番マスタは同期済みデータを読取専用で使い、抽選結果はTEST領域だけへ保存する。
+    // 未提供のtestDrawGacha APIに依存しないため、本番ユーザーの権利・履歴には触れない。
+    card = drawPrize(setting.issueMonth);
   }
   if (!card) {
     showToast("テスト対象カードがありません。");
@@ -6244,35 +6148,14 @@ function renderAdminFortune() {
 }
 
 function renderAdminLounge() {
-  const entries = getLoungeEntries();
   return `
     <section class="admin-section-head">
       <div>
-        <h3>ご縁ラウンジ管理</h3>
-        <p>事前登録は無料です。正式開始時に改めて有料登録へ案内する構造です。</p>
+        <h3>ご縁ラウンジ</h3>
+        <p>有料会員管理の入口です。</p>
       </div>
     </section>
-    <div class="progress-box admin-progress"><div><strong>${getLoungeCount()}</strong><span>名／50名</span></div><progress max="50" value="${getLoungeCount()}"></progress></div>
-    <div class="admin-list">
-      ${entries.map((entry) => `
-        <article class="admin-record">
-          <header><span class="badge">${escapeHtml(entry.status || "事前登録")}</span><strong>${escapeHtml(entry.nickname)}</strong><small>${formatDateTime(entry.createdAt)}</small></header>
-          <div class="admin-record-grid">${summaryRows([
-            ["性別", entry.gender],
-            ["年代", entry.ageGroup],
-            ["居住エリア", entry.area],
-            ["興味", entry.interest],
-            ["開始通知", entry.notify ? "希望" : "希望しない"],
-            ["正式参加希望", entry.formalInterest || "未確認"]
-          ])}</div>
-          <div class="admin-actions">
-            <button type="button" data-admin-action="loungeDetail" data-id="${escapeHtml(entry.entryId)}">詳細を見る</button>
-            <button type="button" data-admin-action="loungeNotify" data-id="${escapeHtml(entry.entryId)}">通知対象にする</button>
-            <button type="button" data-admin-action="loungeCancel" data-id="${escapeHtml(entry.entryId)}">登録取り消し</button>
-          </div>
-        </article>
-      `).join("") || emptyAdminState("事前登録はまだありません")}
-    </div>
+    <article class="admin-coming-soon"><span>準備中</span><strong>2026年10月開始予定</strong><p>有料会員・月額課金・会員連携は開始時に追加します。</p></article>
   `;
 }
 
