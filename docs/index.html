@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fff6e8">
   <meta name="description" content="TEAM hairのお客様専用アプリ TEAM LINK。予約、今日の占い、クーポン、今月のガチャ、ご縁ラウンジをLINEから開けるスマホ会員アプリです。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&amp;family=Noto+Serif+JP:wght@500;600;700&amp;display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 64'%3E%3Crect width='96' height='64' rx='18' fill='%23130f0b'/%3E%3Ctext x='48' y='38' text-anchor='middle' font-size='12' font-family='Georgia, serif' letter-spacing='3' fill='%23d9b46c'%3ETEAM LINK%3C/text%3E%3C/svg%3E">
   <title>TEAM LINK | TEAM hair お客様専用アプリ</title>
-  <link rel="stylesheet" href="styles.css?v=20260812-compatibility-ui-1">
+  <link rel="stylesheet" href="styles.css?v=20260813-home-jewelry-1">
 </head>
 <body>
   <div class="splash-screen" id="splashScreen" aria-hidden="true">
@@ -83,16 +86,16 @@
               <img class="home-action-icon" src="images/home/mypage.png" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">
               <span>
                 <strong>マイページ</strong>
-                <small>会員情報の確認・編集</small>
+                <small>デジタル会員証</small>
               </span>
               <em>›</em>
             </button>
-            <button class="home-action-card tone-lounge is-coming-soon" type="button" data-message="ご縁ラウンジは9月公開予定です">
+            <button class="home-action-card tone-lounge is-coming-soon" id="homeLoungeCard" type="button" data-view="lounge">
               <img class="home-action-icon" src="images/home/lounge.png" alt="" loading="lazy" decoding="async" onerror="this.hidden=true">
               <span>
                 <strong>ご縁ラウンジ</strong>
-                <small>素敵なご縁を見つけよう</small>
-                <b>9月 OPEN予定</b>
+                <small>素敵なご縁を<br>見つけよう</small>
+                <b id="homeLoungeBadge">10月スタート予定</b>
               </span>
               <em>›</em>
             </button>
@@ -234,7 +237,15 @@
       </section>
 
       <section class="view" id="loungeView" data-title="ご縁ラウンジ">
-        <article class="result-card lounge-hero">
+        <article class="result-card lounge-coming-soon" id="loungeComingSoonPanel">
+          <span class="badge">Coming Soon</span>
+          <p class="kicker">GOEN LOUNGE</p>
+          <h2>ご縁ラウンジ</h2>
+          <strong>2026年10月スタート予定</strong>
+          <p>ご縁ラウンジは、ただいま心を込めて準備中です。公開まで今しばらくお待ちください。</p>
+          <button class="secondary-button" type="button" data-view="home">ホームへ戻る</button>
+        </article>
+        <article class="result-card lounge-hero" id="loungeOpenPanel" hidden>
           <span class="badge">Coming Soon</span>
           <h2>ご縁ラウンジ</h2>
           <p>独身者向け交流サービス。現在、無料の事前登録を受け付けています。</p>
@@ -283,33 +294,30 @@
 
       <section class="view" id="mypageView" data-title="マイページ">
         <div class="section-head">
-          <p class="kicker">My page</p>
-          <h2>マイページ</h2>
+          <p class="kicker">Member card</p>
+          <h2>デジタル会員証</h2>
         </div>
-        <article class="profile-card">
-          <div class="avatar brand-avatar" aria-hidden="true">
-            <span class="team-link-wordmark profile-wordmark">TEAM LINK</span>
+        <article class="member-card" aria-label="TEAM LINK デジタル会員証">
+          <span class="member-card-light" aria-hidden="true"></span>
+          <header class="member-card-header">
+            <span class="team-link-wordmark member-card-wordmark">TEAM LINK</span>
+            <small>MEMBER</small>
+          </header>
+          <div class="member-card-name">
+            <small>TEAM LINK MEMBER</small>
+            <strong id="mypageMemberName">お客様</strong>
           </div>
-          <div>
-            <small>TEAM hair member</small>
-            <strong id="mypageMemberName">ゲスト</strong>
-            <p id="mypageStatusText">次回のおすすめやクーポンを確認できます。</p>
+          <div class="member-card-stats">
+            <div>
+              <span>前回来店から</span>
+              <strong><b id="mypageVisitDays">―</b>日</strong>
+            </div>
+            <div>
+              <span>累計来店</span>
+              <strong><b id="mypageVisitCount">0</b>回</strong>
+            </div>
           </div>
-        </article>
-        <article class="admin-preview" id="mypageReservationsPanel"></article>
-        <div class="mypage-grid">
-          <button type="button" data-message="プロフィール編集は次フェーズで接続します。">プロフィール</button>
-          <button type="button" data-view="reservation">次回予約</button>
-          <button type="button" data-message="予約履歴は管理表連携時に表示します。">予約履歴</button>
-          <button type="button" data-view="coupons">マイクーポン</button>
-          <button type="button" data-view="mycards">マイカード</button>
-          <button type="button" data-view="fortune">占い履歴</button>
-          <button type="button" data-message="LINE通知設定は次フェーズで接続します。">通知</button>
-          <button type="button" data-message="設定画面は次フェーズで追加します。">設定</button>
-        </div>
-        <article class="note-card">
-          <h3>これから追加しやすい機能</h3>
-          <p>来店スタンプ、ポイント、VIPランク、AIおすすめメニュー、商品購入、イベント参加を同じマイページへ追加できる構造です。</p>
+          <footer>TEAM hair · TEAM LINK</footer>
         </article>
       </section>
 
@@ -362,6 +370,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="gacha-reveal" id="gachaReveal" hidden aria-live="polite"></div>
-  <script src="app.js?v=20260812-compatibility-copy-1"></script>
+  <script src="app.js?v=20260813-member-card-1"></script>
 </body>
 </html>

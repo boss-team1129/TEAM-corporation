@@ -3,6 +3,7 @@ const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || (typeof localStorage !
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
+const LOUNGE_RELEASE_DATE = "2026-10-01";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
 const LEGACY_FIXED_PROFILE = Object.freeze({
@@ -104,6 +105,7 @@ const defaultProfile = {
   lineUserId: "",
   nickname: "お客様",
   lastVisitDate: "",
+  visitCount: 0,
   nextReservation: null,
   preferredStaff: "boss-muramatsu",
   rank: "PRIVATE"
@@ -761,6 +763,11 @@ function bindForms() {
 
   document.getElementById("loungeForm").addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!isLoungeOpen()) {
+      showToast("ご縁ラウンジは10月スタート予定です。ただいま準備中です。");
+      showView("lounge");
+      return;
+    }
     const submitButton = event.currentTarget.querySelector("button[type='submit']");
     setButtonLoading(submitButton, true, "登録中…");
     try {
@@ -1839,6 +1846,11 @@ function renderHome() {
   if (fortuneBadge) {
     fortuneBadge.textContent = appState.todayFortune?.summary || "今日の運勢をチェック";
   }
+
+  const loungeCard = document.getElementById("homeLoungeCard");
+  const loungeBadge = document.getElementById("homeLoungeBadge");
+  if (loungeCard) loungeCard.classList.toggle("is-coming-soon", !isLoungeOpen());
+  if (loungeBadge) loungeBadge.textContent = isLoungeOpen() ? "OPEN" : "10月スタート予定";
 }
 
 function renderReservationStatus() {
@@ -1903,6 +1915,10 @@ function openInitialView() {
 }
 
 function showView(viewKey, options = {}) {
+  if (viewKey === "loungeRegister" && !isLoungeOpen()) {
+    showToast("ご縁ラウンジは10月スタート予定です。ただいま準備中です。");
+    viewKey = "lounge";
+  }
   const viewId = viewMap[viewKey] || viewKey;
   const target = document.getElementById(viewId);
   if (!target) return;
@@ -4729,7 +4745,17 @@ function gachaCardHtml(card, withActions = false) {
   `;
 }
 
+function isLoungeOpen() {
+  return jstDateKey() >= LOUNGE_RELEASE_DATE;
+}
+
 function renderLounge() {
+  const comingSoonPanel = document.getElementById("loungeComingSoonPanel");
+  const openPanel = document.getElementById("loungeOpenPanel");
+  const isOpen = isLoungeOpen();
+  if (comingSoonPanel) comingSoonPanel.hidden = isOpen;
+  if (openPanel) openPanel.hidden = !isOpen;
+  if (!isOpen) return;
   const count = getLoungeCount();
   document.getElementById("loungeCount").textContent = count;
   document.getElementById("loungeProgress").value = count;
@@ -4737,41 +4763,15 @@ function renderLounge() {
 
 function renderMyPage() {
   const profile = getProfile();
-  const nextReservation = getNextReservation();
-  const visitDays = daysSince(profile.lastVisitDate);
+  const member = getMembers().find((item) => (
+    String(item.memberId || "") === String(profile.memberId || "") ||
+    (profile.lineUserId && String(item.lineUserId || "") === String(profile.lineUserId))
+  ));
+  const lastVisitDate = member?.lastVisitDate || profile.lastVisitDate;
+  const visitCount = Number(member?.visitCount ?? profile.visitCount ?? 0);
   document.getElementById("mypageMemberName").textContent = formatMemberDisplayName(profile.nickname);
-  document.getElementById("mypageStatusText").textContent = nextReservation
-    ? `次回予約：${formatDateTime(nextReservation.firstDateTime || nextReservation.confirmedDateTime)}`
-    : `前回来店から${visitDays}日。マイクーポンと美容運を確認できます。`;
-  renderMyPageReservations();
-}
-
-function renderMyPageReservations() {
-  const panel = document.getElementById("mypageReservationsPanel");
-  if (!panel) return;
-  const profile = getProfile();
-  const upcoming = readJson(STORAGE_KEYS.bookings, [])
-    .filter((booking) => String(booking.memberId || "") === String(profile.memberId || ""))
-    .filter((booking) => !["キャンセル", "対応完了", "来店済み"].includes(normalizeBookingStatus(booking.status)))
-    .sort((a, b) => new Date(a.confirmedDateTime || a.firstDateTime || a.createdAt).getTime() - new Date(b.confirmedDateTime || b.firstDateTime || b.createdAt).getTime());
-  panel.innerHTML = `
-    <p class="kicker">Reservation</p>
-    <h3>今後の予約・相談</h3>
-    ${upcoming.length ? upcoming.map((booking) => `
-      <div class="reservation-row">
-        <div>
-          <strong>${escapeHtml(formatDateTime(booking.confirmedDateTime || booking.firstDateTime))}</strong>
-          <small>${escapeHtml(booking.menu || "メニュー確認中")} / ${escapeHtml(booking.staff || "担当者確認中")}</small>
-          <em>${escapeHtml(booking.status || "予約希望")} / ${escapeHtml(booking.reservationSource || booking.source || "TEAM LINK")}</em>
-        </div>
-        <div>
-          <button type="button" data-booking-action="changeRequest" data-id="${escapeHtml(booking.requestId)}">日時変更を相談する</button>
-          <button type="button" data-booking-action="cancelRequest" data-id="${escapeHtml(booking.requestId)}">キャンセルを依頼する</button>
-        </div>
-      </div>
-    `).join("") : "<p>現在、TEAM LINKで管理している今後の予約はありません。</p>"}
-    <p class="soft-note">ホットペッパーから予約した場合は、ホットペッパーから変更・キャンセルしてください。</p>
-  `;
+  document.getElementById("mypageVisitDays").textContent = lastVisitDate ? String(daysSince(lastVisitDate)) : "―";
+  document.getElementById("mypageVisitCount").textContent = String(Math.max(0, visitCount));
 }
 
 function renderAdmin() {
@@ -8837,7 +8837,8 @@ function syncProfileFromMember(member) {
     memberId: member.memberId,
     lineUserId: member.lineUserId,
     nickname: member.nickname || member.realName || profile.nickname,
-    lastVisitDate: member.lastVisitDate
+    lastVisitDate: member.lastVisitDate,
+    visitCount: Number(member.visitCount || 0)
   });
 }
 
