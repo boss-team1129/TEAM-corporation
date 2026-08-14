@@ -80,6 +80,7 @@ const appState = {
   bookingDraft: null,
   bookingSubmitBusy: false,
   bookingPendingRequestId: "",
+  adminBookingActionBusyId: "",
   adminFocusedBookingRequestId: "",
   menuMasterSyncStatus: "pending",
   couponMasterSyncStatus: "pending",
@@ -5652,6 +5653,7 @@ function bookingCard(booking) {
   const menuLabel = selectedMenus.length ? selectedMenus.map((menu) => menu.title).join("、") : booking.menu || "";
   const couponLabel = selectedCoupons.length ? selectedCoupons.map((menu) => menu.title).join("、") : booking.couponTitle || "なし";
   const requestId = booking.requestId || booking.bookingRequestId || "";
+  const isActionBusy = String(appState.adminBookingActionBusyId || "") === String(requestId);
   const isDeepLinked = String(appState.adminFocusedBookingRequestId || "") === String(requestId);
   const canRespond = ["予約希望", "確認待ち", "日時変更相談", "変更依頼", "別日時提案中", "お客様返答待ち"].includes(status);
   return `
@@ -5670,7 +5672,7 @@ function bookingCard(booking) {
         <small>${escapeHtml(booking.userId || booking.memberId || "")} / 受付 ${escapeHtml(formatDateTime(booking.receivedAt || booking.createdAt))}</small>
       </details>
       <div class="admin-actions admin-booking-actions">
-        ${canRespond ? `<button type="button" data-admin-action="confirmFirstChoice" data-id="${escapeHtml(requestId)}">受付承諾</button><button type="button" class="secondary-button" data-admin-action="proposeBooking" data-id="${escapeHtml(requestId)}">別日の案内</button>` : ""}
+        ${canRespond ? `<button type="button" data-admin-action="confirmFirstChoice" data-id="${escapeHtml(requestId)}" ${isActionBusy ? "disabled" : ""}>受付承諾</button><button type="button" class="secondary-button" data-admin-action="proposeBooking" data-id="${escapeHtml(requestId)}" ${isActionBusy ? "disabled" : ""}>${isActionBusy ? "更新中…" : "別日の案内"}</button>` : ""}
       </div>
     </article>
   `;
@@ -6605,7 +6607,7 @@ function handleAdminAction(button) {
   if (action === "bookingMemberChart") return openMemberChart(id);
   if (action === "confirmFirstChoice") return confirmBookingChoice(id, "first");
   if (action === "confirmSecondChoice") return confirmBookingChoice(id, "second");
-  if (action === "proposeBooking") return updateBookingStatus(id, "needs_change");
+  if (action === "proposeBooking") return runBookingStatusAction(button, id, "needs_change");
   if (action === "editBooking") return editBooking(id);
   if (action === "bookingWaiting") return updateBookingStatus(id, "お客様返答待ち");
   if (action === "bookingSalonBoard") return updateBookingStatus(id, "サロンボード入力済み");
@@ -7833,7 +7835,10 @@ function toggleMemberStatus(memberId) {
 async function updateBookingStatus(requestId, status) {
   const bookings = readJson(STORAGE_KEYS.bookings, []);
   const booking = bookings.find((item) => item.requestId === requestId);
-  if (!booking) return;
+  if (!booking) {
+    showToast("予約情報を取得できませんでした。画面を更新してもう一度お試しください。");
+    return false;
+  }
   booking.status = status;
   booking.currentStatus = status;
   booking.updatedAt = new Date().toISOString();
@@ -7866,11 +7871,39 @@ async function updateBookingStatus(requestId, status) {
       });
     } catch (error) {
       showToast("管理データの保存に失敗しました。再度お試しください。");
-      return;
+      return false;
     }
   }
   addAdminLog("booking", `${booking.customerName || "お客様"} の予約を${status}に変更`, getAdminSession()?.name);
   renderApp();
+  if (normalizeBookingStatus(status) === "日時変更相談") {
+    showToast("別日の案内に変更しました。");
+  }
+  return true;
+}
+
+async function runBookingStatusAction(button, requestId, status) {
+  if (!requestId || appState.adminBookingActionBusyId) return;
+  appState.adminBookingActionBusyId = requestId;
+  const actionGroup = button.closest(".admin-booking-actions");
+  const buttons = actionGroup ? [...actionGroup.querySelectorAll("button")] : [button];
+  buttons.forEach((item) => { item.disabled = true; });
+  const originalLabel = button.textContent;
+  button.textContent = "更新中…";
+  button.setAttribute("aria-busy", "true");
+  showToast("別日の案内へ更新しています…");
+  try {
+    return await updateBookingStatus(requestId, status);
+  } finally {
+    appState.adminBookingActionBusyId = "";
+    if (button.isConnected) {
+      button.textContent = originalLabel;
+      button.removeAttribute("aria-busy");
+      buttons.forEach((item) => { item.disabled = false; });
+    } else {
+      renderApp();
+    }
+  }
 }
 
 async function confirmBookingChoice(requestId, choice) {
