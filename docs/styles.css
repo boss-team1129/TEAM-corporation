@@ -213,6 +213,13 @@ a { color: inherit; text-decoration: none; }
 
 .view.is-active { display: grid; gap: 18px; }
 
+/* The entrance animation leaves a transform on the active view. On iOS that
+   turns fixed admin dialogs into page-relative elements after scrolling. */
+#adminView.is-active {
+  animation: none;
+  transform: none;
+}
+
 .hero-panel,
 .line-guide,
 .choice-card,
@@ -4574,6 +4581,14 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   padding: 14px;
 }
 
+/* backdrop-filter creates a fixed-position containing block in Safari. Disable
+   it only while the booking response dialog is open so the overlay stays in
+   the actual viewport after the admin list has been scrolled. */
+.has-admin-booking-response .admin-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .admin-dashboard-grid,
 .admin-grid {
   display: grid;
@@ -5055,6 +5070,205 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .admin-booking-sent-proposal small {
   color: rgba(255, 250, 239, .56);
+}
+
+.booking-consultation-open {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+}
+
+.booking-consultation-latest {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(185, 139, 57, .24);
+  border-radius: 14px;
+  color: #71501f;
+  background: rgba(255, 249, 235, .76);
+}
+
+.booking-consultation-latest span {
+  font-size: 12px;
+}
+
+.booking-consultation-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(185, 139, 57, .28);
+  border-radius: 18px;
+  background: linear-gradient(150deg, rgba(255, 252, 244, .96), rgba(250, 234, 202, .74));
+}
+
+.booking-consultation-panel h3,
+.booking-consultation-panel p {
+  margin: 0;
+}
+
+.booking-consultation-panel p {
+  color: rgba(90, 60, 31, .72);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.booking-consultation-panel label {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: #69451f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.booking-consultation-panel select,
+.booking-consultation-panel textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid rgba(185, 139, 57, .30);
+  border-radius: 13px;
+  color: #4f321b;
+  background: rgba(255, 255, 255, .90);
+  font: inherit;
+  font-size: 16px;
+}
+
+.booking-consultation-panel select { min-height: 48px; }
+.booking-consultation-panel textarea { min-height: 104px; resize: vertical; line-height: 1.55; }
+
+.booking-consultation-actions {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, .75fr);
+  gap: 8px;
+}
+
+.booking-consultation-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 8px;
+}
+
+.admin-booking-consultations {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.admin-booking-consultations > strong {
+  color: var(--champagne);
+  font-size: 13px;
+}
+
+.admin-booking-consultation-count {
+  color: var(--champagne);
+  border-color: rgba(228, 199, 126, .28) !important;
+  background: rgba(228, 199, 126, .08);
+}
+
+.admin-booking-consultations article {
+  padding: 10px;
+  border: 1px solid rgba(228, 199, 126, .18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .045);
+}
+
+.admin-booking-response-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgba(8, 7, 6, .76);
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+}
+
+.admin-booking-response-modal {
+  width: min(100%, 520px);
+  max-width: 100%;
+  min-width: 0;
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(228, 199, 126, .34);
+  border-radius: 22px;
+  color: #fffaf0;
+  background: linear-gradient(155deg, #24201c, #11100e);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .54);
+  overflow-y: auto;
+}
+
+.admin-booking-response-modal h3,
+.admin-booking-response-modal p { margin: 0; }
+
+.admin-booking-response-message {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: var(--champagne);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-booking-response-message textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 120px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid rgba(228, 199, 126, .30);
+  border-radius: 14px;
+  color: #fffaf0;
+  background: rgba(7, 7, 7, .48);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.admin-booking-response-actions {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, .65fr);
+  gap: 8px;
+}
+
+.admin-booking-response-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 8px;
+  border: 1px solid rgba(228, 199, 126, .24);
+  border-radius: 999px;
+  color: #15100c;
+  background: linear-gradient(135deg, #b98b39, #f1d98c);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-booking-response-actions .secondary-button {
+  color: var(--champagne);
+  background: rgba(255, 255, 255, .08);
 }
 
 .priority-actions button:first-child {
