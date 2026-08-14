@@ -87,6 +87,9 @@ const appState = {
   adminBookingResponseRequestId: "",
   adminBookingResponseMode: "",
   adminFocusedBookingRequestId: "",
+  lineNotificationSettings: null,
+  lineNotificationSettingsStatus: "pending",
+  lineNotificationSettingsBusy: false,
   menuMasterSyncStatus: "pending",
   couponMasterSyncStatus: "pending",
   memberCouponSyncStatus: "pending",
@@ -613,7 +616,8 @@ const adminTabs = [
   { key: "coupons", label: "クーポン" },
   { key: "gacha", label: "ガチャ管理" },
   { key: "members", label: "会員管理" },
-  { key: "lounge", label: "ご縁ラウンジ" }
+  { key: "lounge", label: "ご縁ラウンジ" },
+  { key: "settings", label: "LINE通知設定" }
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -658,7 +662,12 @@ function bindNavigation() {
     if (adminTabButton) {
       appState.adminTab = adminTabButton.dataset.adminTab;
       renderAdmin();
-      if (isProductionApiMode() && ["bookings", "visits", "coupons", "gacha", "members"].includes(appState.adminTab) && appState.adminDataStatus[appState.adminTab] !== "ready") {
+      if (isProductionApiMode() && appState.adminTab === "settings" && appState.lineNotificationSettingsStatus !== "ready") {
+        syncProductionLineNotificationSettings().catch((error) => {
+          console.error("[TEAM LINK LINE NOTIFICATION SETTINGS SYNC FAILED]", error);
+          showToast("LINE通知設定を取得できませんでした。");
+        });
+      } else if (isProductionApiMode() && ["bookings", "visits", "coupons", "gacha", "members"].includes(appState.adminTab) && appState.adminDataStatus[appState.adminTab] !== "ready") {
         syncProductionAdminSection().catch((error) => {
           console.error("[TEAM LINK ADMIN SYNC FAILED]", error);
           showToast("管理データを取得できませんでした。");
@@ -2141,9 +2150,10 @@ function getReservationCouponDisplayText(booking) {
 function openInitialView() {
   const params = new URLSearchParams(location.search);
   const view = params.get("view") || params.get("page") || "home";
-  if (view === "admin" && params.get("section") === "bookings") {
-    appState.adminTab = "bookings";
-    appState.adminFocusedBookingRequestId = String(params.get("requestId") || "").trim();
+  const adminSection = String(params.get("section") || "").trim();
+  if (view === "admin" && adminTabs.some((tab) => tab.key === adminSection)) {
+    appState.adminTab = adminSection;
+    if (adminSection === "bookings") appState.adminFocusedBookingRequestId = String(params.get("requestId") || "").trim();
   }
   showView(viewMap[view] ? view : "home", { replace: true });
 }
@@ -5270,6 +5280,7 @@ function renderAdminDashboard() {
           </button>
         `).join("")}
       </div>
+      <button type="button" class="admin-settings-shortcut" data-admin-tab="settings">LINE自動通知設定</button>
     </section>
   `;
 }
@@ -5678,6 +5689,7 @@ function renderAdminBookings() {
         <h3>予約管理</h3>
         <p>予約希望を確認し、「受付承諾」または「別日の案内」で対応します。</p>
       </div>
+      <button type="button" class="secondary-button compact" data-admin-tab="settings">LINE通知設定</button>
     </section>
     <div class="admin-list admin-booking-list">
       ${sorted.map((booking) => bookingCard(booking)).join("") || emptyAdminState("予約希望はありません")}
@@ -6617,6 +6629,15 @@ function renderAdminSettings() {
   const logs = readJson(STORAGE_KEYS.adminLogs, []).slice(0, 12);
   const settings = getStoreSettings();
   const menus = getReservationMenus();
+  const canEditLineSettings = session.role === "admin";
+  const lineSettings = appState.lineNotificationSettings;
+  const lineSettingsStatus = appState.lineNotificationSettingsStatus;
+  const lineSettingItems = [
+    ["bookingConfirmed", "予約確定通知", "予約を確定したとき"],
+    ["bookingNeedsChange", "別日の案内通知", "別日の相談を送るとき"],
+    ["bookingConsultationReply", "予約相談への返信通知", "予約相談へ返信するとき（将来連携用）"],
+    ["staffMessage", "その他スタッフメッセージ通知", "個別メッセージを送るとき（将来連携用）"]
+  ];
   return `
     <section class="admin-section-head">
       <div>
@@ -6624,6 +6645,30 @@ function renderAdminSettings() {
         <p>管理者とスタッフで操作範囲を分け、操作履歴を保存します。</p>
       </div>
     </section>
+    <article class="admin-preview line-notification-settings">
+      <header>
+        <div><p class="kicker">LINE notification</p><h3>LINE自動通知設定</h3></div>
+        <span class="badge ${lineSettings?.enabled ? "status-success" : "status-warning"}">${lineSettingsStatus === "ready" ? (lineSettings.enabled ? "全体 ON" : "全体 OFF") : "確認中"}</span>
+      </header>
+      <p class="soft-note">TEAM LINKからお客様へ送る自動通知だけを制御します。お客様からのLINEメッセージ受信には影響しません。</p>
+      ${lineSettingsStatus === "loading" || lineSettingsStatus === "pending" ? `<p>本番Settingsを取得しています…</p>` : ""}
+      ${lineSettingsStatus === "error" ? `<div class="admin-empty"><strong>LINE通知設定を取得できませんでした</strong><button type="button" class="secondary-button" data-admin-action="reloadLineNotificationSettings">再取得</button></div>` : ""}
+      ${lineSettingsStatus === "ready" && lineSettings ? `
+        <label class="line-notification-master-switch">
+          <span><strong>LINE自動通知 全体</strong><small>OFFの場合、個別設定がONでも送信しません</small></span>
+          <input type="checkbox" data-line-notification-setting="enabled" ${lineSettings.enabled ? "checked" : ""} ${appState.lineNotificationSettingsBusy || !canEditLineSettings ? "disabled" : ""}>
+        </label>
+        <div class="line-notification-setting-list">
+          ${lineSettingItems.map(([key, title, description]) => `
+            <label>
+              <span><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
+              <input type="checkbox" data-line-notification-setting="${escapeHtml(key)}" ${lineSettings[key] ? "checked" : ""} ${appState.lineNotificationSettingsBusy || !canEditLineSettings ? "disabled" : ""}>
+            </label>
+          `).join("")}
+        </div>
+        ${canEditLineSettings ? `<button type="button" class="primary-button" data-admin-action="saveLineNotificationSettings" ${appState.lineNotificationSettingsBusy ? "disabled" : ""}>${appState.lineNotificationSettingsBusy ? "保存中…" : "設定を保存する"}</button>` : `<p class="soft-note">設定変更は管理者のみ行えます。</p>`}
+      ` : ""}
+    </article>
     <div class="admin-grid">
       <article class="admin-card"><span>現在の権限</span><strong>${escapeHtml(session.label)}</strong><small>${session.role === "admin" ? "すべての閲覧・編集・削除が可能" : "来店確認、予約対応、クーポン確認のみ"}</small></article>
       <article class="admin-card"><span>予約先</span><strong>Hot Pepper</strong><small>${escapeHtml(settings.hotpepperReservationUrl || "未設定")}</small></article>
@@ -6642,6 +6687,8 @@ function renderAdminSettings() {
 function handleAdminAction(button) {
   const action = button.dataset.adminAction;
   const id = button.dataset.id || "";
+  if (action === "reloadLineNotificationSettings") return syncProductionLineNotificationSettings();
+  if (action === "saveLineNotificationSettings") return saveLineNotificationSettings(button);
   if (action === "simulateVisit") return simulateVisitReception();
   if (action === "toggleVisitHistory") {
     appState.adminVisitShowHistory = !appState.adminVisitShowHistory;
@@ -8233,6 +8280,7 @@ function getBookingLineNotificationLabel(booking) {
   const status = String(booking?.lineNotificationStatus || "");
   if (status === "sent") return "送信済み";
   if (status === "skipped_unlinked") return "LINE未連携のため通知なし";
+  if (status === "skipped_disabled") return "LINE通知OFFのため送信なし";
   if (status === "failed") return "通知失敗";
   return "";
 }
@@ -8241,6 +8289,10 @@ function showBookingLineNotificationToast(successMessage, notification) {
   const status = String(notification?.status || "");
   if (status === "skipped_unlinked") {
     showToast(`${successMessage}（LINE未連携のため通知なし）`);
+    return;
+  }
+  if (status === "skipped_disabled") {
+    showToast(`${successMessage}（LINE通知OFFのため送信なし）`);
     return;
   }
   if (status === "failed") {
@@ -10555,6 +10607,70 @@ async function syncProductionBookingRequests(options = {}) {
   }
 }
 
+function normalizeLineNotificationSettings(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    enabled: source.enabled === true,
+    bookingConfirmed: source.bookingConfirmed === true,
+    bookingNeedsChange: source.bookingNeedsChange === true,
+    bookingConsultationReply: source.bookingConsultationReply === true,
+    staffMessage: source.staffMessage === true,
+    updatedAt: source.updatedAt || ""
+  };
+}
+
+async function syncProductionLineNotificationSettings(options = {}) {
+  if (!isProductionApiMode() || !getAdminSession()) return null;
+  appState.lineNotificationSettingsStatus = "loading";
+  if (options.render !== false) renderApp();
+  try {
+    const result = await apiRequest("getLineNotificationSettings", {});
+    const settings = result.settings || result.data?.settings;
+    if (!settings || typeof settings !== "object") throw new Error("LINE通知設定の形式が正しくありません。");
+    appState.lineNotificationSettings = normalizeLineNotificationSettings(settings);
+    appState.lineNotificationSettingsStatus = "ready";
+    if (options.render !== false) renderApp();
+    return appState.lineNotificationSettings;
+  } catch (error) {
+    appState.lineNotificationSettings = null;
+    appState.lineNotificationSettingsStatus = "error";
+    if (options.render !== false) renderApp();
+    throw error;
+  }
+}
+
+async function saveLineNotificationSettings(button) {
+  if (!isProductionApiMode() || !getAdminSession() || appState.lineNotificationSettingsBusy) return false;
+  const panel = button.closest(".line-notification-settings");
+  const readToggle = (key) => Boolean(panel?.querySelector(`[data-line-notification-setting="${key}"]`)?.checked);
+  const nextSettings = {
+    enabled: readToggle("enabled"),
+    bookingConfirmed: readToggle("bookingConfirmed"),
+    bookingNeedsChange: readToggle("bookingNeedsChange"),
+    bookingConsultationReply: readToggle("bookingConsultationReply"),
+    staffMessage: readToggle("staffMessage")
+  };
+  appState.lineNotificationSettingsBusy = true;
+  renderApp();
+  try {
+    const result = await apiRequest("updateLineNotificationSettings", nextSettings);
+    const settings = result.settings || result.data?.settings;
+    if (!settings || typeof settings !== "object") throw new Error("保存後のLINE通知設定を取得できませんでした。");
+    appState.lineNotificationSettings = normalizeLineNotificationSettings(settings);
+    appState.lineNotificationSettingsStatus = "ready";
+    addAdminLog("line_notification_settings", `LINE自動通知を${appState.lineNotificationSettings.enabled ? "ON" : "OFF"}に更新`, getAdminSession()?.name);
+    showToast("LINE自動通知設定を保存しました。");
+    return true;
+  } catch (error) {
+    console.error("[TEAM LINK LINE NOTIFICATION SETTINGS SAVE FAILED]", error);
+    showToast("LINE通知設定を保存できませんでした。");
+    return false;
+  } finally {
+    appState.lineNotificationSettingsBusy = false;
+    renderApp();
+  }
+}
+
 function mapServerBookingToLocal(booking) {
   return {
     ...booking,
@@ -10596,6 +10712,7 @@ async function syncProductionVisitReceptions(options = {}) {
 
 async function syncProductionAdminSection(options = {}) {
   if (appState.adminTab === "bookings") return syncProductionBookingRequests(options);
+  if (appState.adminTab === "settings") return syncProductionLineNotificationSettings(options);
   return syncProductionAdminState(options);
 }
 
