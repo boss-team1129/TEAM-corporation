@@ -4965,6 +4965,98 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   cursor: wait;
 }
 
+.admin-booking-proposal {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid rgba(228, 199, 126, .30);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(228, 199, 126, .10), rgba(255, 255, 255, .035));
+}
+
+.admin-booking-proposal label,
+.admin-booking-sent-proposal strong {
+  color: var(--champagne);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-booking-proposal textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid rgba(228, 199, 126, .30);
+  border-radius: 13px;
+  color: #fffaf0;
+  background: rgba(13, 11, 10, .72);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.admin-booking-proposal textarea:focus {
+  outline: 2px solid rgba(228, 199, 126, .42);
+  outline-offset: 1px;
+}
+
+.admin-booking-proposal-note {
+  margin: 0;
+  color: rgba(255, 250, 239, .64);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.admin-booking-proposal-actions {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-booking-proposal-actions button {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding-inline: 8px;
+  border: 1px solid rgba(228, 199, 126, .24);
+  border-radius: 999px;
+  color: #15100c;
+  background: linear-gradient(135deg, #b98b39, #f1d98c);
+  font-size: 12px;
+  font-weight: 900;
+  touch-action: manipulation;
+}
+
+.admin-booking-proposal-actions .secondary-button {
+  color: var(--champagne);
+  background: rgba(255,255,255,.08);
+}
+
+.admin-booking-sent-proposal {
+  margin: 10px 0;
+  padding: 10px;
+  border-left: 3px solid rgba(228, 199, 126, .72);
+  border-radius: 0 12px 12px 0;
+  background: rgba(228, 199, 126, .075);
+}
+
+.admin-record-details .admin-booking-sent-proposal p {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-booking-sent-proposal small {
+  color: rgba(255, 250, 239, .56);
+}
+
 .priority-actions button:first-child {
   min-height: 50px;
   box-shadow: 0 12px 28px rgba(201, 155, 74, .24);
