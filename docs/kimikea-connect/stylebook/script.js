@@ -174,7 +174,12 @@ async function persistRecipe(recipe) {
     const response = await fetch(STYLEBOOK_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'save', recipe, userId: getCurrentUserId() })
+      body: JSON.stringify({
+        api: 'updateStylebookPost',
+        postId: recipe.id,
+        userId: getCurrentUserId(),
+        post: recipe
+      })
     });
     const data = await response.json();
     if (!data.ok) throw new Error(data.message || '保存できませんでした');
@@ -192,7 +197,11 @@ async function persistDelete(id) {
     const response = await fetch(STYLEBOOK_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'delete', id, userId: getCurrentUserId() })
+      body: JSON.stringify({
+        api: 'deleteStylebookPost',
+        postId: id,
+        userId: getCurrentUserId()
+      })
     });
     const data = await response.json();
     if (!data.ok) throw new Error(data.message || '削除できませんでした');
