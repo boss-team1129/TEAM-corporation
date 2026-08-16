@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#eef4f5">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Kimikea Connect">
+  <meta name="application-name" content="Kimikea Connect">
+  <meta name="format-detection" content="telephone=no">
+
+  <title>Kimikea Connect</title>
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header" aria-labelledby="pageTitle">
+      <div class="brand-mark" aria-hidden="true">K</div>
+      <div>
+        <p class="eyebrow">Members Portal</p>
+        <h1 id="pageTitle">Kimikea Connect</h1>
+      </div>
+    </header>
+
+    <section class="main-action" aria-labelledby="orderTitle">
+      <p class="action-label">会員専用</p>
+      <h2 id="orderTitle">エクステ注文ポータル</h2>
+      <p>Kimikea Connect内の発注センターです。加盟店ログイン後、grow商品の注文・注文履歴・請求書確認ができます。</p>
+      <a class="primary-button" href="https://script.google.com/macros/s/AKfycbyWxvyWZ7_qTkCgvkuim-h_AhDQEHag7xexg8iDqyHE-toaRA6ttQPpNjUaNfTyTYhA/exec">
+        <span class="button-icon" aria-hidden="true">□</span>
+        <span>発注センターを開く</span>
+      </a>
+    </section>
+
+    <section class="home-menu" aria-labelledby="menuTitle">
+      <div class="section-title">
+        <h2 id="menuTitle">ホーム</h2>
+      <p>協会の仕事アプリとして使う機能を選択してください。</p>
+      </div>
+
+      <div class="home-grid">
+        <a class="home-card" href="./stylebook/">
+          <span class="line-icon book-icon" aria-hidden="true"></span>
+          <strong>スタイルブック</strong>
+          <small>施術レシピと使用カラーの図鑑</small>
+        </a>
+
+        <a class="home-card is-disabled" href="#" aria-disabled="true">
+          <span class="line-icon color-icon" aria-hidden="true"></span>
+          <strong>人気色</strong>
+          <small>今月・今年の人気カラー</small>
+          <span class="status-pill">準備中</span>
+        </a>
+
+        <a class="home-card is-disabled" href="#" aria-disabled="true">
+          <span class="line-icon map-icon" aria-hidden="true"></span>
+          <strong>マップ</strong>
+          <small>加盟店・コーディネーター検索</small>
+          <span class="status-pill">準備中</span>
+        </a>
+
+        <a class="home-card is-disabled" href="#" aria-disabled="true">
+          <span class="line-icon ai-icon" aria-hidden="true"></span>
+          <strong>AI診断</strong>
+          <small>似合う色とスタイル提案</small>
+          <span class="status-pill">準備中</span>
+        </a>
+
+        <a class="home-card is-disabled wide-card" href="#" aria-disabled="true">
+          <span class="line-icon news-icon" aria-hidden="true"></span>
+          <strong>お知らせ</strong>
+          <small>新色、イベント、講習、メンテナンス情報</small>
+          <span class="status-pill">準備中</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="install-note">
+      <h2>ホーム画面へ追加</h2>
+      <p>iPhoneの場合はSafariで開き、共有ボタンから「ホーム画面に追加」を選択してください。</p>
+    </section>
+  </main>
+</body>
+</html>
