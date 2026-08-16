@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'kimikea_stylebook_recipes_v2';
-const STYLEBOOK_API_URL = '';
+const STYLEBOOK_API_URL = 'https://script.google.com/macros/s/AKfycbwPJPYIHNtVXh8I1CCs7SAZT-Ow6JeHNnazz_YRrK4m_Rr_jjy7UYPJCJx19RcklLam/exec';
+const urlParams = new URLSearchParams(window.location.search);
 
 const sampleRecipes = [
   {
@@ -66,9 +67,9 @@ const state = {
   currentPhoto: '',
   saveMode: 'published',
   currentUserRole: 'user',
-  currentUserId: 'local-user',
-  currentView: new URLSearchParams(window.location.search).get('view') || 'list',
-  currentDetailId: new URLSearchParams(window.location.search).get('id') || '',
+  currentUserId: urlParams.get('userId') || urlParams.get('ownerId') || urlParams.get('memberId') || '',
+  currentView: urlParams.get('view') || 'list',
+  currentDetailId: urlParams.get('id') || '',
   returnToDetailId: ''
 };
 
@@ -132,7 +133,72 @@ function getCurrentUserId() {
 }
 
 function getRecipeOwnerId(recipe) {
-  return String(recipe?.ownerId || recipe?.userId || recipe?.createdByUserId || '').trim();
+  return String(
+    recipe?.authorId ||
+    recipe?.createdByUserId ||
+    recipe?.ownerId ||
+    recipe?.userId ||
+    recipe?.createdBy ||
+    ''
+  ).trim();
+}
+
+function toArrayValue(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (error) {
+    // Spreadsheet cells may contain newline/comma separated values.
+  }
+  return value.split(/[\n,]/).map(item => item.trim()).filter(Boolean);
+}
+
+function buildColorsFromPost(post) {
+  const labels = [
+    ...toArrayValue(post.colorLabels),
+    ...toArrayValue(post.extensionColors),
+    ...toArrayValue(post.colors),
+    ...toArrayValue(post.colorCodes),
+    ...toArrayValue(post.extensionColorIds)
+  ].filter(Boolean);
+  const count = Number(post.extensionCount || 0);
+  if (!labels.length) {
+    return count > 0 ? [{ category: '使用カラー', name: '登録カラー', pieces: count, swatch: '#d8c5aa' }] : [];
+  }
+  return labels.map((label, index) => ({
+    category: '使用カラー',
+    name: String(label),
+    pieces: index === 0 ? count : 0,
+    swatch: '#d8c5aa'
+  }));
+}
+
+function normalizeStylebookPost(post) {
+  const id = String(post?.id || post?.postId || post?.styleId || '').trim();
+  const colors = Array.isArray(post?.colors) && post.colors.length && typeof post.colors[0] === 'object'
+    ? post.colors
+    : buildColorsFromPost(post || {});
+  return {
+    ...(post || {}),
+    id,
+    status: post?.status || (post?.isPublished === false ? 'draft' : 'published'),
+    photo: post?.photo || post?.imageUrl || '',
+    photoUrl: post?.photoUrl || post?.imageUrl || '',
+    name: post?.name || post?.title || '',
+    treatmentType: post?.treatmentType || post?.styleType || post?.styleTypeName || '投稿',
+    baseColor: post?.baseColor || '',
+    baseLevel: post?.baseLevel || '',
+    comment: post?.comment || post?.description || '',
+    tags: toArrayValue(post?.tags),
+    salon: post?.salon || post?.salonName || post?.shopName || '',
+    stylist: post?.stylist || post?.staffName || post?.authorName || '',
+    ownerId: getRecipeOwnerId(post),
+    registeredAt: post?.registeredAt || post?.createdAt || '',
+    updatedAt: post?.updatedAt || '',
+    colors
+  };
 }
 
 function showMessage(messages, type = 'error') {
@@ -151,9 +217,13 @@ function hideMessage() {
 async function loadRecipes() {
   if (STYLEBOOK_API_URL) {
     try {
-      const response = await fetch(`${STYLEBOOK_API_URL}?action=list`);
+      const params = new URLSearchParams({ action: 'database', t: String(Date.now()) });
+      const currentUserId = getCurrentUserId();
+      if (currentUserId) params.set('userId', currentUserId);
+      const response = await fetch(`${STYLEBOOK_API_URL}?${params.toString()}`);
       const data = await response.json();
-      state.recipes = data.recipes || [];
+      const posts = data.recipes || data.stylePosts || data.database?.stylePosts || [];
+      state.recipes = posts.map(normalizeStylebookPost).filter(recipe => recipe.id);
       return;
     } catch (error) {
       showMessage('オンライン保存先に接続できませんでした。端末内のデータを表示します。');
@@ -211,7 +281,7 @@ async function persistDelete(id) {
 }
 
 function getTotalPieces(recipe) {
-  return recipe.colors.reduce((total, color) => total + Number(color.pieces || 0), 0);
+  return (recipe.colors || []).reduce((total, color) => total + Number(color.pieces || 0), 0);
 }
 
 function matchPieceRange(total, range) {
@@ -237,7 +307,7 @@ function recipeMatchesSearch(recipe, search) {
     recipe.stylist,
     `${totalPieces}本`,
     ...(recipe.tags || []),
-    ...recipe.colors.flatMap(color => [color.category, color.name, `${color.pieces}本`])
+    ...(recipe.colors || []).flatMap(color => [color.category, color.name, `${color.pieces}本`])
   ].join(' ').toLowerCase();
   return text.includes(normalized);
 }
