@@ -385,12 +385,7 @@ function renderRecipe(recipe) {
       <span class="piece-count">${color.pieces || 0}本</span>
     </div>
   `).join('');
-  const actionButtons = canManage(recipe) ? `
-    <div class="card-actions">
-      <button type="button" data-action="edit" data-id="${recipe.id}">編集</button>
-      <button type="button" data-action="delete" data-id="${recipe.id}">削除</button>
-    </div>
-  ` : '';
+  const actionButtons = '';
 
   return `
     <article class="recipe-card ${recipe.status === 'draft' ? 'is-draft' : ''}" data-id="${escapeHtml(recipe.id)}">
