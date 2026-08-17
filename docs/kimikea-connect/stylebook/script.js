@@ -71,7 +71,8 @@ const state = {
   currentView: urlParams.get('view') || 'list',
   currentDetailId: urlParams.get('id') || '',
   manageMode: urlParams.get('manage') === '1',
-  returnToDetailId: ''
+  returnToDetailId: '',
+  returnToView: ''
 };
 
 const recipeForm = document.getElementById('recipeForm');
@@ -237,7 +238,7 @@ async function loadRecipes() {
 
 async function persistRecipe(recipe) {
   const existing = state.recipes.find(item => item.id === recipe.id);
-  if (existing && !state.manageMode && !canManage(existing)) {
+  if (existing && !isOwnPostManagementContext() && !state.manageMode && !canManage(existing)) {
     throw new Error('自分の投稿だけ編集できます。');
   }
 
@@ -369,10 +370,25 @@ function canManage(recipe) {
 }
 
 function canShowManageActions() {
-  return state.currentView === 'detail' && state.manageMode;
+  return false;
 }
 
-function renderRecipe(recipe) {
+function isOwnPostManagementView() {
+  return state.currentView === 'mine';
+}
+
+function isOwnPostManagementContext() {
+  return isOwnPostManagementView() || state.returnToView === 'mine';
+}
+
+function getMineRecipes() {
+  const recipes = state.recipes.filter(recipe => recipe.status === 'published' || recipe.status === 'draft');
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId) return [];
+  return recipes.filter(recipe => getRecipeOwnerId(recipe) === currentUserId);
+}
+
+function renderRecipe(recipe, options = {}) {
   const totalPieces = getTotalPieces(recipe);
   const title = recipe.name || `${recipe.treatmentType || '未選択'} レシピ`;
   const colorRowsHtml = (recipe.colors || []).map(color => `
@@ -385,7 +401,12 @@ function renderRecipe(recipe) {
       <span class="piece-count">${color.pieces || 0}本</span>
     </div>
   `).join('');
-  const actionButtons = '';
+  const actionButtons = options.showOwnerActions ? `
+    <div class="card-actions owner-card-actions">
+      <button type="button" data-action="edit" data-id="${escapeHtml(recipe.id)}">編集</button>
+      <button type="button" data-action="delete" data-id="${escapeHtml(recipe.id)}">削除</button>
+    </div>
+  ` : '';
 
   return `
     <article class="recipe-card ${recipe.status === 'draft' ? 'is-draft' : ''}" data-id="${escapeHtml(recipe.id)}">
@@ -435,14 +456,15 @@ function renderRecipe(recipe) {
 function setSectionVisibility(mode) {
   const isDetail = mode === 'detail';
   const isEdit = mode === 'edit';
+  const isMine = mode === 'mine';
   detailPanel.hidden = !isDetail;
-  pageSections.hero.hidden = isDetail || isEdit;
-  pageSections.form.hidden = isDetail;
-  pageSections.search.hidden = isDetail || isEdit;
+  pageSections.hero.hidden = isDetail || isEdit || isMine;
+  pageSections.form.hidden = isDetail || isMine;
+  pageSections.search.hidden = isDetail || isEdit || isMine;
   pageSections.resultHead.hidden = isDetail || isEdit;
   pageSections.grid.hidden = isDetail || isEdit;
-  pageSections.draft.hidden = isDetail || isEdit;
-  pageSections.storage.hidden = isDetail || isEdit;
+  pageSections.draft.hidden = isDetail || isEdit || isMine;
+  pageSections.storage.hidden = isDetail || isEdit || isMine;
 }
 
 function updateLocationForView(view, id = '') {
@@ -452,6 +474,12 @@ function updateLocationForView(view, id = '') {
     url.searchParams.set('id', id);
     if (state.manageMode) url.searchParams.set('manage', '1');
     else url.searchParams.delete('manage');
+    const currentUserId = getCurrentUserId();
+    if (currentUserId) url.searchParams.set('userId', currentUserId);
+  } else if (view === 'mine') {
+    url.searchParams.set('view', 'mine');
+    url.searchParams.delete('id');
+    url.searchParams.delete('manage');
     const currentUserId = getCurrentUserId();
     if (currentUserId) url.searchParams.set('userId', currentUserId);
   } else {
@@ -544,7 +572,23 @@ function render() {
     return;
   }
 
-  setSectionVisibility(state.currentView === 'edit' ? 'edit' : 'list');
+  setSectionVisibility(state.currentView === 'edit' ? 'edit' : (isOwnPostManagementView() ? 'mine' : 'list'));
+  const resultTitle = document.querySelector('.result-head h2');
+  const resultDescription = document.querySelector('.result-head p');
+
+  if (isOwnPostManagementView()) {
+    const mine = getMineRecipes();
+    if (resultTitle) resultTitle.textContent = '自分の投稿';
+    if (resultDescription) resultDescription.textContent = 'この画面に表示されている投稿だけ編集・削除できます。';
+    resultCount.textContent = `${mine.length}件`;
+    recipeGrid.innerHTML = mine.length
+      ? mine.map(recipe => renderRecipe(recipe, { showOwnerActions: true })).join('')
+      : `<div class="empty-state">${getCurrentUserId() ? '自分の投稿はまだありません。' : 'マイページの投稿履歴から開いてください。'}</div>`;
+    return;
+  }
+
+  if (resultTitle) resultTitle.textContent = '公開レシピ一覧';
+  if (resultDescription) resultDescription.textContent = '投稿済みのレシピが表示されます。';
   const published = getPublishedRecipes();
   const drafts = getDraftRecipes();
   resultCount.textContent = `${published.length}件`;
@@ -632,12 +676,14 @@ function updateTotalPreview() {
 }
 
 function clearForm(renderAfter = true) {
+  const returnToView = state.returnToView;
   recipeForm.reset();
   recipeId.value = '';
   registeredAt.value = today();
   state.currentPhoto = '';
   state.returnToDetailId = '';
-  state.currentView = 'list';
+  state.returnToView = '';
+  state.currentView = returnToView === 'mine' ? 'mine' : 'list';
   state.manageMode = false;
   colorRows.innerHTML = '';
   addColorRow();
@@ -646,7 +692,7 @@ function clearForm(renderAfter = true) {
   publishButton.textContent = '投稿する';
   cancelEditButton.hidden = true;
   hideMessage();
-  updateLocationForView('list');
+  updateLocationForView(state.currentView);
   if (renderAfter) render();
 }
 
@@ -687,8 +733,6 @@ function validatePublish() {
   if (!treatmentType.value) errors.push('施術タイプを選択してください。');
   if (!colors.length) errors.push('使用カラーと本数を1色以上入力してください。');
   if (getFormColors().length !== colors.length) errors.push('使用カラーは、カテゴリー・カラー名・本数をすべて入力してください。');
-  if (!salonName.value.trim()) errors.push('担当サロン名を入力してください。');
-  if (!stylistName.value.trim()) errors.push('担当者名を入力してください。');
   return errors;
 }
 
@@ -744,15 +788,16 @@ async function saveCurrentRecipe(status) {
   try {
     await persistRecipe(recipe);
     const returnToDetailId = state.returnToDetailId;
+    const returnToView = state.returnToView;
     clearForm(false);
     if (returnToDetailId) {
       state.currentView = 'detail';
       state.currentDetailId = recipe.id;
       updateLocationForView('detail', recipe.id);
     } else {
-      state.currentView = 'list';
+      state.currentView = returnToView === 'mine' ? 'mine' : 'list';
       state.currentDetailId = '';
-      updateLocationForView('list');
+      updateLocationForView(state.currentView);
     }
     render();
     if (state.currentView === 'detail') {
@@ -770,9 +815,11 @@ async function saveCurrentRecipe(status) {
 
 function editRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !(canManage(recipe) || canShowManageActions())) return;
+  if (!recipe || !(isOwnPostManagementContext() || canManage(recipe) || canShowManageActions())) return;
+  const wasMineView = isOwnPostManagementView();
   state.currentView = 'edit';
   state.returnToDetailId = state.currentDetailId === id ? id : '';
+  state.returnToView = wasMineView ? 'mine' : '';
   setSectionVisibility('edit');
   recipeId.value = recipe.id;
   recipeName.value = recipe.name || '';
@@ -799,15 +846,16 @@ function editRecipe(id) {
 
 async function deleteRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !(canManage(recipe) || canShowManageActions())) return;
+  if (!recipe || !(isOwnPostManagementView() || canManage(recipe) || canShowManageActions())) return;
   const ok = window.confirm('この投稿を削除しますか？この操作は元に戻せません。');
   if (!ok) return;
   try {
     await persistDelete(id);
-    state.currentView = 'list';
+    state.currentView = isOwnPostManagementView() ? 'mine' : 'list';
     state.currentDetailId = '';
     state.returnToDetailId = '';
-    updateLocationForView('list');
+    state.returnToView = '';
+    updateLocationForView(state.currentView);
     render();
   } catch (error) {
     showMessage(error.message || '削除できませんでした。');
