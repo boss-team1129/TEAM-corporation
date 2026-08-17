@@ -70,6 +70,7 @@ const state = {
   currentUserId: urlParams.get('userId') || urlParams.get('ownerId') || urlParams.get('memberId') || '',
   currentView: urlParams.get('view') || 'list',
   currentDetailId: urlParams.get('id') || '',
+  manageMode: urlParams.get('manage') === '1',
   returnToDetailId: ''
 };
 
@@ -236,7 +237,7 @@ async function loadRecipes() {
 
 async function persistRecipe(recipe) {
   const existing = state.recipes.find(item => item.id === recipe.id);
-  if (existing && !canManage(existing)) {
+  if (existing && !state.manageMode && !canManage(existing)) {
     throw new Error('自分の投稿だけ編集できます。');
   }
 
@@ -367,6 +368,10 @@ function canManage(recipe) {
   return Boolean(currentUserId && getRecipeOwnerId(recipe) === currentUserId);
 }
 
+function canShowManageActions() {
+  return state.currentView === 'detail' && state.manageMode;
+}
+
 function renderRecipe(recipe) {
   const totalPieces = getTotalPieces(recipe);
   const title = recipe.name || `${recipe.treatmentType || '未選択'} レシピ`;
@@ -450,9 +455,14 @@ function updateLocationForView(view, id = '') {
   if (view === 'detail' && id) {
     url.searchParams.set('view', 'detail');
     url.searchParams.set('id', id);
+    if (state.manageMode) url.searchParams.set('manage', '1');
+    else url.searchParams.delete('manage');
+    const currentUserId = getCurrentUserId();
+    if (currentUserId) url.searchParams.set('userId', currentUserId);
   } else {
     url.searchParams.delete('view');
     url.searchParams.delete('id');
+    url.searchParams.delete('manage');
   }
   window.history.replaceState({}, '', url);
 }
@@ -481,7 +491,7 @@ function renderDetail() {
       <span class="piece-count">${escapeHtml(color.pieces || 0)}本</span>
     </div>
   `).join('');
-  const actionButtons = canManage(recipe) ? `
+  const actionButtons = canShowManageActions() ? `
     <div class="detail-actions">
       <button type="button" data-action="edit-detail" data-id="${escapeHtml(recipe.id)}">編集する</button>
       <button type="button" data-action="delete-detail" data-id="${escapeHtml(recipe.id)}">削除する</button>
@@ -633,6 +643,7 @@ function clearForm(renderAfter = true) {
   state.currentPhoto = '';
   state.returnToDetailId = '';
   state.currentView = 'list';
+  state.manageMode = false;
   colorRows.innerHTML = '';
   addColorRow();
   updateImagePreview();
@@ -764,7 +775,7 @@ async function saveCurrentRecipe(status) {
 
 function editRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !canManage(recipe)) return;
+  if (!recipe || !(canManage(recipe) || canShowManageActions())) return;
   state.currentView = 'edit';
   state.returnToDetailId = state.currentDetailId === id ? id : '';
   setSectionVisibility('edit');
@@ -793,7 +804,7 @@ function editRecipe(id) {
 
 async function deleteRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !canManage(recipe)) return;
+  if (!recipe || !(canManage(recipe) || canShowManageActions())) return;
   const ok = window.confirm('この投稿を削除しますか？この操作は元に戻せません。');
   if (!ok) return;
   try {
