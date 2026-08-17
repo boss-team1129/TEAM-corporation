@@ -568,8 +568,8 @@ function render() {
     if (resultDescription) resultDescription.textContent = 'この画面に表示されている投稿だけ編集・削除できます。';
     resultCount.textContent = `${mine.length}件`;
     recipeGrid.innerHTML = mine.length
-      ? `<div class="owner-view-version">OWNER VIEW v3</div>${mine.map(recipe => renderRecipe(recipe, { showOwnerActions: true })).join('')}`
-      : `<div class="owner-view-version">OWNER VIEW v3</div><div class="empty-state">${getCurrentUserId() ? '自分の投稿はまだありません。' : 'マイページの投稿履歴から開いてください。'}</div>`;
+      ? mine.map(recipe => renderRecipe(recipe, { showOwnerActions: true })).join('')
+      : `<div class="empty-state">${getCurrentUserId() ? '自分の投稿はまだありません。' : 'マイページの投稿履歴から開いてください。'}</div>`;
     return;
   }
 
