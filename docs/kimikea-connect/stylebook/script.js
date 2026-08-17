@@ -70,7 +70,6 @@ const state = {
   currentUserId: urlParams.get('userId') || urlParams.get('ownerId') || urlParams.get('memberId') || '',
   currentView: urlParams.get('view') || 'list',
   currentDetailId: urlParams.get('id') || '',
-  manageMode: urlParams.get('manage') === '1',
   returnToDetailId: '',
   returnToView: ''
 };
@@ -238,7 +237,7 @@ async function loadRecipes() {
 
 async function persistRecipe(recipe) {
   const existing = state.recipes.find(item => item.id === recipe.id);
-  if (existing && !isOwnPostManagementContext() && !state.manageMode && !canManage(existing)) {
+  if (existing && !isOwnPostManagementContext() && !canManage(existing)) {
     throw new Error('自分の投稿だけ編集できます。');
   }
 
@@ -369,10 +368,6 @@ function canManage(recipe) {
   return Boolean(currentUserId && getRecipeOwnerId(recipe) === currentUserId);
 }
 
-function canShowManageActions() {
-  return false;
-}
-
 function isOwnPostManagementView() {
   return state.currentView === 'mine';
 }
@@ -472,8 +467,7 @@ function updateLocationForView(view, id = '') {
   if (view === 'detail' && id) {
     url.searchParams.set('view', 'detail');
     url.searchParams.set('id', id);
-    if (state.manageMode) url.searchParams.set('manage', '1');
-    else url.searchParams.delete('manage');
+    url.searchParams.delete('manage');
     const currentUserId = getCurrentUserId();
     if (currentUserId) url.searchParams.set('userId', currentUserId);
   } else if (view === 'mine') {
@@ -514,13 +508,6 @@ function renderDetail() {
       <span class="piece-count">${escapeHtml(color.pieces || 0)}本</span>
     </div>
   `).join('');
-  const actionButtons = canShowManageActions() ? `
-    <div class="detail-actions">
-      <button type="button" data-action="edit-detail" data-id="${escapeHtml(recipe.id)}">編集する</button>
-      <button type="button" data-action="delete-detail" data-id="${escapeHtml(recipe.id)}">削除する</button>
-    </div>
-  ` : '';
-
   detailPanel.innerHTML = `
     <button class="detail-back-button" type="button" data-action="back-list">一覧へ戻る</button>
     <article class="detail-hero">
@@ -560,7 +547,6 @@ function renderDetail() {
           <span>担当者：<strong>${escapeHtml(recipe.stylist || '未入力')}</strong></span>
           <span>登録日：<strong>${escapeHtml(recipe.registeredAt || '未入力')}</strong></span>
         </div>
-        ${actionButtons}
       </div>
     </article>
   `;
@@ -684,7 +670,6 @@ function clearForm(renderAfter = true) {
   state.returnToDetailId = '';
   state.returnToView = '';
   state.currentView = returnToView === 'mine' ? 'mine' : 'list';
-  state.manageMode = false;
   colorRows.innerHTML = '';
   addColorRow();
   updateImagePreview();
@@ -815,7 +800,7 @@ async function saveCurrentRecipe(status) {
 
 function editRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !(isOwnPostManagementContext() || canManage(recipe) || canShowManageActions())) return;
+  if (!recipe || !(isOwnPostManagementContext() || canManage(recipe))) return;
   const wasMineView = isOwnPostManagementView();
   state.currentView = 'edit';
   state.returnToDetailId = state.currentDetailId === id ? id : '';
@@ -846,7 +831,7 @@ function editRecipe(id) {
 
 async function deleteRecipe(id) {
   const recipe = state.recipes.find(item => item.id === id);
-  if (!recipe || !(isOwnPostManagementView() || canManage(recipe) || canShowManageActions())) return;
+  if (!recipe || !(isOwnPostManagementView() || canManage(recipe))) return;
   const ok = window.confirm('この投稿を削除しますか？この操作は元に戻せません。');
   if (!ok) return;
   try {
@@ -927,8 +912,6 @@ document.addEventListener('click', event => {
   if (button) {
     if (button.dataset.action === 'edit') editRecipe(button.dataset.id);
     if (button.dataset.action === 'delete') deleteRecipe(button.dataset.id);
-    if (button.dataset.action === 'edit-detail') editRecipe(button.dataset.id);
-    if (button.dataset.action === 'delete-detail') deleteRecipe(button.dataset.id);
     if (button.dataset.action === 'back-list') {
       state.currentView = 'list';
       state.currentDetailId = '';

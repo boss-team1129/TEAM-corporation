@@ -193,29 +193,12 @@ h1 {
   gap: 10px;
 }
 
-.detail-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.detail-actions button,
 .detail-back-button {
   min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 15px;
   font-weight: 900;
-}
-
-.detail-actions button[data-action="edit-detail"] {
-  background: #2f3f45;
-  color: #ffffff;
-}
-
-.detail-actions button[data-action="delete-detail"] {
-  background: #fff2f0;
-  color: #9a4545;
 }
 
 .detail-back-button {
