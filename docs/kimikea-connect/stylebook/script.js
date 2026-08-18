@@ -666,6 +666,8 @@ function clearForm(renderAfter = true) {
   recipeForm.reset();
   recipeId.value = '';
   registeredAt.value = today();
+  salonName.value = '';
+  stylistName.value = '';
   state.currentPhoto = '';
   state.returnToDetailId = '';
   state.returnToView = '';
@@ -849,6 +851,8 @@ async function deleteRecipe(id) {
 
 async function init() {
   registeredAt.value = today();
+  salonName.value = '';
+  stylistName.value = '';
   addColorRow();
   await loadRecipes();
   if (state.currentView === 'edit' && state.currentDetailId) {
