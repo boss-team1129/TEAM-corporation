@@ -560,6 +560,8 @@ function clearForm(renderAfter = true) {
   recipeForm.reset();
   recipeId.value = '';
   registeredAt.value = today();
+  salonName.value = '';
+  stylistName.value = '';
   state.currentPhoto = '';
   state.returnToDetailId = '';
   state.currentView = 'list';
@@ -611,8 +613,6 @@ function validatePublish() {
   if (!treatmentType.value) errors.push('施術タイプを選択してください。');
   if (!colors.length) errors.push('使用カラーと本数を1色以上入力してください。');
   if (getFormColors().length !== colors.length) errors.push('使用カラーは、カテゴリー・カラー名・本数をすべて入力してください。');
-  if (!salonName.value.trim()) errors.push('担当サロン名を入力してください。');
-  if (!stylistName.value.trim()) errors.push('担当者名を入力してください。');
   return errors;
 }
 
@@ -740,6 +740,8 @@ async function deleteRecipe(id) {
 
 async function init() {
   registeredAt.value = today();
+  salonName.value = '';
+  stylistName.value = '';
   addColorRow();
   await loadRecipes();
   render();
