@@ -1,6 +1,9 @@
 const TEAM_LINK_PRODUCTION_API_URL = "https://script.google.com/macros/s/AKfycby4CcCqDlANs3iq3E0dX7e9DRiCsYLXr5M3ntz-IPw5i2HlOVtogLu78MPCw8Sjz1-b/exec";
 const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || TEAM_LINK_PRODUCTION_API_URL;
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
+const TEAM_LINK_LIFF_ID = "2011349129-0lFO8qFb";
+const TEAM_LINK_LIFF_URL = `https://liff.line.me/${TEAM_LINK_LIFF_ID}`;
+const TEAM_LINK_LIFF_LAUNCH_KEY = "teamLinkLiffLaunch";
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
@@ -623,10 +626,14 @@ const adminTabs = [
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
-  const splash = document.getElementById("splashScreen");
-  window.setTimeout(() => {
-    splash?.classList.add("is-hidden");
-  }, 1080);
+  startTeamLinkApplication().catch((error) => {
+    console.error("[TEAM LINK STARTUP FAILED]", error);
+    document.getElementById("splashScreen")?.classList.add("is-hidden");
+    showToast("画面を読み込めませんでした。再読み込みしてください。");
+  });
+});
+
+async function startTeamLinkApplication() {
   ensureDemoState();
   applyStoreSettings();
   renderBookingFormOptions();
@@ -634,14 +641,121 @@ document.addEventListener("DOMContentLoaded", () => {
   bindForms();
   bindBookingFormInputs();
   bindHomeCarousel();
-  renderApp();
-  openInitialView();
-  if (appState.currentView === "adminView" && getAdminSession()) {
-    syncProductionAdminSection();
-  } else {
-    syncProductionState();
+
+  const liffContext = await initializeTeamLinkLiff();
+  if (liffContext.redirecting) return;
+
+  const initialParams = getPostLiffSearchParams();
+  const initialView = resolveInitialView(initialParams);
+  if (initialView === "admin") {
+    renderApp();
+    openInitialView(initialParams);
+    document.getElementById("splashScreen")?.classList.add("is-hidden");
+    if (getAdminSession()) syncProductionAdminSection();
+    return;
   }
-});
+
+  if (isProductionApiMode()) await syncProductionState({ renderDuringSync: false });
+  renderApp();
+  openInitialView(initialParams);
+  document.getElementById("splashScreen")?.classList.add("is-hidden");
+}
+
+async function initializeTeamLinkLiff() {
+  const liff = window.liff;
+  if (!liff?.init) {
+    console.info("[TEAM LINK LIFF] SDK unavailable; continuing in browser mode");
+    return { available: false, authenticated: false, redirecting: false };
+  }
+
+  rememberLiffLaunch();
+  try {
+    await liff.init({ liffId: TEAM_LINK_LIFF_ID });
+    const params = getPostLiffSearchParams();
+    const isAdminRoute = resolveInitialView(params) === "admin";
+    if (!liff.isLoggedIn()) {
+      if (!isAdminRoute && (liff.isInClient() || wasOpenedFromLiff())) {
+        liff.login({ redirectUri: window.location.href });
+        return { available: true, authenticated: false, redirecting: true };
+      }
+      return { available: true, authenticated: false, redirecting: false };
+    }
+
+    const lineProfile = await liff.getProfile();
+    applyLiffLineProfile(lineProfile);
+    console.info("[TEAM LINK LIFF] ready", {
+      inClient: liff.isInClient(),
+      lineUserIdPresent: Boolean(lineProfile?.userId)
+    });
+    return { available: true, authenticated: true, redirecting: false };
+  } catch (error) {
+    console.error("[TEAM LINK LIFF INIT FAILED]", {
+      code: error?.code || "",
+      message: String(error?.message || error)
+    });
+    return { available: true, authenticated: false, redirecting: false, error };
+  }
+}
+
+function rememberLiffLaunch() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("liff.state") || params.has("liffClientId")) {
+    sessionStorage.setItem(TEAM_LINK_LIFF_LAUNCH_KEY, "1");
+  }
+}
+
+function wasOpenedFromLiff() {
+  return sessionStorage.getItem(TEAM_LINK_LIFF_LAUNCH_KEY) === "1";
+}
+
+function getPostLiffSearchParams() {
+  const params = new URLSearchParams(window.location.search);
+  const liffState = String(params.get("liff.state") || "").trim();
+  if (!liffState) return params;
+  try {
+    const restored = new URL(liffState, window.location.origin);
+    restored.searchParams.forEach((value, key) => {
+      if (!params.has(key)) params.set(key, value);
+    });
+  } catch (error) {
+    console.warn("[TEAM LINK LIFF STATE] invalid state ignored");
+  }
+  return params;
+}
+
+function applyLiffLineProfile(lineProfile = {}) {
+  const lineUserId = String(lineProfile.userId || "").trim();
+  if (!lineUserId) throw new Error("LINE userIdを取得できませんでした。");
+  const storedProfile = readJson(STORAGE_KEYS.profile, {});
+  const previousLineUserId = String(storedProfile.lineUserId || "").trim();
+  const sameLineUser = previousLineUserId === lineUserId;
+  const storedMemberId = String(storedProfile.linkedMemberId || storedProfile.memberId || "").trim();
+  const hasVerifiedMemberIdentity = Boolean(storedProfile.linkedMemberId) || storedProfile.identityType === "member";
+  const canKeepMemberIdentity = sameLineUser && hasVerifiedMemberIdentity && storedMemberId && !storedMemberId.startsWith("guest_");
+
+  if (!sameLineUser) clearPrivateUserCaches();
+  writeJson(STORAGE_KEYS.profile, {
+    ...defaultProfile,
+    ...(canKeepMemberIdentity ? storedProfile : {}),
+    guestId: String(storedProfile.guestId || getOrCreateGuestId()).trim(),
+    memberId: canKeepMemberIdentity ? storedMemberId : lineUserId,
+    linkedMemberId: canKeepMemberIdentity ? String(storedProfile.linkedMemberId || storedMemberId) : "",
+    identityType: canKeepMemberIdentity ? "member" : "line",
+    lineUserId,
+    nickname: String(lineProfile.displayName || storedProfile.nickname || "お客様").trim() || "お客様",
+    lineDisplayName: String(lineProfile.displayName || "").trim()
+  });
+}
+
+function clearPrivateUserCaches() {
+  [
+    STORAGE_KEYS.myCoupons,
+    STORAGE_KEYS.mySelections,
+    STORAGE_KEYS.monthlyGachaDraws,
+    STORAGE_KEYS.gachaCardHistory,
+    STORAGE_KEYS.bookings
+  ].forEach((key) => localStorage.removeItem(key));
+}
 
 function bindNavigation() {
   document.body.addEventListener("pointerdown", (event) => {
@@ -2149,8 +2263,7 @@ function getReservationCouponDisplayText(booking) {
   ))?.title || "").filter(Boolean).join("、");
 }
 
-function openInitialView() {
-  const params = new URLSearchParams(location.search);
+function openInitialView(params = getPostLiffSearchParams()) {
   const view = resolveInitialView(params);
   const adminSection = String(params.get("section") || "").trim();
   if (view === "admin" && adminTabs.some((tab) => tab.key === adminSection)) {
@@ -2160,7 +2273,7 @@ function openInitialView() {
   showView(view, { replace: true });
 }
 
-function resolveInitialView(params = new URLSearchParams(location.search)) {
+function resolveInitialView(params = getPostLiffSearchParams()) {
   const requestedView = String(params.get("view") || "").trim();
   if (requestedView) return viewMap[requestedView] ? requestedView : "home";
   const requestedPage = String(params.get("page") || "").trim();
@@ -2201,7 +2314,7 @@ function showView(viewKey, options = {}) {
 }
 
 window.addEventListener("popstate", () => {
-  showView(resolveInitialView(), { replace: true });
+  showView(resolveInitialView(getPostLiffSearchParams()), { replace: true });
 });
 
 function updateNav(routeKey) {
@@ -10510,7 +10623,7 @@ function createTransactionId(prefix = "TX") {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
-async function syncProductionState() {
+async function syncProductionState(options = {}) {
   if (!isProductionApiMode()) return;
   try {
     const profile = getProfile();
@@ -10519,7 +10632,10 @@ async function syncProductionState() {
     appState.couponMasterSyncStatus = "loading";
     appState.memberCouponSyncStatus = "loading";
     try {
-      const catalogResult = await apiRequest("getBookingCatalog", { memberId: userKey });
+      const catalogResult = await apiRequest("getBookingCatalog", {
+        memberId: userKey,
+        lineUserId: profile.lineUserId || ""
+      });
       const coupons = catalogResult.coupons || catalogResult.data?.coupons;
       const serverMenus = catalogResult.menus || catalogResult.data?.menus;
       const memberCoupons = catalogResult.memberCoupons || catalogResult.data?.memberCoupons;
@@ -10541,11 +10657,13 @@ async function syncProductionState() {
       appState.memberCouponSyncStatus = "unavailable";
       console.warn("[TEAM LINK BOOKING CATALOG SYNC FAILED]", error);
     }
-    renderBookingMenuChoices();
-    renderBookingCouponChoices();
-    renderBookingMySelectionChoices();
-    updateBookingConfirm();
-    renderApp();
+    if (options.renderDuringSync !== false) {
+      renderBookingMenuChoices();
+      renderBookingCouponChoices();
+      renderBookingMySelectionChoices();
+      updateBookingConfirm();
+      renderApp();
+    }
 
     const results = await Promise.allSettled([
       apiRequest("getGachaConfig", {}),
@@ -10578,7 +10696,7 @@ async function syncProductionState() {
       }
     }
     if (appState.currentView === "adminView" && getAdminSession()) await syncProductionAdminState({ render: false });
-    renderApp();
+    if (options.renderDuringSync !== false) renderApp();
   } catch (error) {
     showToast("通信に失敗しました。時間をおいてもう一度お試しください");
   }
