@@ -4,6 +4,8 @@ const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
 const TEAM_LINK_LIFF_ID = "2011349129-0lFO8qFb";
 const TEAM_LINK_LIFF_URL = `https://liff.line.me/${TEAM_LINK_LIFF_ID}`;
 const TEAM_LINK_LIFF_LAUNCH_KEY = "teamLinkLiffLaunch";
+const TEAM_LINK_LIFF_DEBUG = true;
+const TEAM_LINK_STARTUP_TIMEOUT_MS = 10000;
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
 const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1jMH8hnW1hoqXjgL984Mgw3IJKaW8aOfbI90hzbiLKQM";
@@ -626,14 +628,15 @@ const adminTabs = [
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("startupRetryButton")?.addEventListener("click", () => window.location.reload());
   startTeamLinkApplication().catch((error) => {
     console.error("[TEAM LINK STARTUP FAILED]", error);
-    document.getElementById("splashScreen")?.classList.add("is-hidden");
-    showToast("画面を読み込めませんでした。再読み込みしてください。");
+    showStartupFailure(error);
   });
 });
 
 async function startTeamLinkApplication() {
+  updateStartupStatus("LIFF SDK 読み込み中");
   ensureDemoState();
   applyStoreSettings();
   renderBookingFormOptions();
@@ -655,45 +658,155 @@ async function startTeamLinkApplication() {
     return;
   }
 
-  if (isProductionApiMode()) await syncProductionState({ renderDuringSync: false });
+  if (isProductionApiMode()) {
+    updateStartupStatus("顧客データ取得中", liffContext);
+    await withStartupTimeout(
+      syncProductionState({ renderDuringSync: false, essentialOnly: true, throwOnError: true }),
+      "顧客データ取得"
+    );
+    updateStartupStatus("顧客データ取得完了", liffContext);
+  }
   renderApp();
   openInitialView(initialParams);
+  updateStartupStatus(initialView === "home" ? "ホーム表示" : `${initialView}表示`, liffContext);
   document.getElementById("splashScreen")?.classList.add("is-hidden");
+  if (isProductionApiMode()) {
+    syncProductionState({ renderDuringSync: true, skipCatalog: true }).catch((error) => {
+      console.warn("[TEAM LINK BACKGROUND SYNC FAILED]", error);
+    });
+  }
 }
 
 async function initializeTeamLinkLiff() {
-  const liff = window.liff;
+  updateStartupStatus("LIFF SDK 読み込み中");
+  const liff = await waitForLiffSdk();
   if (!liff?.init) {
-    console.info("[TEAM LINK LIFF] SDK unavailable; continuing in browser mode");
-    return { available: false, authenticated: false, redirecting: false };
+    throw createStartupError("LIFF SDKを読み込めませんでした。", "LIFF_SDK_UNAVAILABLE");
   }
 
   rememberLiffLaunch();
-  try {
-    await liff.init({ liffId: TEAM_LINK_LIFF_ID });
-    const params = getPostLiffSearchParams();
-    const isAdminRoute = resolveInitialView(params) === "admin";
-    if (!liff.isLoggedIn()) {
-      if (!isAdminRoute && (liff.isInClient() || wasOpenedFromLiff())) {
-        liff.login({ redirectUri: window.location.href });
-        return { available: true, authenticated: false, redirecting: true };
-      }
-      return { available: true, authenticated: false, redirecting: false };
-    }
+  updateStartupStatus("LIFF初期化中");
+  await withStartupTimeout(liff.init({ liffId: TEAM_LINK_LIFF_ID }), "LIFF初期化");
+  const isInClient = Boolean(liff.isInClient());
+  const isLoggedIn = Boolean(liff.isLoggedIn());
+  updateStartupStatus("LIFF初期化完了", { isInClient, isLoggedIn });
 
-    const lineProfile = await liff.getProfile();
-    applyLiffLineProfile(lineProfile);
-    console.info("[TEAM LINK LIFF] ready", {
-      inClient: liff.isInClient(),
-      lineUserIdPresent: Boolean(lineProfile?.userId)
-    });
-    return { available: true, authenticated: true, redirecting: false };
+  const params = getPostLiffSearchParams();
+  const isAdminRoute = resolveInitialView(params) === "admin";
+  updateStartupStatus("ログイン状態確認", { isInClient, isLoggedIn });
+  if (!isLoggedIn) {
+    if (isInClient) {
+      throw createStartupError("LIFFブラウザ内でLINEログイン状態を確認できませんでした。", "LIFF_CLIENT_NOT_LOGGED_IN");
+    }
+    if (!isAdminRoute && wasOpenedFromLiff()) {
+      updateStartupStatus("LINEログインへ移動します", { isInClient, isLoggedIn });
+      liff.login({ redirectUri: window.location.href });
+      return { available: true, authenticated: false, redirecting: true, isInClient, isLoggedIn };
+    }
+    return { available: true, authenticated: false, redirecting: false, isInClient, isLoggedIn };
+  }
+
+  updateStartupStatus("LINEプロフィール取得中", { isInClient, isLoggedIn });
+  const lineProfile = await withStartupTimeout(liff.getProfile(), "LINEプロフィール取得");
+  applyLiffLineProfile(lineProfile);
+  updateStartupStatus("LINE userId取得完了", {
+    isInClient,
+    isLoggedIn,
+    lineUserIdPresent: Boolean(lineProfile?.userId)
+  });
+  console.info("[TEAM LINK LIFF] ready", {
+    inClient: isInClient,
+    loggedIn: isLoggedIn,
+    lineUserIdPresent: Boolean(lineProfile?.userId)
+  });
+  return { available: true, authenticated: true, redirecting: false, isInClient, isLoggedIn };
+}
+
+function waitForLiffSdk() {
+  if (window.liff?.init) return Promise.resolve(window.liff);
+  const script = document.getElementById("liffSdkScript");
+  return withStartupTimeout(new Promise((resolve, reject) => {
+    const onLoad = () => window.liff?.init
+      ? resolve(window.liff)
+      : reject(createStartupError("LIFF SDKの読み込み後にliffが見つかりません。", "LIFF_SDK_MISSING"));
+    const onError = () => reject(createStartupError("LIFF SDKの読み込みに失敗しました。", "LIFF_SDK_LOAD_FAILED"));
+    script?.addEventListener("load", onLoad, { once: true });
+    script?.addEventListener("error", onError, { once: true });
+    if (!script) onError();
+  }), "LIFF SDK読み込み");
+}
+
+function withStartupTimeout(promise, label, timeoutMs = TEAM_LINK_STARTUP_TIMEOUT_MS) {
+  let timer = 0;
+  const timeout = new Promise((_, reject) => {
+    timer = window.setTimeout(() => {
+      reject(createStartupError(`${label}が${Math.round(timeoutMs / 1000)}秒以内に完了しませんでした。`, "STARTUP_TIMEOUT"));
+    }, timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => window.clearTimeout(timer));
+}
+
+function createStartupError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function updateStartupStatus(message, context = {}) {
+  const status = document.getElementById("startupStatus");
+  if (status) status.textContent = message;
+  if (!TEAM_LINK_LIFF_DEBUG) return;
+  const details = document.getElementById("startupDetails");
+  if (!details) return;
+  const liff = window.liff;
+  const diagnostic = {
+    step: message,
+    isInClient: context.isInClient ?? safeLiffBoolean(liff, "isInClient"),
+    isLoggedIn: context.isLoggedIn ?? safeLiffBoolean(liff, "isLoggedIn"),
+    lineUserIdPresent: context.lineUserIdPresent ?? Boolean(getProfile?.().lineUserId),
+    href: sanitizeStartupHref(window.location.href)
+  };
+  details.hidden = false;
+  details.textContent = JSON.stringify(diagnostic, null, 2);
+}
+
+function showStartupFailure(error) {
+  const message = String(error?.message || error || "不明なエラー");
+  updateStartupStatus("TEAM LINKの読み込みに失敗しました", {
+    isInClient: safeLiffBoolean(window.liff, "isInClient"),
+    isLoggedIn: safeLiffBoolean(window.liff, "isLoggedIn")
+  });
+  const details = document.getElementById("startupDetails");
+  if (details) {
+    details.hidden = false;
+    details.textContent = JSON.stringify({
+      error: message,
+      code: String(error?.code || ""),
+      isInClient: safeLiffBoolean(window.liff, "isInClient"),
+      isLoggedIn: safeLiffBoolean(window.liff, "isLoggedIn"),
+      href: sanitizeStartupHref(window.location.href)
+    }, null, 2);
+  }
+  const retry = document.getElementById("startupRetryButton");
+  if (retry) retry.hidden = false;
+}
+
+function safeLiffBoolean(liff, methodName) {
+  try {
+    return typeof liff?.[methodName] === "function" ? Boolean(liff[methodName]()) : null;
   } catch (error) {
-    console.error("[TEAM LINK LIFF INIT FAILED]", {
-      code: error?.code || "",
-      message: String(error?.message || error)
-    });
-    return { available: true, authenticated: false, redirecting: false, error };
+    return null;
+  }
+}
+
+function sanitizeStartupHref(value) {
+  try {
+    const url = new URL(value);
+    ["access_token", "id_token"].forEach((key) => url.searchParams.delete(key));
+    url.hash = "";
+    return url.toString();
+  } catch (error) {
+    return String(value || "").slice(0, 300);
   }
 }
 
@@ -10628,34 +10741,35 @@ async function syncProductionState(options = {}) {
   try {
     const profile = getProfile();
     const userKey = getCurrentUserKey();
-    appState.menuMasterSyncStatus = "loading";
-    appState.couponMasterSyncStatus = "loading";
-    appState.memberCouponSyncStatus = "loading";
-    try {
-      const catalogResult = await apiRequest("getBookingCatalog", {
-        memberId: userKey,
-        lineUserId: profile.lineUserId || ""
-      });
-      const coupons = catalogResult.coupons || catalogResult.data?.coupons;
-      const serverMenus = catalogResult.menus || catalogResult.data?.menus;
-      const memberCoupons = catalogResult.memberCoupons || catalogResult.data?.memberCoupons;
-      if (!Array.isArray(coupons)) throw new Error("クーポンマスタの形式が正しくありません。");
-      if (!Array.isArray(serverMenus)) throw new Error("MenuMasterの形式が正しくありません。");
-      if (!Array.isArray(memberCoupons)) throw new Error("会員クーポンの形式が正しくありません。");
-      writeJson(STORAGE_KEYS.adminCoupons, coupons.map(mapServerCouponMasterToLocal));
-      writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
-      writeJson(STORAGE_KEYS.myCoupons, memberCoupons.map(mapServerMemberCouponToLocal));
-      appState.couponMasterSyncStatus = "synced";
-      appState.menuMasterSyncStatus = "synced";
-      appState.memberCouponSyncStatus = "synced";
-    } catch (error) {
-      writeJson(STORAGE_KEYS.adminCoupons, []);
-      writeJson(STORAGE_KEYS.reservationMenus, []);
-      writeJson(STORAGE_KEYS.myCoupons, []);
-      appState.couponMasterSyncStatus = "unavailable";
-      appState.menuMasterSyncStatus = "unavailable";
-      appState.memberCouponSyncStatus = "unavailable";
-      console.warn("[TEAM LINK BOOKING CATALOG SYNC FAILED]", error);
+    let catalogError = null;
+    if (!options.skipCatalog) {
+      appState.menuMasterSyncStatus = "loading";
+      appState.couponMasterSyncStatus = "loading";
+      appState.memberCouponSyncStatus = "loading";
+      try {
+        const catalogResult = await apiRequest("getBookingCatalog", {
+          memberId: userKey,
+          lineUserId: profile.lineUserId || ""
+        });
+        const coupons = catalogResult.coupons || catalogResult.data?.coupons;
+        const serverMenus = catalogResult.menus || catalogResult.data?.menus;
+        const memberCoupons = catalogResult.memberCoupons || catalogResult.data?.memberCoupons;
+        if (!Array.isArray(coupons)) throw new Error("クーポンマスタの形式が正しくありません。");
+        if (!Array.isArray(serverMenus)) throw new Error("MenuMasterの形式が正しくありません。");
+        if (!Array.isArray(memberCoupons)) throw new Error("会員クーポンの形式が正しくありません。");
+        writeJson(STORAGE_KEYS.adminCoupons, coupons.map(mapServerCouponMasterToLocal));
+        writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
+        writeJson(STORAGE_KEYS.myCoupons, memberCoupons.map(mapServerMemberCouponToLocal));
+        appState.couponMasterSyncStatus = "synced";
+        appState.menuMasterSyncStatus = "synced";
+        appState.memberCouponSyncStatus = "synced";
+      } catch (error) {
+        catalogError = error;
+        appState.couponMasterSyncStatus = "unavailable";
+        appState.menuMasterSyncStatus = "unavailable";
+        appState.memberCouponSyncStatus = "unavailable";
+        console.warn("[TEAM LINK BOOKING CATALOG SYNC FAILED]", error);
+      }
     }
     if (options.renderDuringSync !== false) {
       renderBookingMenuChoices();
@@ -10663,6 +10777,10 @@ async function syncProductionState(options = {}) {
       renderBookingMySelectionChoices();
       updateBookingConfirm();
       renderApp();
+    }
+    if (options.essentialOnly) {
+      if (catalogError) throw catalogError;
+      return { catalogSynced: true, userKeyPresent: Boolean(userKey) };
     }
 
     const results = await Promise.allSettled([
@@ -10697,8 +10815,11 @@ async function syncProductionState(options = {}) {
     }
     if (appState.currentView === "adminView" && getAdminSession()) await syncProductionAdminState({ render: false });
     if (options.renderDuringSync !== false) renderApp();
+    return { catalogSynced: !catalogError, secondarySyncComplete: true };
   } catch (error) {
+    if (options.throwOnError) throw error;
     showToast("通信に失敗しました。時間をおいてもう一度お試しください");
+    return { error };
   }
 }
 
