@@ -12,7 +12,7 @@ test("uses the LIFF ID registered in LINE Developers", () => {
 
 test("loads the official LIFF SDK before the application", () => {
   const sdkIndex = html.indexOf("https://static.line-scdn.net/liff/edge/2/sdk.js");
-  const appIndex = html.indexOf("app.js?v=20260831-liff-coupons-1");
+  const appIndex = html.indexOf("app.js?v=20260831-liff-routing-1");
   assert.ok(sdkIndex >= 0);
   assert.ok(appIndex > sdkIndex);
 });
@@ -31,11 +31,18 @@ test("waits for LIFF identity and customer data before opening a deep link", () 
 
 test("reads LINE deep-link state only after liff.init resolves", () => {
   const start = app.indexOf("async function initializeTeamLinkLiff()");
-  const end = app.indexOf("function rememberLiffLaunch()", start);
+  const end = app.indexOf("function waitForLiffSdk()", start);
   const body = app.slice(start, end);
   assert.ok(body.indexOf("withStartupTimeout(liff.init") >= 0);
   assert.ok(body.indexOf("getPostLiffSearchParams()") > body.indexOf("withStartupTimeout(liff.init"));
-  assert.match(app, /const LINE_DEEP_LINK_PAGES = new Set\(\["coupons", "gacha", "fortune"\]\)/);
+  assert.doesNotMatch(app, /rememberLiffLaunch|wasOpenedFromLiff|liff\.state|liff\.referrer/);
+});
+
+test("maps the four production page values after LIFF initialization", () => {
+  assert.match(app, /home: "home"/);
+  assert.match(app, /coupon: "coupons"/);
+  assert.match(app, /gacha: "gacha"/);
+  assert.match(app, /fortune: "fortune"/);
 });
 
 test("passes the authenticated LINE user id into customer catalog loading", () => {
@@ -67,4 +74,6 @@ test("shows LINE official coupons without requiring an optional lin.ee share URL
 test("hides diagnostic JSON in production", () => {
   assert.match(app, /const TEAM_LINK_LIFF_DEBUG = false;/);
   assert.match(app, /if \(details && TEAM_LINK_LIFF_DEBUG\)/);
+  assert.match(html, /id="startupStatus"[^>]*hidden/);
+  assert.match(html, /id="startupDetails"[^>]*hidden/);
 });

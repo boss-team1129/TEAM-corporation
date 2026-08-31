@@ -3,7 +3,6 @@ const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || TEAM_LINK_PRODUCTION_API_U
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
 const TEAM_LINK_LIFF_ID = "2011349129-0lFO8qFb";
 const TEAM_LINK_LIFF_URL = `https://liff.line.me/${TEAM_LINK_LIFF_ID}`;
-const TEAM_LINK_LIFF_LAUNCH_KEY = "teamLinkLiffLaunch";
 const TEAM_LINK_LIFF_DEBUG = false;
 const TEAM_LINK_STARTUP_TIMEOUT_MS = 10000;
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
@@ -67,7 +66,13 @@ const viewMap = {
   admin: "adminView"
 };
 
-const LINE_DEEP_LINK_PAGES = new Set(["coupons", "gacha", "fortune"]);
+const LINE_DEEP_LINK_PAGE_MAP = Object.freeze({
+  home: "home",
+  coupon: "coupons",
+  coupons: "coupons",
+  gacha: "gacha",
+  fortune: "fortune"
+});
 
 const appState = {
   currentView: "homeView",
@@ -684,7 +689,6 @@ async function initializeTeamLinkLiff() {
     throw createStartupError("LIFF SDKを読み込めませんでした。", "LIFF_SDK_UNAVAILABLE");
   }
 
-  rememberLiffLaunch();
   updateStartupStatus("LIFF初期化中");
   await withStartupTimeout(liff.init({ liffId: TEAM_LINK_LIFF_ID }), "LIFF初期化");
   const isInClient = Boolean(liff.isInClient());
@@ -698,7 +702,7 @@ async function initializeTeamLinkLiff() {
     if (isInClient) {
       throw createStartupError("LIFFブラウザ内でLINEログイン状態を確認できませんでした。", "LIFF_CLIENT_NOT_LOGGED_IN");
     }
-    if (!isAdminRoute && wasOpenedFromLiff()) {
+    if (!isAdminRoute) {
       updateStartupStatus("LINEログインへ移動します", { isInClient, isLoggedIn });
       liff.login({ redirectUri: window.location.href });
       return { available: true, authenticated: false, redirecting: true, isInClient, isLoggedIn };
@@ -813,30 +817,8 @@ function sanitizeStartupHref(value) {
   }
 }
 
-function rememberLiffLaunch() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.has("liff.state") || params.has("liffClientId")) {
-    sessionStorage.setItem(TEAM_LINK_LIFF_LAUNCH_KEY, "1");
-  }
-}
-
-function wasOpenedFromLiff() {
-  return sessionStorage.getItem(TEAM_LINK_LIFF_LAUNCH_KEY) === "1";
-}
-
 function getPostLiffSearchParams() {
-  const params = new URLSearchParams(window.location.search);
-  const liffState = String(params.get("liff.state") || "").trim();
-  if (!liffState) return params;
-  try {
-    const restored = new URL(liffState, window.location.origin);
-    restored.searchParams.forEach((value, key) => {
-      if (!params.has(key)) params.set(key, value);
-    });
-  } catch (error) {
-    console.warn("[TEAM LINK LIFF STATE] invalid state ignored");
-  }
-  return params;
+  return new URLSearchParams(window.location.search);
 }
 
 function applyLiffLineProfile(lineProfile = {}) {
@@ -2393,7 +2375,7 @@ function resolveInitialView(params = getPostLiffSearchParams()) {
   const requestedView = String(params.get("view") || "").trim();
   if (requestedView) return viewMap[requestedView] ? requestedView : "home";
   const requestedPage = String(params.get("page") || "").trim();
-  return LINE_DEEP_LINK_PAGES.has(requestedPage) ? requestedPage : "home";
+  return LINE_DEEP_LINK_PAGE_MAP[requestedPage] || "home";
 }
 
 function showView(viewKey, options = {}) {
