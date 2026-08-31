@@ -3431,9 +3431,24 @@ function handleCouponSelectionAction(button) {
   const action = button.dataset.couponAction;
   const type = button.dataset.itemType;
   const itemId = button.dataset.itemId;
+  if (action === "openLineCoupon") return openLineCouponUrl(button.dataset.url);
   if (action === "add") addMySelection(type, itemId);
   if (action === "remove") removeMySelection(type, itemId);
   if (action === "book") startBookingFromMySelections();
+}
+
+function openLineCouponUrl(value) {
+  const url = String(value || "").trim();
+  if (!isSafeLineCouponUrl(url)) {
+    showToast("LINEクーポンの詳細URLを確認できませんでした。");
+    return false;
+  }
+  if (window.liff && typeof window.liff.openWindow === "function") {
+    window.liff.openWindow({ url, external: false });
+    return true;
+  }
+  window.location.assign(url);
+  return true;
 }
 
 function addMySelection(type, itemId) {
@@ -3510,11 +3525,17 @@ function selectionButtonHtml(type, itemId) {
 
 function lineCouponSelectionCardHtml(coupon) {
   const expiry = coupon.expires || coupon.validUntil || coupon.endDate || coupon.endAt;
+  const safeLineUrl = isSafeLineCouponUrl(coupon.lineCouponUrl) ? coupon.lineCouponUrl : "";
   return `
     <article class="coupon-card compact-selection-card has-image">
       ${coupon.imageUrl ? `<img src="${escapeHtml(coupon.imageUrl)}" alt="${escapeHtml(coupon.title)}">` : ""}
       <div class="compact-selection-body"><span>クーポン</span><h3>${escapeHtml(coupon.title)}</h3><p>${escapeHtml(coupon.description || coupon.message || "")}</p><small>有効期限：${escapeHtml(formatDateUntil(expiry))}</small></div>
-      <div class="compact-selection-action">${selectionButtonHtml("coupon", coupon.couponId)}</div>
+      <div class="compact-selection-action coupon-card-actions">
+        ${safeLineUrl
+          ? `<button class="primary-button" type="button" data-coupon-action="openLineCoupon" data-url="${escapeHtml(safeLineUrl)}">LINEクーポンを詳しく見る</button>`
+          : `<span class="coupon-detail-pending">詳細準備中</span>`}
+        ${selectionButtonHtml("coupon", coupon.couponId)}
+      </div>
     </article>
   `;
 }
@@ -6089,6 +6110,9 @@ function renderAdminCoupons() {
   if (isProductionApiMode() && appState.adminDataStatus.coupons !== "ready") {
     return renderAdminDataState("クーポン", appState.adminDataStatus.coupons, "クーポン使用履歴を取得できませんでした。");
   }
+  const lineCoupons = getAdminCoupons()
+    .filter(isLineCouponDefinition)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   const usageHistory = readJson(STORAGE_KEYS.adminCouponUsageHistory, [])
     .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
   const gachaRewards = readJson(STORAGE_KEYS.gachaAdminRewards, []);
@@ -6096,8 +6120,18 @@ function renderAdminCoupons() {
     <section class="admin-section-head">
       <div>
         <h3>クーポン</h3>
-        <p>誰が、いつ、どのクーポンを使用したかを確認します。</p>
+        <p>LINE公式クーポンの詳細URLと、クーポン使用履歴を管理します。</p>
       </div>
+    </section>
+    <section class="reservation-menu-group line-coupon-url-settings">
+      <header><h4>LINEクーポンURL設定</h4><span>${lineCoupons.length}件</span></header>
+      <p class="soft-note">LINE Official Account Managerの「SNSでシェア（クーポンURLをコピー）」で取得した https://lin.ee/... を登録してください。couponIdで同じクーポンへ保存されます。</p>
+      <div class="reservation-menu-list">
+        ${lineCoupons.map(lineCouponUrlSettingCardHtml).join("") || `<p class="soft-note">LINE公式クーポンを取得しています。</p>`}
+      </div>
+    </section>
+    <section class="admin-section-head admin-subsection-head">
+      <div><h3>クーポン使用履歴</h3><p>誰が、いつ、どのクーポンを使用したかを確認します。</p></div>
     </section>
     <div class="admin-list admin-coupon-usage-list">
       ${usageHistory.map((coupon) => {
@@ -6110,6 +6144,26 @@ function renderAdminCoupons() {
       }).join("") || emptyAdminState("クーポンの使用履歴はありません")}
     </div>
     <p class="soft-note">クーポンの正本データとLINE側の利用処理は変更していません。</p>
+  `;
+}
+
+function lineCouponUrlSettingCardHtml(coupon) {
+  const currentUrl = isSafeLineCouponUrl(coupon.lineCouponUrl) ? coupon.lineCouponUrl : "";
+  return `
+    <article class="reservation-menu-card line-coupon-url-card" data-line-coupon-url-card>
+      <header>
+        <div><strong>${escapeHtml(coupon.title)}</strong><small>couponId: ${escapeHtml(coupon.couponId)}</small></div>
+        <span class="badge ${currentUrl ? "status-success" : "status-warning"}">${currentUrl ? "URL登録済み" : "URL未登録"}</span>
+      </header>
+      <label class="line-coupon-url-field">LINEクーポンURL
+        <input type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://lin.ee/..." value="${escapeHtml(currentUrl)}" data-line-coupon-url>
+      </label>
+      <p class="line-coupon-url-error" data-line-coupon-url-error hidden></p>
+      <div class="admin-actions mini">
+        <button type="button" data-admin-action="saveLineCouponUrl" data-id="${escapeHtml(coupon.couponId)}">LINEクーポンURLを保存</button>
+        ${currentUrl ? `<button type="button" class="secondary-button" data-coupon-action="openLineCoupon" data-url="${escapeHtml(currentUrl)}">登録URLを確認</button>` : ""}
+      </div>
+    </article>
   `;
 }
 
@@ -7001,6 +7055,7 @@ function handleAdminAction(button) {
   if (action === "moveReservationMenuDown") return moveReservationMenu(id, 1);
   if (action === "deleteReservationMenu") return deleteReservationMenu(id);
   if (action === "addCoupon") return addAdminCoupon();
+  if (action === "saveLineCouponUrl") return saveLineCouponUrl(button, id);
   if (action === "editCoupon") return editAdminCoupon(id);
   if (action === "duplicateCoupon") return duplicateAdminCoupon(id);
   if (action === "toggleCoupon") return toggleAdminCoupon(id);
@@ -8969,6 +9024,73 @@ async function editLineCouponDefinition(existing, coupons) {
   showToast(`${next.title}を保存しました。`);
 }
 
+async function saveLineCouponUrl(button, couponId) {
+  if (!isProductionApiMode() || !getAdminSession() || !couponId) return false;
+  const card = button.closest("[data-line-coupon-url-card]");
+  const input = card?.querySelector("[data-line-coupon-url]");
+  const errorBox = card?.querySelector("[data-line-coupon-url-error]");
+  const lineCouponUrl = String(input?.value || "").trim();
+  const coupons = getAdminCoupons();
+  const coupon = coupons.find((item) => String(item.couponId) === String(couponId));
+  if (!coupon || !isLineCouponDefinition(coupon)) {
+    showToast("対象のLINEクーポンを確認できませんでした。");
+    return false;
+  }
+  if (!isSafeLineCouponUrl(lineCouponUrl)) {
+    if (errorBox) {
+      errorBox.hidden = false;
+      errorBox.textContent = "https://lin.ee/ から始まるLINEクーポンURLを入力してください。";
+    }
+    input?.focus();
+    showToast("LINEクーポンURLの形式を確認してください。");
+    return false;
+  }
+  if (errorBox) {
+    errorBox.hidden = true;
+    errorBox.textContent = "";
+  }
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "保存中…";
+  try {
+    const result = await apiRequest("updateCouponMaster", {
+      ...coupon,
+      couponId: coupon.couponId,
+      couponName: coupon.title,
+      lineCouponUrl,
+      validFrom: coupon.validStartAt || coupon.startDate || coupon.validFrom || "",
+      validUntil: coupon.validUntil || coupon.endDate || "",
+      usageLimit: coupon.perUserLimit || 1,
+      allowCombination: coupon.canCombine,
+      issueType: coupon.source || "LINE公式アカウント",
+      displayOrder: coupon.sortOrder || 999,
+      status: coupon.isPublic === false ? "stopped" : "active",
+      transactionId: createTransactionId("LINE-COUPON-URL")
+    });
+    const savedCoupon = result.coupon || result.data?.coupon || {};
+    const confirmedUrl = String(savedCoupon.lineCouponUrl || lineCouponUrl).trim();
+    if (!isSafeLineCouponUrl(confirmedUrl)) throw new Error("保存後のLINEクーポンURLを確認できませんでした。");
+    coupon.lineCouponUrl = confirmedUrl;
+    coupon.updatedAt = savedCoupon.updatedAt || new Date().toISOString();
+    writeJson(STORAGE_KEYS.adminCoupons, coupons.map(normalizeCouponDefinition));
+    addAdminLog("line_coupon_url", `${coupon.title} のLINEクーポンURLを保存`, getAdminSession()?.name, coupon.couponId);
+    renderApp();
+    showToast("LINEクーポンURLを保存しました。");
+    return true;
+  } catch (error) {
+    console.error("[TEAM LINK LINE COUPON URL SAVE FAILED]", { couponId, message: String(error?.message || error) });
+    if (errorBox) {
+      errorBox.hidden = false;
+      errorBox.textContent = "LINEクーポンURLを保存できませんでした。時間をおいて再度お試しください。";
+    }
+    showToast("LINEクーポンURLを保存できませんでした。");
+    return false;
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
 async function duplicateAdminCoupon(couponId) {
   const coupons = getAdminCoupons();
   const coupon = coupons.find((item) => item.couponId === couponId);
@@ -10742,7 +10864,14 @@ async function syncProductionState(options = {}) {
         if (!Array.isArray(coupons)) throw new Error("クーポンマスタの形式が正しくありません。");
         if (!Array.isArray(serverMenus)) throw new Error("MenuMasterの形式が正しくありません。");
         if (!Array.isArray(memberCoupons)) throw new Error("会員クーポンの形式が正しくありません。");
-        writeJson(STORAGE_KEYS.adminCoupons, coupons.map(mapServerCouponMasterToLocal));
+        const existingLineCouponUrls = new Map(
+          getAdminCoupons()
+            .filter((coupon) => isSafeLineCouponUrl(coupon.lineCouponUrl))
+            .map((coupon) => [String(coupon.couponId), coupon.lineCouponUrl])
+        );
+        writeJson(STORAGE_KEYS.adminCoupons, coupons.map((coupon) => (
+          mapServerCouponMasterToLocal(coupon, existingLineCouponUrls.get(String(coupon.couponId)) || "")
+        )));
         writeJson(STORAGE_KEYS.reservationMenus, serverMenus.map(mapServerMenuMasterToLocal));
         writeJson(STORAGE_KEYS.myCoupons, memberCoupons.map(mapServerMemberCouponToLocal));
         appState.couponMasterSyncStatus = "synced";
@@ -10944,6 +11073,19 @@ async function syncProductionVisitReceptions(options = {}) {
 async function syncProductionAdminSection(options = {}) {
   if (appState.adminTab === "bookings") return syncProductionBookingRequests(options);
   if (appState.adminTab === "settings") return syncProductionLineNotificationSettings(options);
+  if (appState.adminTab === "coupons") {
+    const results = await Promise.allSettled([
+      syncProductionAdminState({ ...options, render: false }),
+      syncProductionState({ renderDuringSync: false, essentialOnly: true, throwOnError: true })
+    ]);
+    const catalogFailure = results[1]?.status === "rejected" ? results[1].reason : null;
+    if (catalogFailure) {
+      console.error("[TEAM LINK ADMIN COUPON CATALOG SYNC FAILED]", catalogFailure);
+      showToast("LINE公式クーポンを取得できませんでした。");
+    }
+    if (options.render !== false) renderApp();
+    return results;
+  }
   return syncProductionAdminState(options);
 }
 
@@ -11206,16 +11348,18 @@ function mapServerMenuMasterToLocal(menu) {
   };
 }
 
-function mapServerCouponMasterToLocal(coupon) {
+function mapServerCouponMasterToLocal(coupon, existingLineCouponUrl = "") {
   const validFrom = normalizeApiDateKey(coupon.startDate || coupon.validFrom);
   const validUntil = normalizeApiDateKey(coupon.endDate || coupon.validUntil);
   const bookingDetails = extractCouponBookingDetails(coupon);
+  const serverLineCouponUrl = isSafeLineCouponUrl(coupon.lineCouponUrl) ? coupon.lineCouponUrl : "";
+  const retainedLineCouponUrl = isSafeLineCouponUrl(existingLineCouponUrl) ? existingLineCouponUrl : "";
   return normalizeCouponDefinition({
     couponId: coupon.couponId,
     title: coupon.couponName || coupon.title,
     description: coupon.description,
     imageUrl: coupon.imageUrl,
-    lineCouponUrl: coupon.lineCouponUrl,
+    lineCouponUrl: serverLineCouponUrl || retainedLineCouponUrl,
     couponType: coupon.couponType,
     type: "LINEクーポン",
     regularPrice: bookingDetails.regularPrice,

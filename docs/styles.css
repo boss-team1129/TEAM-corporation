@@ -2262,6 +2262,31 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 }
 .compact-selection-card.has-image .compact-selection-action { grid-column: 2 / -1; }
 .compact-selection-card .selection-actions { grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.coupon-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.coupon-card-actions .primary-button,
+.coupon-card-actions .secondary-button {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  font-size: 12px;
+}
+.coupon-detail-pending {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px dashed rgba(228, 199, 126, .24);
+  border-radius: 11px;
+  color: rgba(255,250,239,.60);
+  background: rgba(255,255,255,.035);
+  font-size: 12px;
+  font-weight: 800;
+}
 
 @media (max-width: 390px) {
   .coupon-list { gap: 8px; }
@@ -2269,6 +2294,7 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
   .compact-selection-card > img { width: 68px; height: 68px; }
   .compact-selection-card .selection-meta { min-width: 70px; }
   .compact-selection-card.has-image .compact-selection-action { grid-column: 1 / -1; }
+  .coupon-card-actions { grid-template-columns: 1fr; }
   .compact-selection-body p { -webkit-line-clamp: 1; }
   .team-fortune-card { padding: 14px; }
   .team-fortune-visual { min-height: 130px; }
@@ -2348,6 +2374,49 @@ progress::-webkit-progress-value { background: linear-gradient(90deg, #b98a3d, #
 
 .coupon-admin-card {
   border-color: rgba(238, 197, 126, .24);
+}
+
+.line-coupon-url-settings {
+  margin-bottom: 24px;
+}
+
+.line-coupon-url-card {
+  gap: 10px;
+}
+
+.line-coupon-url-field {
+  display: grid;
+  gap: 7px;
+  color: var(--champagne);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.line-coupon-url-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid rgba(228, 199, 126, .30);
+  border-radius: 13px;
+  color: var(--cream);
+  background: rgba(7, 6, 5, .48);
+  font: inherit;
+}
+
+.line-coupon-url-field input:focus {
+  outline: 2px solid rgba(228, 199, 126, .34);
+  outline-offset: 2px;
+}
+
+.line-coupon-url-error {
+  margin: 0;
+  color: #ffb9b9 !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-subsection-head {
+  margin-top: 26px;
 }
 
 .coupon-chart-group {
