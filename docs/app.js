@@ -5495,7 +5495,7 @@ function renderAdminDashboard() {
     ["bookings", "予約", "予約管理", "予約希望の確認・対応"],
     ["visits", "来店", "来店確認", "本日の来店を確認"],
     ["coupons", "券", "クーポン", "ガチャ景品などの使用履歴を確認"],
-    ["lineCoupons", "LINE", "LINEクーポン管理", "公式クーポンURLを登録"],
+    ["lineCoupons", "LINE", "LINEクーポン管理", "LINE公式クーポンのURL設定"],
     ["gacha", "G", "ガチャ管理", "カード・景品・テスト"],
     ["members", "会員", "会員管理", "会員情報を確認"],
     ["lounge", "縁", "ご縁ラウンジ", "有料会員管理"]
@@ -5520,7 +5520,7 @@ function renderAdminDashboard() {
       <header><h3>管理メニュー</h3><p>行いたい業務を選んでください。</p></header>
       <div class="admin-main-menu">
         ${menus.map(([tab, icon, title, description]) => `
-          <button type="button" class="admin-menu-button" data-admin-tab="${tab}">
+          <button type="button" class="admin-menu-button" data-admin-tab="${tab}" data-admin-menu-key="${tab}">
             <span class="admin-menu-icon" aria-hidden="true">${escapeHtml(icon)}</span>
             <span class="admin-menu-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small>${tab === "lounge" ? `<em>2026年10月開始予定・準備中</em>` : ""}</span>
             <i aria-hidden="true">›</i>
@@ -6119,6 +6119,7 @@ function renderAdminCoupons() {
   const usageHistory = readJson(STORAGE_KEYS.adminCouponUsageHistory, [])
     .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
   const gachaRewards = readJson(STORAGE_KEYS.gachaAdminRewards, []);
+  const gachaHistory = readJson(STORAGE_KEYS.gachaCardHistory, []);
   return `
     <section class="admin-section-head">
       <div>
@@ -6129,15 +6130,55 @@ function renderAdminCoupons() {
     ${usageDataReady ? `<div class="admin-list admin-coupon-usage-list">
       ${usageHistory.map((coupon) => {
         const member = findMember(coupon.memberId || coupon.userId);
-        const gachaReward = coupon.sourceType === "gacha"
-          ? gachaRewards.find((reward) => String(reward.cardId || reward.prizeId) === String(coupon.couponId || coupon.cardId))
-          : null;
-        const couponName = gachaReward?.prizeName || coupon.title || coupon.couponName || coupon.prizeName || "クーポン";
+        const couponName = resolveCouponUsageDisplayName(coupon, gachaRewards, gachaHistory);
         return `<article class="admin-mini-record admin-coupon-usage-row"><time>${escapeHtml(formatDateTime(coupon.usedAt) || "日時不明")}</time><strong>${escapeHtml(member?.realName || coupon.memberName || coupon.userName || coupon.memberId || "会員")}</strong><span>${escapeHtml(couponName)}</span><span class="badge status-success">使用済み</span></article>`;
       }).join("") || emptyAdminState("クーポンの使用履歴はありません")}
     </div>` : renderAdminDataState("クーポン使用履歴", appState.adminDataStatus.coupons, "クーポン使用履歴を取得できませんでした。")}
     <p class="soft-note">クーポンの正本データとLINE側の利用処理は変更していません。</p>
   `;
+}
+
+function resolveCouponUsageDisplayName(coupon, gachaRewards = [], gachaHistory = []) {
+  const directName = [coupon.prizeName, coupon.rewardName, coupon.couponName, coupon.title]
+    .map((value) => String(value || "").trim())
+    .find((value) => value && !isInternalGachaIdentifier(value));
+  if (directName) return directName;
+  const source = String(coupon.sourceType || coupon.source || "").toLowerCase();
+  const couponCardId = String(coupon.cardId || coupon.couponId || coupon.characterId || "").trim();
+  const isGachaUsage = source.includes("gacha") || source.includes("ガチャ") || isInternalGachaIdentifier(couponCardId);
+  if (!isGachaUsage) return coupon.title || coupon.couponName || coupon.prizeName || "クーポン";
+
+  const memberId = String(coupon.memberId || coupon.userId || "").trim();
+  const usedAt = new Date(coupon.usedAt || coupon.updatedAt || 0).getTime();
+  const matchingHistory = gachaHistory
+    .map((draw) => {
+      const drawMemberId = String(draw.memberId || draw.userId || "").trim();
+      const drawIds = [draw.cardId, draw.characterId, draw.serverCardId, draw.couponId]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+      const drawUsedAt = new Date(draw.usedAt || draw.useConfirmedAt || 0).getTime();
+      const memberMatches = Boolean(memberId && drawMemberId === memberId);
+      const idMatches = Boolean(couponCardId && drawIds.includes(couponCardId));
+      const timeMatches = Boolean(usedAt && drawUsedAt && Math.abs(usedAt - drawUsedAt) < 60000);
+      return { draw, score: (memberMatches ? 4 : 0) + (idMatches ? 2 : 0) + (timeMatches ? 3 : 0) };
+    })
+    .filter((item) => item.score >= 6)
+    .sort((a, b) => b.score - a.score)[0]?.draw;
+  const historyName = String(matchingHistory?.prizeName || matchingHistory?.rewardName || "").trim();
+  if (historyName && !isInternalGachaIdentifier(historyName)) return historyName;
+
+  const reward = gachaRewards.find((item) => [item.cardId, item.prizeId, item.characterId]
+    .map((value) => String(value || "").trim())
+    .includes(couponCardId));
+  const rewardName = String(reward?.prizeName || reward?.rewardName || "").trim();
+  if (rewardName && !isInternalGachaIdentifier(rewardName)) return rewardName;
+  if (Number(reward?.discountAmount || 0) > 0) return `${Number(reward.discountAmount).toLocaleString("ja-JP")}円OFF`;
+  if (Number(reward?.discountRate || 0) > 0) return `${Number(reward.discountRate)}%OFF`;
+  return "ガチャ景品";
+}
+
+function isInternalGachaIdentifier(value) {
+  return /^(?:character|card|prize|reward)[-_][a-z0-9_-]+$/i.test(String(value || "").trim());
 }
 
 function renderAdminLineCoupons() {
