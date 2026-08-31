@@ -625,7 +625,8 @@ const adminTabs = [
   { key: "dashboard", label: "管理トップ" },
   { key: "bookings", label: "予約管理" },
   { key: "visits", label: "来店確認" },
-  { key: "coupons", label: "クーポン" },
+  { key: "coupons", label: "クーポン使用履歴" },
+  { key: "lineCoupons", label: "LINEクーポン管理" },
   { key: "gacha", label: "ガチャ管理" },
   { key: "members", label: "会員管理" },
   { key: "lounge", label: "ご縁ラウンジ" },
@@ -880,6 +881,11 @@ function bindNavigation() {
         syncProductionLineNotificationSettings().catch((error) => {
           console.error("[TEAM LINK LINE NOTIFICATION SETTINGS SYNC FAILED]", error);
           showToast("LINE通知設定を取得できませんでした。");
+        });
+      } else if (isProductionApiMode() && appState.adminTab === "lineCoupons" && appState.couponMasterSyncStatus !== "synced") {
+        syncProductionAdminSection().catch((error) => {
+          console.error("[TEAM LINK LINE COUPON ADMIN SYNC FAILED]", error);
+          showToast("LINE公式クーポンを取得できませんでした。");
         });
       } else if (isProductionApiMode() && ["bookings", "visits", "coupons", "gacha", "members"].includes(appState.adminTab) && appState.adminDataStatus[appState.adminTab] !== "ready") {
         syncProductionAdminSection().catch((error) => {
@@ -5453,6 +5459,7 @@ function renderAdminPanel() {
     bookings: renderAdminBookings,
     reservationMenus: renderAdminReservationMenus,
     coupons: renderAdminCoupons,
+    lineCoupons: renderAdminLineCoupons,
     gacha: renderAdminGacha,
     gachaTest: renderAdminGachaTest,
     fortune: renderAdminFortune,
@@ -5487,7 +5494,8 @@ function renderAdminDashboard() {
   const menus = [
     ["bookings", "予約", "予約管理", "予約希望の確認・対応"],
     ["visits", "来店", "来店確認", "本日の来店を確認"],
-    ["coupons", "券", "クーポン", "使用履歴を確認"],
+    ["coupons", "券", "クーポン使用履歴", "使用履歴を確認"],
+    ["lineCoupons", "LINE", "LINEクーポン管理", "公式クーポンURLを登録"],
     ["gacha", "G", "ガチャ管理", "カード・景品・テスト"],
     ["members", "会員", "会員管理", "会員情報を確認"],
     ["lounge", "縁", "ご縁ラウンジ", "有料会員管理"]
@@ -6107,9 +6115,6 @@ function reservationMenuCard(menu) {
 }
 
 function renderAdminCoupons() {
-  const lineCoupons = getAdminCoupons()
-    .filter(isLineCouponDefinition)
-    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
   const usageDataReady = !isProductionApiMode() || appState.adminDataStatus.coupons === "ready";
   const usageHistory = readJson(STORAGE_KEYS.adminCouponUsageHistory, [])
     .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
@@ -6117,19 +6122,9 @@ function renderAdminCoupons() {
   return `
     <section class="admin-section-head">
       <div>
-        <h3>クーポン</h3>
-        <p>LINE公式クーポンの詳細URLと、クーポン使用履歴を管理します。</p>
+        <h3>クーポン使用履歴</h3>
+        <p>ガチャ景品など、発行済みクーポンの使用履歴を確認します。</p>
       </div>
-    </section>
-    <section class="reservation-menu-group line-coupon-url-settings">
-      <header><h4>LINEクーポンURL設定</h4><span>${lineCoupons.length}件</span></header>
-      <p class="soft-note">LINE Official Account Managerの「SNSでシェア（クーポンURLをコピー）」で取得した https://lin.ee/... を登録してください。couponIdで同じクーポンへ保存されます。</p>
-      <div class="reservation-menu-list">
-        ${lineCoupons.map(lineCouponUrlSettingCardHtml).join("") || `<p class="soft-note">${appState.couponMasterSyncStatus === "unavailable" ? "LINE公式クーポンを取得できませんでした。" : "LINE公式クーポンを取得しています。"}</p>`}
-      </div>
-    </section>
-    <section class="admin-section-head admin-subsection-head">
-      <div><h3>クーポン使用履歴</h3><p>誰が、いつ、どのクーポンを使用したかを確認します。</p></div>
     </section>
     ${usageDataReady ? `<div class="admin-list admin-coupon-usage-list">
       ${usageHistory.map((coupon) => {
@@ -6145,14 +6140,40 @@ function renderAdminCoupons() {
   `;
 }
 
+function renderAdminLineCoupons() {
+  const lineCoupons = getAdminCoupons()
+    .filter(isLineCouponDefinition)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  const loadingMessage = appState.couponMasterSyncStatus === "unavailable"
+    ? "LINE公式クーポンを取得できませんでした。再度この画面を開いてお試しください。"
+    : "LINE公式クーポンを取得しています…";
+  return `
+    <section class="admin-section-head">
+      <div>
+        <h3>LINEクーポン管理</h3>
+        <p>LINE公式APIから取得したクーポンに、Official Account Managerの共有URLを登録します。</p>
+      </div>
+    </section>
+    <section class="reservation-menu-group line-coupon-url-settings">
+      <header><h4>LINE公式クーポン一覧</h4><span>${lineCoupons.length}件</span></header>
+      <p class="soft-note">「SNSでシェア（クーポンURLをコピー）」で取得した https://lin.ee/... を登録してください。URLはcouponIdで保存され、LINE公式クーポンを再同期しても保持されます。</p>
+      <div class="reservation-menu-list">
+        ${lineCoupons.map(lineCouponUrlSettingCardHtml).join("") || `<p class="soft-note">${loadingMessage}</p>`}
+      </div>
+    </section>
+  `;
+}
+
 function lineCouponUrlSettingCardHtml(coupon) {
   const currentUrl = isSafeLineCouponUrl(coupon.lineCouponUrl) ? coupon.lineCouponUrl : "";
+  const validUntil = coupon.validUntil || coupon.endDate || coupon.endAt || coupon.publishEndAt || "";
   return `
     <article class="reservation-menu-card line-coupon-url-card" data-line-coupon-url-card>
       <header>
         <div><strong>${escapeHtml(coupon.title)}</strong><small>couponId: ${escapeHtml(coupon.couponId)}</small></div>
         <span class="badge ${currentUrl ? "status-success" : "status-warning"}">${currentUrl ? "URL登録済み" : "URL未登録"}</span>
       </header>
+      <p class="soft-note">有効期限：${escapeHtml(validUntil ? formatDateUntil(validUntil) : "未設定")}</p>
       <label class="line-coupon-url-field">LINEクーポンURL
         <input type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://lin.ee/..." value="${escapeHtml(currentUrl)}" data-line-coupon-url>
       </label>
@@ -11071,18 +11092,10 @@ async function syncProductionVisitReceptions(options = {}) {
 async function syncProductionAdminSection(options = {}) {
   if (appState.adminTab === "bookings") return syncProductionBookingRequests(options);
   if (appState.adminTab === "settings") return syncProductionLineNotificationSettings(options);
-  if (appState.adminTab === "coupons") {
-    const results = await Promise.allSettled([
-      syncProductionAdminState({ ...options, render: false }),
-      syncProductionState({ renderDuringSync: false, essentialOnly: true, throwOnError: true })
-    ]);
-    const catalogFailure = results[1]?.status === "rejected" ? results[1].reason : null;
-    if (catalogFailure) {
-      console.error("[TEAM LINK ADMIN COUPON CATALOG SYNC FAILED]", catalogFailure);
-      showToast("LINE公式クーポンを取得できませんでした。");
-    }
+  if (appState.adminTab === "lineCoupons") {
+    const result = await syncProductionState({ renderDuringSync: false, essentialOnly: true, throwOnError: true });
     if (options.render !== false) renderApp();
-    return results;
+    return result;
   }
   return syncProductionAdminState(options);
 }

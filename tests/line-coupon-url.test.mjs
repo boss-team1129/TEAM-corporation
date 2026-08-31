@@ -9,10 +9,21 @@ test("accepts only the official lin.ee HTTPS host", () => {
   assert.match(app, /url\.protocol === "https:" && url\.hostname === "lin\.ee"/);
 });
 
-test("renders one URL setting keyed by couponId in coupon management", () => {
-  assert.match(app, /LINEクーポンURL設定/);
+test("keeps coupon usage history separate from LINE coupon URL management", () => {
+  assert.match(app, /\{ key: "coupons", label: "クーポン使用履歴" \}/);
+  assert.match(app, /\{ key: "lineCoupons", label: "LINEクーポン管理" \}/);
+  const usageStart = app.indexOf("function renderAdminCoupons()");
+  const lineStart = app.indexOf("function renderAdminLineCoupons()", usageStart);
+  const usageBody = app.slice(usageStart, lineStart);
+  assert.doesNotMatch(usageBody, /data-line-coupon-url/);
+  assert.match(app.slice(lineStart), /LINE公式クーポン一覧/);
+});
+
+test("renders one URL setting keyed by couponId with expiry and registration state", () => {
   assert.match(app, /data-admin-action="saveLineCouponUrl" data-id="\$\{escapeHtml\(coupon\.couponId\)\}"/);
   assert.match(app, /couponId: \$\{escapeHtml\(coupon\.couponId\)\}/);
+  assert.match(app, /有効期限：\$\{escapeHtml/);
+  assert.match(app, /URL登録済み/);
 });
 
 test("persists the URL through the existing coupon master API", () => {
@@ -36,6 +47,6 @@ test("keeps the existing booking selection action separate from coupon details",
 });
 
 test("loads the coupon URL release assets", () => {
-  assert.match(html, /styles\.css\?v=20260831-line-coupon-url-2/);
-  assert.match(html, /app\.js\?v=20260831-line-coupon-url-2/);
+  assert.match(html, /styles\.css\?v=20260831-line-coupon-url-3/);
+  assert.match(html, /app\.js\?v=20260831-line-coupon-url-3/);
 });
