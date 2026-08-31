@@ -62,6 +62,8 @@ const viewMap = {
   admin: "adminView"
 };
 
+const LINE_DEEP_LINK_PAGES = new Set(["coupons", "gacha", "fortune"]);
+
 const appState = {
   currentView: "homeView",
   previousView: "homeView",
@@ -2149,13 +2151,20 @@ function getReservationCouponDisplayText(booking) {
 
 function openInitialView() {
   const params = new URLSearchParams(location.search);
-  const view = params.get("view") || params.get("page") || "home";
+  const view = resolveInitialView(params);
   const adminSection = String(params.get("section") || "").trim();
   if (view === "admin" && adminTabs.some((tab) => tab.key === adminSection)) {
     appState.adminTab = adminSection;
     if (adminSection === "bookings") appState.adminFocusedBookingRequestId = String(params.get("requestId") || "").trim();
   }
-  showView(viewMap[view] ? view : "home", { replace: true });
+  showView(view, { replace: true });
+}
+
+function resolveInitialView(params = new URLSearchParams(location.search)) {
+  const requestedView = String(params.get("view") || "").trim();
+  if (requestedView) return viewMap[requestedView] ? requestedView : "home";
+  const requestedPage = String(params.get("page") || "").trim();
+  return LINE_DEEP_LINK_PAGES.has(requestedPage) ? requestedPage : "home";
 }
 
 function showView(viewKey, options = {}) {
@@ -2192,9 +2201,7 @@ function showView(viewKey, options = {}) {
 }
 
 window.addEventListener("popstate", () => {
-  const params = new URLSearchParams(location.search);
-  const view = params.get("view") || "home";
-  showView(view, { replace: true });
+  showView(resolveInitialView(), { replace: true });
 });
 
 function updateNav(routeKey) {
