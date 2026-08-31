@@ -12,7 +12,7 @@ test("uses the LIFF ID registered in LINE Developers", () => {
 
 test("loads the official LIFF SDK before the application", () => {
   const sdkIndex = html.indexOf("https://static.line-scdn.net/liff/edge/2/sdk.js");
-  const appIndex = html.indexOf("app.js?v=20260831-liff-diagnostics-1");
+  const appIndex = html.indexOf("app.js?v=20260831-liff-coupons-1");
   assert.ok(sdkIndex >= 0);
   assert.ok(appIndex > sdkIndex);
 });
@@ -58,4 +58,13 @@ test("provides visible diagnostics, timeout, and retry recovery", () => {
   assert.match(html, /id="startupRetryButton"/);
   assert.match(app, /const TEAM_LINK_STARTUP_TIMEOUT_MS = 10000;/);
   assert.match(app, /function showStartupFailure\(/);
+});
+
+test("shows LINE official coupons without requiring an optional lin.ee share URL", () => {
+  assert.match(app, /\.filter\(\(coupon\) => !coupon\.lineCouponUrl \|\| isSafeLineCouponUrl\(coupon\.lineCouponUrl\)\)/);
+});
+
+test("hides diagnostic JSON in production", () => {
+  assert.match(app, /const TEAM_LINK_LIFF_DEBUG = false;/);
+  assert.match(app, /if \(details && TEAM_LINK_LIFF_DEBUG\)/);
 });

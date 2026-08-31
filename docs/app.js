@@ -4,7 +4,7 @@ const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
 const TEAM_LINK_LIFF_ID = "2011349129-0lFO8qFb";
 const TEAM_LINK_LIFF_URL = `https://liff.line.me/${TEAM_LINK_LIFF_ID}`;
 const TEAM_LINK_LIFF_LAUNCH_KEY = "teamLinkLiffLaunch";
-const TEAM_LINK_LIFF_DEBUG = true;
+const TEAM_LINK_LIFF_DEBUG = false;
 const TEAM_LINK_STARTUP_TIMEOUT_MS = 10000;
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
 const TEAM_LINK_FORTUNE_DB_ID = window.TEAM_LINK_FORTUNE_DB_ID || (typeof localStorage !== "undefined" ? localStorage.getItem("teamLinkFortuneDbId") : "") || "1zV8nf3lkRqe9blmpg_3ozPkY5C98MwbB8F1PQJQuA-8";
@@ -777,7 +777,7 @@ function showStartupFailure(error) {
     isLoggedIn: safeLiffBoolean(window.liff, "isLoggedIn")
   });
   const details = document.getElementById("startupDetails");
-  if (details) {
+  if (details && TEAM_LINK_LIFF_DEBUG) {
     details.hidden = false;
     details.textContent = JSON.stringify({
       error: message,
@@ -786,6 +786,9 @@ function showStartupFailure(error) {
       isLoggedIn: safeLiffBoolean(window.liff, "isLoggedIn"),
       href: sanitizeStartupHref(window.location.href)
     }, null, 2);
+  } else if (details) {
+    details.hidden = true;
+    details.textContent = "";
   }
   const retry = document.getElementById("startupRetryButton");
   if (retry) retry.hidden = false;
@@ -1654,7 +1657,7 @@ function getPublicLineCoupons(context = {}) {
   return getPublicCoupons(context)
     .filter(isLineCouponDefinition)
     .filter((coupon) => isCouponForStaff(coupon, context.staffId))
-    .filter((coupon) => isSafeLineCouponUrl(coupon.lineCouponUrl));
+    .filter((coupon) => !coupon.lineCouponUrl || isSafeLineCouponUrl(coupon.lineCouponUrl));
 }
 
 function getBookableMyLineCoupons(context = {}) {
