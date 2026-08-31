@@ -6107,12 +6107,10 @@ function reservationMenuCard(menu) {
 }
 
 function renderAdminCoupons() {
-  if (isProductionApiMode() && appState.adminDataStatus.coupons !== "ready") {
-    return renderAdminDataState("クーポン", appState.adminDataStatus.coupons, "クーポン使用履歴を取得できませんでした。");
-  }
   const lineCoupons = getAdminCoupons()
     .filter(isLineCouponDefinition)
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+  const usageDataReady = !isProductionApiMode() || appState.adminDataStatus.coupons === "ready";
   const usageHistory = readJson(STORAGE_KEYS.adminCouponUsageHistory, [])
     .sort((a, b) => new Date(b.usedAt || b.updatedAt || 0) - new Date(a.usedAt || a.updatedAt || 0));
   const gachaRewards = readJson(STORAGE_KEYS.gachaAdminRewards, []);
@@ -6127,13 +6125,13 @@ function renderAdminCoupons() {
       <header><h4>LINEクーポンURL設定</h4><span>${lineCoupons.length}件</span></header>
       <p class="soft-note">LINE Official Account Managerの「SNSでシェア（クーポンURLをコピー）」で取得した https://lin.ee/... を登録してください。couponIdで同じクーポンへ保存されます。</p>
       <div class="reservation-menu-list">
-        ${lineCoupons.map(lineCouponUrlSettingCardHtml).join("") || `<p class="soft-note">LINE公式クーポンを取得しています。</p>`}
+        ${lineCoupons.map(lineCouponUrlSettingCardHtml).join("") || `<p class="soft-note">${appState.couponMasterSyncStatus === "unavailable" ? "LINE公式クーポンを取得できませんでした。" : "LINE公式クーポンを取得しています。"}</p>`}
       </div>
     </section>
     <section class="admin-section-head admin-subsection-head">
       <div><h3>クーポン使用履歴</h3><p>誰が、いつ、どのクーポンを使用したかを確認します。</p></div>
     </section>
-    <div class="admin-list admin-coupon-usage-list">
+    ${usageDataReady ? `<div class="admin-list admin-coupon-usage-list">
       ${usageHistory.map((coupon) => {
         const member = findMember(coupon.memberId || coupon.userId);
         const gachaReward = coupon.sourceType === "gacha"
@@ -6142,7 +6140,7 @@ function renderAdminCoupons() {
         const couponName = gachaReward?.prizeName || coupon.title || coupon.couponName || coupon.prizeName || "クーポン";
         return `<article class="admin-mini-record admin-coupon-usage-row"><time>${escapeHtml(formatDateTime(coupon.usedAt) || "日時不明")}</time><strong>${escapeHtml(member?.realName || coupon.memberName || coupon.userName || coupon.memberId || "会員")}</strong><span>${escapeHtml(couponName)}</span><span class="badge status-success">使用済み</span></article>`;
       }).join("") || emptyAdminState("クーポンの使用履歴はありません")}
-    </div>
+    </div>` : renderAdminDataState("クーポン使用履歴", appState.adminDataStatus.coupons, "クーポン使用履歴を取得できませんでした。")}
     <p class="soft-note">クーポンの正本データとLINE側の利用処理は変更していません。</p>
   `;
 }

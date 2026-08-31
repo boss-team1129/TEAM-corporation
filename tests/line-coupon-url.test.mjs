@@ -36,6 +36,6 @@ test("keeps the existing booking selection action separate from coupon details",
 });
 
 test("loads the coupon URL release assets", () => {
-  assert.match(html, /styles\.css\?v=20260831-line-coupon-url-1/);
-  assert.match(html, /app\.js\?v=20260831-line-coupon-url-1/);
+  assert.match(html, /styles\.css\?v=20260831-line-coupon-url-2/);
+  assert.match(html, /app\.js\?v=20260831-line-coupon-url-2/);
 });
