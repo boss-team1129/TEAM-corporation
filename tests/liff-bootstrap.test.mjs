@@ -12,7 +12,7 @@ test("uses the LIFF ID registered in LINE Developers", () => {
 
 test("loads the official LIFF SDK before the application", () => {
   const sdkIndex = html.indexOf("https://static.line-scdn.net/liff/edge/2/sdk.js");
-  const appIndex = html.indexOf("app.js?v=20260831-line-coupon-url-3");
+  const appIndex = html.indexOf("app.js?v=20260901-line-coupon-admin-1");
   assert.ok(sdkIndex >= 0);
   assert.ok(appIndex > sdkIndex);
 });

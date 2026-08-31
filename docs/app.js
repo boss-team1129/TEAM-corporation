@@ -625,7 +625,7 @@ const adminTabs = [
   { key: "dashboard", label: "管理トップ" },
   { key: "bookings", label: "予約管理" },
   { key: "visits", label: "来店確認" },
-  { key: "coupons", label: "クーポン使用履歴" },
+  { key: "coupons", label: "クーポン" },
   { key: "lineCoupons", label: "LINEクーポン管理" },
   { key: "gacha", label: "ガチャ管理" },
   { key: "members", label: "会員管理" },
@@ -5494,7 +5494,7 @@ function renderAdminDashboard() {
   const menus = [
     ["bookings", "予約", "予約管理", "予約希望の確認・対応"],
     ["visits", "来店", "来店確認", "本日の来店を確認"],
-    ["coupons", "券", "クーポン使用履歴", "使用履歴を確認"],
+    ["coupons", "券", "クーポン", "ガチャ景品などの使用履歴を確認"],
     ["lineCoupons", "LINE", "LINEクーポン管理", "公式クーポンURLを登録"],
     ["gacha", "G", "ガチャ管理", "カード・景品・テスト"],
     ["members", "会員", "会員管理", "会員情報を確認"],

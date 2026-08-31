@@ -10,8 +10,10 @@ test("accepts only the official lin.ee HTTPS host", () => {
 });
 
 test("keeps coupon usage history separate from LINE coupon URL management", () => {
-  assert.match(app, /\{ key: "coupons", label: "クーポン使用履歴" \}/);
+  assert.match(app, /\{ key: "coupons", label: "クーポン" \}/);
   assert.match(app, /\{ key: "lineCoupons", label: "LINEクーポン管理" \}/);
+  assert.match(app, /\["coupons", "券", "クーポン", "ガチャ景品などの使用履歴を確認"\]/);
+  assert.match(app, /\["lineCoupons", "LINE", "LINEクーポン管理", "公式クーポンURLを登録"\]/);
   const usageStart = app.indexOf("function renderAdminCoupons()");
   const lineStart = app.indexOf("function renderAdminLineCoupons()", usageStart);
   const usageBody = app.slice(usageStart, lineStart);
@@ -47,6 +49,6 @@ test("keeps the existing booking selection action separate from coupon details",
 });
 
 test("loads the coupon URL release assets", () => {
-  assert.match(html, /styles\.css\?v=20260831-line-coupon-url-3/);
-  assert.match(html, /app\.js\?v=20260831-line-coupon-url-3/);
+  assert.match(html, /styles\.css\?v=20260901-line-coupon-admin-1/);
+  assert.match(html, /app\.js\?v=20260901-line-coupon-admin-1/);
 });
