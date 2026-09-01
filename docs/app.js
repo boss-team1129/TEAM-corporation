@@ -3,6 +3,7 @@ const TEAM_LINK_API_URL = window.TEAM_LINK_API_URL || TEAM_LINK_PRODUCTION_API_U
 const TEAM_LINK_DATA_MODE = window.TEAM_LINK_DATA_MODE || "production";
 const TEAM_LINK_LIFF_ID = "2011349129-0lFO8qFb";
 const TEAM_LINK_LIFF_URL = `https://liff.line.me/${TEAM_LINK_LIFF_ID}`;
+const TEAM_LINK_COUPON_RETURN_SCROLL_KEY = "teamLinkCouponReturnScroll";
 const TEAM_LINK_LIFF_DEBUG = false;
 const TEAM_LINK_STARTUP_TIMEOUT_MS = 10000;
 const TEAM_LINK_FORTUNE_API_URL = window.TEAM_LINK_FORTUNE_API_URL || "https://script.google.com/macros/s/AKfycbwR9K2SUXP5iNuA672g8keF--fMKDChRXTqwh47Q0_MXTZ5c6lfcYozrsaBdxlwDv99eA/exec";
@@ -635,6 +636,10 @@ const adminTabs = [
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("startupRetryButton")?.addEventListener("click", () => window.location.reload());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) restoreLineCouponReturnScroll();
+  });
+  window.addEventListener("pageshow", restoreLineCouponReturnScroll);
   startTeamLinkApplication().catch((error) => {
     console.error("[TEAM LINK STARTUP FAILED]", error);
     showStartupFailure(error);
@@ -3443,18 +3448,69 @@ function handleCouponSelectionAction(button) {
   if (action === "book") startBookingFromMySelections();
 }
 
-function openLineCouponUrl(value) {
+async function openLineCouponUrl(value) {
   const url = String(value || "").trim();
   if (!isSafeLineCouponUrl(url)) {
     showToast("LINEクーポンの詳細URLを確認できませんでした。");
     return false;
   }
+
+  rememberLineCouponReturnScroll();
+
+  let openUrl = url;
   if (window.liff && typeof window.liff.openWindow === "function") {
-    window.liff.openWindow({ url, external: false });
+    try {
+      const result = await apiRequest("resolveLineCouponOpenUrl", { lineCouponUrl: url });
+      const resolvedUrl = String(result.resolvedUrl || result.data?.resolvedUrl || "").trim();
+      if (isSafeResolvedLineCouponUrl(resolvedUrl)) openUrl = resolvedUrl;
+    } catch (error) {
+      console.warn("[TEAM LINK LINE COUPON URL RESOLVE FAILED]", {
+        message: String(error?.message || error)
+      });
+    }
+    window.liff.openWindow({ url: openUrl, external: false });
     return true;
   }
   window.location.assign(url);
   return true;
+}
+
+function isSafeResolvedLineCouponUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    return url.protocol === "https:" && url.hostname === "liff.line.me";
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberLineCouponReturnScroll() {
+  try {
+    sessionStorage.setItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY, JSON.stringify({
+      scrollY: Math.max(0, Math.round(window.scrollY || 0)),
+      savedAt: Date.now()
+    }));
+  } catch (error) {
+    console.warn("[TEAM LINK COUPON SCROLL SAVE FAILED]", error);
+  }
+}
+
+function restoreLineCouponReturnScroll() {
+  if (document.hidden || appState.currentView !== viewMap.coupons) return;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY) || "null");
+    if (!saved || !Number.isFinite(Number(saved.scrollY))) return;
+    if (Date.now() - Number(saved.savedAt || 0) > 30 * 60 * 1000) {
+      sessionStorage.removeItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.scrollTo({ top: Number(saved.scrollY), behavior: "auto" }));
+    });
+    sessionStorage.removeItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY);
+  } catch (error) {
+    sessionStorage.removeItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY);
+  }
 }
 
 function addMySelection(type, itemId) {

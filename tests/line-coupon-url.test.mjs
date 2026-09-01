@@ -42,7 +42,16 @@ test("retains a saved URL when a later LINE sync returns an empty URL", () => {
 test("opens a registered coupon inside LINE and hides the action while unregistered", () => {
   assert.match(app, /LINEクーポンを詳しく見る/);
   assert.match(app, /詳細準備中/);
-  assert.match(app, /window\.liff\.openWindow\(\{ url, external: false \}\)/);
+  assert.match(app, /apiRequest\("resolveLineCouponOpenUrl", \{ lineCouponUrl: url \}\)/);
+  assert.match(app, /window\.liff\.openWindow\(\{ url: openUrl, external: false \}\)/);
+  assert.match(app, /isSafeResolvedLineCouponUrl/);
+});
+
+test("preserves the coupon list scroll position while LINE coupon details are open", () => {
+  assert.match(app, /TEAM_LINK_COUPON_RETURN_SCROLL_KEY/);
+  assert.match(app, /rememberLineCouponReturnScroll\(\)/);
+  assert.match(app, /visibilitychange/);
+  assert.match(app, /window\.scrollTo\(\{ top: Number\(saved\.scrollY\), behavior: "auto" \}\)/);
 });
 
 test("keeps the existing booking selection action separate from coupon details", () => {
@@ -51,7 +60,7 @@ test("keeps the existing booking selection action separate from coupon details",
 
 test("loads the coupon URL release assets", () => {
   assert.match(html, /styles\.css\?v=20260901-line-coupon-admin-2/);
-  assert.match(html, /app\.js\?v=20260901-gacha-api-fix-1/);
+  assert.match(html, /app\.js\?v=20260901-line-coupon-return-1/);
 });
 
 test("resolves gacha coupon usage labels from the existing draw history", () => {
