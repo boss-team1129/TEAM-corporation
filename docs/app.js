@@ -4109,14 +4109,30 @@ async function drawGachaRemote(issueMonth, options = {}) {
   } catch (error) {
     console.error("[TEAM LINK GACHA DRAW FAILED]", {
       action: "drawMonthlyGacha",
+      httpStatus: error?.httpStatus || "unknown",
       errorCode: error?.errorCode || "",
       message: error?.message || String(error),
       responseBody: error?.responseBody || "",
       requestUrl: error?.requestUrl || TEAM_LINK_API_URL
     });
-    showToast("通信に失敗しました。時間をおいてもう一度お試しください");
+    showToast(getGachaDrawErrorMessage(error));
     return null;
   }
+}
+
+function getGachaDrawErrorMessage(error) {
+  const code = String(error?.errorCode || "");
+  const message = String(error?.message || "");
+  if (code === "NO_REWARD" || /抽選できる景品がありません/.test(message)) {
+    return "今月のガチャは準備中です。";
+  }
+  if (code === "ALREADY_DRAWN" || /すでに引いています/.test(message)) {
+    return "今月のガチャはすでに引いています。";
+  }
+  if (code === "GACHA_DISABLED" || /現在ガチャは利用できません/.test(message)) {
+    return "現在ガチャは利用できません。";
+  }
+  return "通信に失敗しました。時間をおいてもう一度お試しください";
 }
 
 function mapServerGachaDrawToLocal(draw, reward) {
@@ -10809,13 +10825,29 @@ async function apiRequest(action, payload = {}, options = {}) {
           continue;
         }
         const error = new Error(response.status === 404 ? "TEAM LINK APIが見つかりません。" : "TEAM LINK APIからJSONを取得できませんでした。");
+        error.httpStatus = response.status;
+        error.responseBody = text.slice(0, 500);
+        error.requestUrl = response.url || apiUrl;
         logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text.slice(0, 500), error, transport: "POST" });
         throw error;
       }
-      const data = JSON.parse(text);
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        const error = new Error("TEAM LINK APIのJSON応答を解析できませんでした。");
+        error.httpStatus = response.status;
+        error.responseBody = text.slice(0, 500);
+        error.requestUrl = response.url || apiUrl;
+        logApiFailure({ action, url: error.requestUrl, status: response.status, body: error.responseBody, error, transport: "POST" });
+        throw error;
+      }
       if (!data.success) {
         const error = new Error(data.message || "処理に失敗しました。");
         error.errorCode = data.errorCode || "";
+        error.httpStatus = response.status;
+        error.responseBody = text.slice(0, 500);
+        error.requestUrl = response.url || apiUrl;
         logApiFailure({ action, url: response.url || apiUrl, status: response.status, body: text.slice(0, 500), error, transport: "POST" });
         throw error;
       }
@@ -10957,18 +10989,29 @@ async function syncProductionState(options = {}) {
       return { catalogSynced: true, userKeyPresent: Boolean(userKey) };
     }
 
-    const results = await Promise.allSettled([
-      apiRequest("getGachaConfig", {}),
-      apiRequest("getPublishedRewards", {}),
-      apiRequest("getUserCoupons", { userId: userKey }),
-      apiRequest("checkMonthlyDrawStatus", { userId: userKey, memberId: userKey, lineUserId: profile.lineUserId || "", targetYearMonth: currentMonthKey() }),
-      apiRequest("getUserBinder", { userId: userKey, year: String(currentYear()) }),
-      apiRequest("getPastBinderHistory", { userId: userKey, currentYear: String(currentYear()) }),
-      apiRequest("getCollectionRewards", { userId: userKey, targetYear: String(currentYear()) })
-    ]);
+    const currentGachaMonth = currentMonthKey();
+    const productionSyncRequests = [
+      { action: "getGachaConfig", request: apiRequest("getGachaConfig", { targetYearMonth: currentGachaMonth }) },
+      { action: "getPublishedRewards", request: apiRequest("getPublishedRewards", { targetYearMonth: currentGachaMonth }) },
+      { action: "getUserCoupons", request: apiRequest("getUserCoupons", { userId: userKey }) },
+      { action: "checkMonthlyDrawStatus", request: apiRequest("checkMonthlyDrawStatus", { userId: userKey, memberId: userKey, lineUserId: profile.lineUserId || "", targetYearMonth: currentGachaMonth }) },
+      { action: "getUserBinder", request: apiRequest("getUserBinder", { userId: userKey, year: String(currentYear()) }) },
+      { action: "getPastBinderHistory", request: apiRequest("getPastBinderHistory", { userId: userKey, currentYear: String(currentYear()) }) },
+      { action: "getCollectionRewards", request: apiRequest("getCollectionRewards", { userId: userKey, targetYear: String(currentYear()) }) }
+    ];
+    const results = await Promise.allSettled(productionSyncRequests.map((item) => item.request));
     const [gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, pastBinders, collectionRewards] = results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
-      console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", { index, reason: result.reason });
+      const error = result.reason;
+      console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", {
+        index,
+        action: productionSyncRequests[index]?.action || "unknown",
+        httpStatus: error?.httpStatus || "unknown",
+        errorCode: error?.errorCode || "",
+        message: error?.message || String(error),
+        responseBody: error?.responseBody || "",
+        requestUrl: error?.requestUrl || TEAM_LINK_API_URL
+      });
       return {};
     });
     if (gachaRewards.data?.rewards) mergeServerGachaRewards(gachaRewards.data.rewards);

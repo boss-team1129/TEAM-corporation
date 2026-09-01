@@ -51,7 +51,7 @@ test("keeps the existing booking selection action separate from coupon details",
 
 test("loads the coupon URL release assets", () => {
   assert.match(html, /styles\.css\?v=20260901-line-coupon-admin-2/);
-  assert.match(html, /app\.js\?v=20260901-line-coupon-admin-2/);
+  assert.match(html, /app\.js\?v=20260901-gacha-api-fix-1/);
 });
 
 test("resolves gacha coupon usage labels from the existing draw history", () => {
