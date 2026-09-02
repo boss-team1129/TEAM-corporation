@@ -54,13 +54,22 @@ test("preserves the coupon list scroll position while LINE coupon details are op
   assert.match(app, /window\.scrollTo\(\{ top: Number\(saved\.scrollY\), behavior: "auto" \}\)/);
 });
 
+test("resumes the cached coupon list before background LIFF refresh", () => {
+  assert.match(app, /const lineCouponReturnState = getLineCouponReturnState\(\)/);
+  assert.match(app, /if \(canResumeLineCouponView\(lineCouponReturnState\)\)/);
+  assert.match(app, /resumeLineCouponView\(lineCouponReturnState\)/);
+  assert.match(app, /document\.getElementById\("splashScreen"\)\?\.classList\.add\("is-hidden"\)/);
+  assert.match(app, /refreshLiffAfterLineCouponReturn\(\)\.catch/);
+  assert.match(app, /saved\.couponCatalogReady === true/);
+});
+
 test("keeps the existing booking selection action separate from coupon details", () => {
   assert.match(app, /selectionButtonHtml\("coupon", coupon\.couponId\)/);
 });
 
 test("loads the coupon URL release assets", () => {
   assert.match(html, /styles\.css\?v=20260901-line-coupon-admin-2/);
-  assert.match(html, /app\.js\?v=20260901-line-coupon-return-1/);
+  assert.match(html, /app\.js\?v=20260902-stability-1/);
 });
 
 test("resolves gacha coupon usage labels from the existing draw history", () => {

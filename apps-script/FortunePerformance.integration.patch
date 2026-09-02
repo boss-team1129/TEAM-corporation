@@ -1,0 +1,11 @@
+--- コード.gs
++++ コード.gs
+@@
+-function resolveTeamFortune_(payload) {
++function resolveTeamFortuneUncached_(payload) {
+@@ getSheetObjects_
+ function getSheetObjects_(ss, sheetName) {
++  if (typeof TEAM_FORTUNE_READ_CACHE_ !== "undefined" && TEAM_FORTUNE_READ_CACHE_) {
++    return getTeamFortuneCachedSheetObjects_(ss, sheetName);
++  }
+   const sheet = ensureSheet_(ss, sheetName, TEAM_LINK_SHEETS[sheetName]);

@@ -4,26 +4,15 @@ import test from "node:test";
 
 const app = readFileSync(new URL("../docs/app.js", import.meta.url), "utf8");
 
-test("requests the current month explicitly for gacha config and rewards", () => {
-  assert.match(app, /apiRequest\("getGachaConfig", \{ targetYearMonth: currentGachaMonth \}\)/);
-  assert.match(app, /apiRequest\("getPublishedRewards", \{ targetYearMonth: currentGachaMonth \}\)/);
-  assert.match(app, /apiRequest\("checkMonthlyDrawStatus", \{[^}]*targetYearMonth: currentGachaMonth/);
+test("loads the current gacha state through one bootstrap request", () => {
+  assert.match(app, /apiRequest\("getGachaBootstrap", payload\)/);
+  assert.match(app, /targetYearMonth: currentMonthKey\(\)/);
+  assert.match(app, /applyProductionGachaBootstrap\(result\.data \|\| result, userKey\)/);
 });
 
-test("names every gacha startup API when a partial sync fails", () => {
-  assert.match(app, /productionSyncRequests = \[/);
-  for (const action of [
-    "getGachaConfig",
-    "getPublishedRewards",
-    "getUserCoupons",
-    "checkMonthlyDrawStatus",
-    "getUserBinder",
-    "getPastBinderHistory",
-    "getCollectionRewards"
-  ]) {
-    assert.match(app, new RegExp(`action: "${action}"`));
-  }
-  assert.match(app, /\[TEAM LINK API PARTIAL SYNC FAILED\][\s\S]*action: productionSyncRequests\[index\]\?\.action/);
+test("reports the single bootstrap action when gacha startup fails", () => {
+  assert.match(app, /\[TEAM LINK GACHA BOOTSTRAP FAILED\]/);
+  assert.match(app, /action: "getGachaBootstrap"/);
 });
 
 test("preserves HTTP and response details on API business errors", () => {

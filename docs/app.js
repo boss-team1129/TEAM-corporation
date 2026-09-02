@@ -12,6 +12,14 @@ const TEAM_LINK_DATA_SPREADSHEET_ID = window.TEAM_LINK_DATA_SPREADSHEET_ID || "1
 const LOUNGE_RELEASE_DATE = "2026-10-01";
 const ASSET_VERSION = "20260801-character-hires-1";
 const gachaRevealAssetCache = new Map();
+const teamLinkApiInFlight = new Map();
+const TEAM_LINK_DEDUPED_API_ACTIONS = new Set([
+  "getBookingCatalog", "getGachaBootstrap", "getLinkedMemberProfile", "getMyBookingRequests"
+]);
+const TEAM_LINK_GACHA_ROUTE_KEYS = new Set(["gacha", "mycards", "collectionRewards", "gachaHistory"]);
+const TEAM_LINK_PERF_ENABLED = new URLSearchParams(window.location.search).get("perf") === "1";
+let teamLinkGachaSyncPromise = null;
+let teamFortuneRenderSequence = 0;
 const LEGACY_FIXED_PROFILE = Object.freeze({
   memberId: "TL-000001",
   lineUserId: "U-demo-1"
@@ -635,18 +643,19 @@ const adminTabs = [
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
+  const lineCouponReturnState = getLineCouponReturnState();
   document.getElementById("startupRetryButton")?.addEventListener("click", () => window.location.reload());
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) restoreLineCouponReturnScroll();
   });
   window.addEventListener("pageshow", restoreLineCouponReturnScroll);
-  startTeamLinkApplication().catch((error) => {
+  startTeamLinkApplication(lineCouponReturnState).catch((error) => {
     console.error("[TEAM LINK STARTUP FAILED]", error);
     showStartupFailure(error);
   });
 });
 
-async function startTeamLinkApplication() {
+async function startTeamLinkApplication(lineCouponReturnState = null) {
   updateStartupStatus("LIFF SDK 読み込み中");
   ensureDemoState();
   applyStoreSettings();
@@ -655,6 +664,16 @@ async function startTeamLinkApplication() {
   bindForms();
   bindBookingFormInputs();
   bindHomeCarousel();
+
+  if (canResumeLineCouponView(lineCouponReturnState)) {
+    resumeLineCouponView(lineCouponReturnState);
+    refreshLiffAfterLineCouponReturn().catch((error) => {
+      console.warn("[TEAM LINK LINE COUPON BACKGROUND LIFF REFRESH FAILED]", {
+        message: String(error?.message || error)
+      });
+    });
+    return;
+  }
 
   const liffContext = await initializeTeamLinkLiff();
   if (liffContext.redirecting) return;
@@ -682,9 +701,9 @@ async function startTeamLinkApplication() {
   updateStartupStatus(initialView === "home" ? "ホーム表示" : `${initialView}表示`, liffContext);
   document.getElementById("splashScreen")?.classList.add("is-hidden");
   if (isProductionApiMode()) {
-    syncProductionState({ renderDuringSync: true, skipCatalog: true }).catch((error) => {
-      console.warn("[TEAM LINK BACKGROUND SYNC FAILED]", error);
-    });
+    if (TEAM_LINK_GACHA_ROUTE_KEYS.has(initialView)) {
+      ensureProductionGachaState().catch((error) => console.warn("[TEAM LINK GACHA SYNC FAILED]", error));
+    }
   }
 }
 
@@ -2208,14 +2227,12 @@ function renderApp() {
   renderHome();
   renderReservationStatus();
   renderCoupons();
-  renderFortune();
-  renderGacha();
-  renderMyCards();
-  renderCollectionRewardsPage();
-  renderGachaHistoryPage();
   renderLounge();
   renderMyPage();
   renderAdmin();
+  const routeKey = Object.keys(viewMap).find((key) => viewMap[key] === appState.currentView) || "home";
+  if (routeKey === "fortune") renderFortune();
+  if (TEAM_LINK_GACHA_ROUTE_KEYS.has(routeKey)) renderGachaCollectionViews();
 }
 
 function renderGachaCollectionViews() {
@@ -2420,6 +2437,9 @@ function showView(viewKey, options = {}) {
   if (routeKey === "lounge") renderLounge();
   if (routeKey === "mypage") renderMyPage();
   if (routeKey === "admin") renderAdmin();
+  if (TEAM_LINK_GACHA_ROUTE_KEYS.has(routeKey) && isProductionApiMode()) {
+    ensureProductionGachaState().catch((error) => console.warn("[TEAM LINK GACHA SYNC FAILED]", error));
+  }
 }
 
 window.addEventListener("popstate", () => {
@@ -2597,6 +2617,7 @@ function renderFortune() {
   }
 
   appState.fortuneLoading = true;
+  const renderSequence = ++teamFortuneRenderSequence;
   const startedAt = performance.now();
   container.innerHTML = `
     <article class="fortune-card team-fortune-loading">
@@ -2608,6 +2629,7 @@ function renderFortune() {
   startTeamFortuneLoadingMessages(container);
   loadTeamFortune(birthDate)
     .then((result) => {
+      if (renderSequence !== teamFortuneRenderSequence || appState.currentView !== viewMap.fortune) return;
       stopTeamFortuneLoadingMessages();
       appState.fortuneLoading = false;
       container.innerHTML = renderTeamFortuneResult(result);
@@ -2617,6 +2639,7 @@ function renderFortune() {
       console.info("[TEAM Fortune Load]", { elapsedMs: Math.round(performance.now() - startedAt), cache: teamFortuneSessionCache.has(`${birthDate}|${jstDateKey()}`) });
     })
     .catch((error) => {
+      if (renderSequence !== teamFortuneRenderSequence || appState.currentView !== viewMap.fortune) return;
       stopTeamFortuneLoadingMessages();
       appState.fortuneLoading = false;
       console.warn("[TEAM Fortune] result unavailable", error);
@@ -3488,10 +3511,53 @@ function rememberLineCouponReturnScroll() {
   try {
     sessionStorage.setItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY, JSON.stringify({
       scrollY: Math.max(0, Math.round(window.scrollY || 0)),
-      savedAt: Date.now()
+      savedAt: Date.now(),
+      returnView: "coupons",
+      couponCatalogReady: appState.couponMasterSyncStatus === "synced",
+      memberCouponsReady: appState.memberCouponSyncStatus === "synced"
     }));
   } catch (error) {
     console.warn("[TEAM LINK COUPON SCROLL SAVE FAILED]", error);
+  }
+}
+
+function getLineCouponReturnState() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(TEAM_LINK_COUPON_RETURN_SCROLL_KEY) || "null");
+    if (!saved || Date.now() - Number(saved.savedAt || 0) > 30 * 60 * 1000) return null;
+    return saved;
+  } catch (_) {
+    return null;
+  }
+}
+
+function canResumeLineCouponView(saved) {
+  return Boolean(
+    saved &&
+    saved.returnView === "coupons" &&
+    saved.couponCatalogReady === true &&
+    Array.isArray(readJson(STORAGE_KEYS.adminCoupons, null))
+  );
+}
+
+function resumeLineCouponView(saved) {
+  appState.couponMasterSyncStatus = "synced";
+  if (saved.memberCouponsReady === true && Array.isArray(readJson(STORAGE_KEYS.myCoupons, null))) {
+    appState.memberCouponSyncStatus = "synced";
+  }
+  renderApp();
+  showView("coupons", { replace: true });
+  document.getElementById("splashScreen")?.classList.add("is-hidden");
+  restoreLineCouponReturnScroll();
+}
+
+async function refreshLiffAfterLineCouponReturn() {
+  const previousLineUserId = String(getProfile()?.lineUserId || "");
+  const liffContext = await initializeTeamLinkLiff();
+  if (liffContext.redirecting) return;
+  const currentLineUserId = String(getProfile()?.lineUserId || "");
+  if (previousLineUserId && currentLineUserId && previousLineUserId !== currentLineUserId && isProductionApiMode()) {
+    await syncProductionState({ renderDuringSync: true, essentialOnly: true, throwOnError: true });
   }
 }
 
@@ -10858,6 +10924,19 @@ function endOfMonthLabel() {
 async function apiRequest(action, payload = {}, options = {}) {
   const apiUrl = options.apiUrl || TEAM_LINK_API_URL;
   if (!apiUrl) throw new Error("TEAM LINK APIが設定されていません。");
+  if (!options.skipDedupe && TEAM_LINK_DEDUPED_API_ACTIONS.has(action)) {
+    const dedupeKey = `${apiUrl}|${getApiSessionToken()}|${action}|${JSON.stringify(payload || {})}`;
+    const existing = teamLinkApiInFlight.get(dedupeKey);
+    if (existing) return existing;
+    const request = apiRequest(action, payload, { ...options, skipDedupe: true });
+    teamLinkApiInFlight.set(dedupeKey, request);
+    try {
+      return await request;
+    } finally {
+      if (teamLinkApiInFlight.get(dedupeKey) === request) teamLinkApiInFlight.delete(dedupeKey);
+    }
+  }
+  const requestStartedAt = performance.now();
   const requestPayload = { action, payload: payload || {}, sessionToken: getApiSessionToken() };
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), getApiTimeoutMs(action));
@@ -10920,6 +10999,9 @@ async function apiRequest(action, payload = {}, options = {}) {
     throw error;
   } finally {
     window.clearTimeout(timer);
+    if (TEAM_LINK_PERF_ENABLED) {
+      console.info("[TEAM LINK PERF]", { action, durationMs: Math.round(performance.now() - requestStartedAt) });
+    }
   }
 }
 
@@ -11045,54 +11127,80 @@ async function syncProductionState(options = {}) {
       return { catalogSynced: true, userKeyPresent: Boolean(userKey) };
     }
 
-    const currentGachaMonth = currentMonthKey();
-    const productionSyncRequests = [
-      { action: "getGachaConfig", request: apiRequest("getGachaConfig", { targetYearMonth: currentGachaMonth }) },
-      { action: "getPublishedRewards", request: apiRequest("getPublishedRewards", { targetYearMonth: currentGachaMonth }) },
-      { action: "getUserCoupons", request: apiRequest("getUserCoupons", { userId: userKey }) },
-      { action: "checkMonthlyDrawStatus", request: apiRequest("checkMonthlyDrawStatus", { userId: userKey, memberId: userKey, lineUserId: profile.lineUserId || "", targetYearMonth: currentGachaMonth }) },
-      { action: "getUserBinder", request: apiRequest("getUserBinder", { userId: userKey, year: String(currentYear()) }) },
-      { action: "getPastBinderHistory", request: apiRequest("getPastBinderHistory", { userId: userKey, currentYear: String(currentYear()) }) },
-      { action: "getCollectionRewards", request: apiRequest("getCollectionRewards", { userId: userKey, targetYear: String(currentYear()) }) }
-    ];
-    const results = await Promise.allSettled(productionSyncRequests.map((item) => item.request));
-    const [gachaConfig, gachaRewards, gachaCoupons, drawStatus, binder, pastBinders, collectionRewards] = results.map((result, index) => {
-      if (result.status === "fulfilled") return result.value;
-      const error = result.reason;
-      console.warn("[TEAM LINK API PARTIAL SYNC FAILED]", {
-        index,
-        action: productionSyncRequests[index]?.action || "unknown",
-        httpStatus: error?.httpStatus || "unknown",
-        errorCode: error?.errorCode || "",
-        message: error?.message || String(error),
-        responseBody: error?.responseBody || "",
-        requestUrl: error?.requestUrl || TEAM_LINK_API_URL
-      });
-      return {};
-    });
-    if (gachaRewards.data?.rewards) mergeServerGachaRewards(gachaRewards.data.rewards);
-    if (gachaCoupons.data?.coupons) replaceServerGachaCoupons(gachaCoupons.data.coupons, userKey);
-    if (drawStatus.data?.canDraw === true && drawStatus.data?.alreadyDrawn === false) {
-      removeLocalGachaDrawForUserMonth(userKey, drawStatus.data.targetYearMonth || currentMonthKey());
-    } else if (drawStatus.data?.draw) {
-      upsertLocalGachaDraw(mapServerGachaDrawToLocal(drawStatus.data.draw, drawStatus.data.coupon || {}));
-    }
-    if (binder.data?.cards) mergeServerBinderCards(binder.data.cards);
-    if (pastBinders.data?.years) Object.values(pastBinders.data.years).forEach(mergeServerBinderCards);
-    if (collectionRewards.data?.rewards) mergeServerCollectionRewards(collectionRewards.data.rewards);
-    if (gachaConfig.data?.config?.currentYearMonth) {
-      const settings = getGachaSettings();
-      if (!settings.some((setting) => setting.issueMonth === gachaConfig.data.config.currentYearMonth)) {
-        writeGachaSettings([{ issueMonth: gachaConfig.data.config.currentYearMonth, title: "本番ガチャ", status: "公開" }, ...settings]);
-      }
-    }
-    if (appState.currentView === "adminView" && getAdminSession()) await syncProductionAdminState({ render: false });
-    if (options.renderDuringSync !== false) renderApp();
-    return { catalogSynced: !catalogError, secondarySyncComplete: true };
+    if (options.includeGacha) await ensureProductionGachaState();
+    return { catalogSynced: !catalogError, secondarySyncComplete: Boolean(options.includeGacha) };
   } catch (error) {
     if (options.throwOnError) throw error;
     showToast("通信に失敗しました。時間をおいてもう一度お試しください");
     return { error };
+  }
+}
+
+async function ensureProductionGachaState() {
+  if (!isProductionApiMode()) return null;
+  if (teamLinkGachaSyncPromise) return teamLinkGachaSyncPromise;
+  const profile = getProfile();
+  const userKey = getCurrentUserKey();
+  const payload = {
+    userId: userKey,
+    memberId: userKey,
+    lineUserId: profile.lineUserId || "",
+    targetYearMonth: currentMonthKey(),
+    year: String(currentYear()),
+    currentYear: String(currentYear()),
+    targetYear: String(currentYear())
+  };
+  const startedAt = performance.now();
+  teamLinkGachaSyncPromise = apiRequest("getGachaBootstrap", payload)
+    .then((result) => {
+      applyProductionGachaBootstrap(result.data || result, userKey);
+      renderHome();
+      if (TEAM_LINK_GACHA_ROUTE_KEYS.has(Object.keys(viewMap).find((key) => viewMap[key] === appState.currentView))) {
+        renderGachaCollectionViews();
+      }
+      if (TEAM_LINK_PERF_ENABLED) {
+        console.info("[TEAM LINK PERF]", { action: "gacha.usable", durationMs: Math.round(performance.now() - startedAt) });
+      }
+      return result;
+    })
+    .catch((error) => {
+      console.error("[TEAM LINK GACHA BOOTSTRAP FAILED]", {
+        action: "getGachaBootstrap",
+        httpStatus: error?.httpStatus || "unknown",
+        errorCode: error?.errorCode || "",
+        message: error?.message || String(error)
+      });
+      throw error;
+    })
+    .finally(() => {
+      teamLinkGachaSyncPromise = null;
+    });
+  return teamLinkGachaSyncPromise;
+}
+
+function applyProductionGachaBootstrap(data, userKey) {
+  const gachaConfig = data.config || {};
+  const gachaRewards = data.rewards || {};
+  const gachaCoupons = data.coupons || {};
+  const drawStatus = data.drawStatus || {};
+  const binder = data.binder || {};
+  const pastBinders = data.pastBinders || {};
+  const collectionRewards = data.collectionRewards || {};
+  if (gachaRewards.rewards) mergeServerGachaRewards(gachaRewards.rewards);
+  if (gachaCoupons.coupons) replaceServerGachaCoupons(gachaCoupons.coupons, userKey);
+  if (drawStatus.canDraw === true && drawStatus.alreadyDrawn === false) {
+    removeLocalGachaDrawForUserMonth(userKey, drawStatus.targetYearMonth || currentMonthKey());
+  } else if (drawStatus.draw) {
+    upsertLocalGachaDraw(mapServerGachaDrawToLocal(drawStatus.draw, drawStatus.coupon || {}));
+  }
+  if (binder.cards) mergeServerBinderCards(binder.cards);
+  if (pastBinders.years) Object.values(pastBinders.years).forEach(mergeServerBinderCards);
+  if (collectionRewards.rewards) mergeServerCollectionRewards(collectionRewards.rewards);
+  if (gachaConfig.config?.currentYearMonth) {
+    const settings = getGachaSettings();
+    if (!settings.some((setting) => setting.issueMonth === gachaConfig.config.currentYearMonth)) {
+      writeGachaSettings([{ issueMonth: gachaConfig.config.currentYearMonth, title: "本番ガチャ", status: "公開" }, ...settings]);
+    }
   }
 }
 

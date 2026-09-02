@@ -12,13 +12,13 @@ test("uses the LIFF ID registered in LINE Developers", () => {
 
 test("loads the official LIFF SDK before the application", () => {
   const sdkIndex = html.indexOf("https://static.line-scdn.net/liff/edge/2/sdk.js");
-  const appIndex = html.indexOf("app.js?v=20260901-line-coupon-return-1");
+  const appIndex = html.indexOf("app.js?v=20260902-stability-1");
   assert.ok(sdkIndex >= 0);
   assert.ok(appIndex > sdkIndex);
 });
 
 test("waits for LIFF identity and customer data before opening a deep link", () => {
-  const start = app.indexOf("async function startTeamLinkApplication()");
+  const start = app.indexOf("async function startTeamLinkApplication(");
   const end = app.indexOf("async function initializeTeamLinkLiff()", start);
   const body = app.slice(start, end);
   const liffIndex = body.indexOf("await initializeTeamLinkLiff()");

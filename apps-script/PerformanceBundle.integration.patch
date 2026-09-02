@@ -1,0 +1,11 @@
+--- コード.gs
++++ コード.gs
+@@ routeTeamLinkAction_
++    case "getGachaBootstrap":
++      return getGachaBootstrap_(payload);
+@@ getSheetObjects_
+ function getSheetObjects_(ss, sheetName) {
++  if (typeof TEAM_LINK_BUNDLE_READ_CACHE_ !== "undefined" && TEAM_LINK_BUNDLE_READ_CACHE_) {
++    return getTeamLinkBundleSheetObjects_(ss, sheetName);
++  }
+   const sheet = ensureSheet_(ss, sheetName, TEAM_LINK_SHEETS[sheetName]);

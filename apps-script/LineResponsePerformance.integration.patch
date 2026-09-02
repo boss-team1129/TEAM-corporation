@@ -1,0 +1,40 @@
+--- コード.gs
++++ コード.gs
+@@ resolveOrRegisterLineMember_
+-function resolveOrRegisterLineMember_(ss, messageText, lineUserId, lineDisplayName, nowValue) {
++function resolveOrRegisterLineMember_(ss, messageText, lineUserId, lineDisplayName, nowValue, loadedMembers) {
+@@
+-    const members = getSheetObjects_(ss, "Members");
++    const members = Array.isArray(loadedMembers) ? loadedMembers : getSheetObjects_(ss, "Members");
+@@ receiveLineMessage_
+     const resolvedMember = resolveOrRegisterLineMember_(
+       ss,
+       messageText,
+       lineUserId,
+       payload.lineDisplayName || "",
+-      now
++      now,
++      members
+     );
+@@ after MEMBER_RESOLVED, before VisitReceptions read
++  const personalMenu = buildLinkedMemberMenu_(member);
++  const linePush = sendLinkedMemberMenu_(lineUserId, personalMenu, { skipExternalSend: isTest });
++  logLineWebhookPerformance_(linePerf, "LINE_MENU_PUSH_COMPLETE", {
++    status: linePush && linePush.success === false ? "failed" : "success",
++    lineHttpStatus: Number(linePush && (linePush.httpStatus || linePush.status) || 0),
++    memberFound: true,
++    linked: true,
++    visitRecorded: false
++  });
+   const messageId = String(payload.messageId || "").trim();
+   const receptions = getSheetObjects_(ss, "VisitReceptions");
+@@ old push block after duplicate check
+-  const personalMenu = buildLinkedMemberMenu_(member);
+-  const linePush = sendLinkedMemberMenu_(lineUserId, personalMenu, { skipExternalSend: isTest });
+-  logLineWebhookPerformance_(linePerf, "LINE_MENU_PUSH_COMPLETE", {
+-    status: linePush && linePush.success === false ? "failed" : "success",
+-    lineHttpStatus: Number(linePush && (linePush.httpStatus || linePush.status) || 0),
+-    memberFound: true,
+-    linked: true,
+-    visitRecorded: false
+-  });
